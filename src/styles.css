@@ -1,0 +1,95 @@
+@font-face {
+  font-family: Vazirmatn;
+  src: url("/assets/Vazirmatn.woff2") format("woff2"), url("/assets/Vazirmatn.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: block;
+}
+:root {
+  font-family: Vazirmatn, sans-serif;
+  color: #111;
+  background: #f4f5f7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.design-node {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.design-node:focus-visible {
+  outline: 2px solid #007afe;
+  outline-offset: 3px;
+}
+button.design-node {
+  cursor: pointer;
+}
+.source-text {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* The frame's text node is one line tall (~14 px); the input keeps that text position
+   but gets a finger-sized hit area inside the field box. */
+.design-node input {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 40px;
+  transform: translateY(-50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-family: Vazirmatn;
+  line-height: 14px;
+}
+.design-node input::placeholder {
+  color: inherit;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.design-node textarea {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  resize: none;
+  outline-offset: 3px;
+  font: inherit;
+  color: inherit;
+}
