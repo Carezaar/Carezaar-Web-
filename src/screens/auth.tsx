@@ -1,0 +1,582 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ApiError } from "../api/errors";
+import { authService, userService } from "../api/services";
+import type { UserRole } from "../api/types";
+import {
+  OTP_LENGTH, isPasswordValid, passwordRules, validateConfirmation, validateEmail, required,
+} from "../validation/validation";
+import { useSession } from "../auth/SessionContext";
+import { useBaseData, TABLE_LABELS } from "../app/baseData";
+import { useFeedback } from "../app/feedback";
+import { useI18n } from "../app/i18n";
+import { useSignUp } from "../app/signup";
+import { requestNotificationPermission } from "../app/notifications";
+import { FigmaScreen, type SceneOverlay } from "../figma/FigmaScreen";
+import { semanticLabel, type SceneBinder } from "../figma/binder";
+import type { DesignNode } from "../design/types";
+import { BackHeader, Page } from "../ui/layout";
+import { Button, Checkbox, Dialog, TextField } from "../ui/kit";
+import { Icon } from "../ui/Icon";
+
+/** The frame's password-rule chips (Frame 5) are drawn in fixed met/unmet states; the
+ *  live `RuleChips` replace them. */
+const RULE_CHIP_ROW = "56:84399";
+
+/* ---------------------------------------------------------------- Splash */
+
+/** `Splash` — v2 design 195:11749, plus the Android "Please wait…" sheet that lists
+ *  every base table while the local cache is first populated. */
+export function SplashScreen({ unreachable = false, onRetry }: { unreachable?: boolean; onRetry?: () => void } = {}) {
+  const { pending, progress, failed: tablesFailed, reload } = useBaseData();
+  const failed = tablesFailed || unreachable;
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(true);
+  const binder = useMemo<SceneBinder>(() => ({ handle: () => true }), []);
+  return (
+    <div className="splash">
+      <FigmaScreen sceneKey="v2-195-11749" binder={binder} />
+      <div className="splash-progress" role="progressbar" aria-valuenow={Math.round(progress * 100)}
+        aria-valuemin={0} aria-valuemax={100}>
+        <span style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+      {pending.length > 0 && (
+        <div className="busy-card splash-sheet">
+          <div className="busy-head">
+            <span className="spinner" aria-hidden="true" />
+            <strong>{t("loading_please_wait", "Please wait…")}</strong>
+          </div>
+          {expanded && (
+            <ul>{pending.map((p) => (
+              <li key={p}>- {t(`loading_base_${p}`, TABLE_LABELS[p] ?? p)}</li>
+            ))}</ul>
+          )}
+          <button type="button" className="icon-btn" onClick={() => setExpanded((e) => !e)}
+            aria-label={expanded ? "Collapse" : "Expand"}>
+            <Icon name={expanded ? "ic_chevron_up" : "ic_chevron_down"} size={22} tint="var(--primary)" />
+          </button>
+        </div>
+      )}
+      {failed && (
+        <div className="busy-card splash-sheet" role="alert">
+          <strong>{t("general_network_title", "Cannot communicate with server.")}</strong>
+          <Button onClick={() => (onRetry ? onRetry() : void reload(true))}>{t("general_try_again", "Try Again")}</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- Intro */
+
+/** `Intro` — v2 design 16:14997: role cards, sign-in link, language selector. */
+export function IntroScreen() {
+  const navigate = useNavigate();
+  const { update } = useSignUp();
+  const { languages, languageId, setLanguage, t } = useI18n();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const start = useCallback((role: UserRole) => {
+    update({ role, isPasswordRecovery: false });
+    navigate(`/sign-up/${role}`);
+  }, [navigate, update]);
+
+  const binder = useMemo<SceneBinder>(() => ({
+    // The frame's own language pill is replaced by a working one in the same box.
+    // The language pill and the "Sign in" link are real controls placed over the
+    // frame: the link's 59px group cannot hold longer translations.
+    isHidden: (n) => n.name === "Lanuage" || n.name === "Group 1",
+    // The server's English for this slug is empty, so the reverse lookup from the
+    // scene copy can't find it; map it explicitly.
+    text: (n) => (languageId !== 1 && n.text?.startsWith("For myself") ? t("intro_client_description", "") || undefined : undefined),
+    handle: (n) => {
+      const label = semanticLabel(n);
+      if (label.includes("sign in")) { navigate("/sign-in"); return true; }
+      if (label.includes("caregiver")) { start("caregiver"); return true; }
+      if (label.includes("need care") || n.actionTarget) { start("client"); return true; }
+      return false;
+    },
+  }), [navigate, start, languageId, t]);
+
+  const current = languages.find((l) => l.id === languageId);
+  const overlays: SceneOverlay[] = [{
+    x: 20, y: 846, width: 372, height: 32,
+    content: (
+      <button type="button" className="link intro-signin" onClick={() => navigate("/sign-in")}>
+        {t("intro_sign_in", "Sign in")}
+        <Icon name="ic_arrow_forward" size={14} tint="var(--primary)" className="flip-rtl" />
+      </button>
+    ),
+  }, {
+    x: 262, y: 16, width: 134, height: 36,
+    content: (
+      <button type="button" className="language-pill" onClick={() => setMenuOpen((o) => !o)}
+        aria-haspopup="listbox" aria-expanded={menuOpen}>
+        <Icon name="ic_intl" size={22} tint="var(--text)" />
+        <span>{current?.name ?? "English"}</span>
+        <Icon name={menuOpen ? "ic_chevron_up" : "ic_chevron_down"} size={18} tint="var(--text)" />
+      </button>
+    ),
+  }];
+  if (menuOpen) {
+    overlays.push({
+      x: 262, y: 58, width: 134, height: 44 * languages.length,
+      content: (
+        <ul className="language-menu" role="listbox">
+          {languages.map((l) => (
+            <li key={l.id}>
+              <button type="button" role="option" aria-selected={l.id === languageId}
+                className={l.id === languageId ? "on" : ""}
+                onClick={() => { setLanguage(l); setMenuOpen(false); }}>{l.name}</button>
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+  return <FigmaScreen sceneKey="v2-16-14997" binder={binder} overlays={overlays} />;
+}
+
+/* --------------------------------------------------------------- Sign in */
+
+/** `SignIn` — v2 design 51:5170. "Forgot Password" and "Sign Up", which the Android
+ *  app has but the frame does not, are placed in the frame's own gaps. */
+export function SignInScreen() {
+  const navigate = useNavigate();
+  const { signIn } = useSession();
+  const { t, languageId } = useI18n();
+  const { act, toast, messageOf } = useFeedback();
+  const { update } = useSignUp();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const canSubmit = email.trim() !== "" && password !== "" && !busy;
+
+  const submit = useCallback(async () => {
+    const problem = validateEmail(email) ?? required(password, t("signin_password", "Password"));
+    if (problem) { toast(problem); return; }
+    requestNotificationPermission();
+    setBusy(true);
+    try {
+      // The signed-out route guard moves the user into the app once the session exists.
+      await act(t("loading_auth_login", "Signing in"), () => signIn(email.trim(), password));
+    } catch (e) {
+      toast(e instanceof ApiError && e.kind === "validation"
+        ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [email, password, act, signIn, t, toast, messageOf]);
+
+  const binder = useMemo<SceneBinder>(() => ({
+    binding: (n) => n.inputType === "email" ? { value: email, onChange: setEmail }
+      : n.inputType === "password" ? { value: password, onChange: setPassword } : undefined,
+    // The content table has no translation for this subtitle; show it in English only.
+    isHidden: (n) => languageId !== 1 && n.text === "Sign in to continue to Carezaar.",
+    handle: (n) => {
+      if (n.name === "Header" || n.name === "Back") { navigate(-1); return true; }
+      if (n.name === "Button") { void submit(); return true; }
+      return false;
+    },
+    isEnabled: (n) => (n.name === "Button" ? canSubmit : true),
+    opacity: (n) => (n.name === "Button" && !canSubmit ? 0.45 : undefined),
+    inputType: (n) => (n.inputType === "password" && revealed ? "text" : undefined),
+  }), [email, password, submit, canSubmit, navigate, languageId, revealed]);
+
+  // The frame has no <form>, so Enter in either field would otherwise do nothing.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" || (e.target as HTMLElement).tagName !== "INPUT" || !canSubmit) return;
+    e.preventDefault();
+    void submit();
+  };
+
+  return (
+    <div style={{ display: "contents" }} onKeyDown={onKeyDown}>
+    <FigmaScreen sceneKey="v2-51-5170" binder={binder} overlays={[
+      // The frame's eye (node "Visibility", 352,351) is drawn, not wired; this is the toggle.
+      { x: 348, y: 347, width: 32, height: 32, content: (
+        <PasswordToggle revealed={revealed} onToggle={() => setRevealed((r) => !r)} />
+      ) },
+      { x: 20, y: 409, width: 372, height: 30, content: (
+        <button type="button" className="link link-end" onClick={() => {
+          update({ isPasswordRecovery: true }); navigate("/forgot-password");
+        }}>{t("signin_forgot_password", "Forgot Password")}</button>
+      ) },
+      { x: 20, y: 510, width: 372, height: 60, content: (
+        <p className="center-row">
+          <span className="muted">{t("signin_donot_have_account", "Don't have an account yet?")}</span>{" "}
+          <button type="button" className="link" onClick={() => navigate("/intro")}>
+            {t("signin_sign_up", "Sign Up")}
+          </button>
+        </p>
+      ) },
+    ]} />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------- Create account */
+
+/** `SignUpCredentials/{role}` — v2 design 56:84378, which contains the full form and
+ *  the "Are you sure?" dialog. The dialog nodes stay hidden until Continue.
+ *
+ *  Kotlin sequence: register → hold credentials in memory → otp/send → OTP. */
+export function SignUpCredentialsScreen() {
+  const { role = "client" } = useParams<{ role: UserRole }>();
+  const navigate = useNavigate();
+  const { t, label, languageId } = useI18n();
+  const { act, toast, messageOf } = useFeedback();
+  const { state: signUp, update } = useSignUp();
+  const { items } = useBaseData();
+  const country = items("countries").find((c) => c.id === signUp.countryId) ?? items("countries")[0];
+
+  const [email, setEmail] = useState(signUp.email);
+  const [password, setPassword] = useState(signUp.password);
+  const [confirmation, setConfirmation] = useState(signUp.password);
+  const [revealPassword, setRevealPassword] = useState(false);
+  const [revealConfirm, setRevealConfirm] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [licenseOpen, setLicenseOpen] = useState(false);
+  const [pickingCountry, setPickingCountry] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const rules = useMemo(() => passwordRules(password), [password]);
+  const valid = validateEmail(email) === null && isPasswordValid(password)
+    && password === confirmation && accepted;
+
+  const proceed = useCallback(() => {
+    const problem = validateEmail(email)
+      ?? (isPasswordValid(password) ? null : t("general_required", "This field is required."))
+      ?? validateConfirmation(password, confirmation);
+    setError(problem === "Passwords do not match." ? t("signup_credentials_password_match", problem) : problem);
+    if (!problem && accepted) setConfirming(true);
+  }, [email, password, confirmation, accepted, t]);
+
+  const confirm = useCallback(async () => {
+    setConfirming(false);
+    try {
+      await act(t("loading_auth_register", "Registering"), async () => {
+        await authService.register(country?.id ?? 1, role, email.trim(), password);
+        update({ role, countryId: country?.id ?? 1, email: email.trim(), password, isPasswordRecovery: false });
+        await userService.sendOTP(email.trim());
+      });
+      navigate("/otp");
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "validation") {
+        setError(e.fieldError("email") ?? e.fieldError("password") ?? e.message);
+      } else toast(messageOf(e));
+    }
+  }, [act, t, country, role, email, password, update, navigate, toast, messageOf]);
+
+  const binder = useMemo<SceneBinder>(() => {
+    const isDialogNode = (n: DesignNode) => n.name === "Dialog" || n.name === "Rectangle 2931";
+    return {
+      binding: (n) => n.inputType === "email" ? { value: email, onChange: setEmail }
+        : n.inputType === "password" ? { value: password, onChange: setPassword } : undefined,
+      handle: (n) => {
+        const text = semanticLabel(n);
+        if (n.name === "Header" || n.name === "Back") { navigate(-1); return true; }
+        if (n.name === "Info") { toast(t("signup_credentials_country_hint")); return true; }
+        if (n.name === "Button" && text.includes("edit")) { setConfirming(false); return true; }
+        if (n.name === "Button" && text.includes("confirm")) { void confirm(); return true; }
+        if (n.name === "Button") { proceed(); return true; }
+        return false;
+      },
+      isHidden: (n) => (isDialogNode(n) && !confirming)
+        || n.id === RULE_CHIP_ROW
+        // Two lines with the values in blue, drawn as an overlay below.
+        || n.name === "Credentials"
+        || (n.name === "Error" && !error)
+        || n.text === "Confirm your password..."
+        // No translation exists for this hint; the rule chips carry the same rules.
+        || (languageId !== 1 && Boolean(n.text?.startsWith("Use 8 or more characters"))),
+      isEnabled: (n) => (n.name === "Button" && !semanticLabel(n).match(/edit|confirm/) ? valid : true),
+      opacity: (n) => {
+        if (n.name === "Button" && !semanticLabel(n).match(/edit|confirm/) && !valid) return 0.45;
+        return undefined;
+      },
+      text: (n) => {
+        if (n.name === "Error") return error ?? undefined;
+        if (n.name === "United States") return label(country);
+        return undefined;
+      },
+      inputType: (n) => (n.inputType === "password" && revealPassword ? "text" : undefined),
+    };
+  }, [email, password, confirming, error, valid, country, label, t, toast, navigate, proceed, confirm, languageId, revealPassword]);
+
+  return (
+    <>
+      <FigmaScreen sceneKey="v2-56-84378" binder={binder} overlays={[
+        // Overlays sit above the frame; keep the chips out of the confirmation dialog.
+        ...(confirming ? [{ x: 58, y: 448, width: 296, height: 48, content: (
+          <div className="dialog-credentials">
+            <span>{t("signup_credentials_country_label", "Country")}: <b>{label(country)}</b></span>
+            <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{email}</b></span>
+          </div>
+        ) }] : [
+          { x: 20, y: 514, width: 372, height: 32, content: <RuleChips rules={rules} /> },
+          { x: 348, y: 444, width: 32, height: 32, content: (
+            <PasswordToggle revealed={revealPassword} onToggle={() => setRevealPassword((r) => !r)} />
+          ) },
+          // Android's country field is a dropdown; the frame draws it as a static box.
+          { x: 20, y: 206, width: 330, height: 56, content: (
+            <button type="button" className="scene-hit" aria-haspopup="dialog"
+              aria-label={`${t("signup_credentials_country_label", "Country")}: ${label(country)}`}
+              onClick={() => setPickingCountry(true)} />
+          ) },
+        ]),
+        { x: 68, y: 617, width: 278, height: 56, content: (
+          <input className="scene-input" aria-label={t("signup_credentials_confirm_password", "Confirm Password")}
+            type={revealConfirm ? "text" : "password"} value={confirmation}
+            placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")}
+            onChange={(e) => setConfirmation(e.target.value)} autoComplete="new-password" />
+        ) },
+        { x: 348, y: 629, width: 32, height: 32, content: (
+          <PasswordToggle revealed={revealConfirm} onToggle={() => setRevealConfirm((r) => !r)} />
+        ) },
+        { x: 20, y: 676, width: 372, height: 28, content: (
+          <Checkbox checked={accepted} onChange={setAccepted}>
+            {t("signup_credentials_accept_label", "I accept the")}{" "}
+            <button type="button" className="link" onClick={(e) => { e.preventDefault(); setLicenseOpen(true); }}>
+              {t("signup_credentials_accept_license", "license agreement")}
+            </button>
+          </Checkbox>
+        ) },
+      ]} />
+      <Dialog open={pickingCountry} onClose={() => setPickingCountry(false)}
+        title={t("signup_credentials_country_label", "Country")} labelledBy="country-title">
+        <div className="option-list" role="listbox">
+          {items("countries").map((c) => (
+            <button key={c.id} type="button" role="option" aria-selected={c.id === country?.id}
+              className={`option-row ${c.id === country?.id ? "on" : ""}`}
+              onClick={() => { update({ countryId: c.id }); setPickingCountry(false); }}>
+              {c.icon && <Icon name={c.icon} size={24} />}
+              <span className="option-label">{label(c)}</span>
+              {c.id === country?.id && <Icon name="ic_check" size={18} tint="var(--primary)" />}
+            </button>
+          ))}
+        </div>
+        <p className="muted small">{t("signup_credentials_country_hint", "")}</p>
+      </Dialog>
+      <Dialog open={licenseOpen} onClose={() => setLicenseOpen(false)}
+        title={capitalized(t("signup_credentials_accept_license", "License agreement"))} labelledBy="eula">
+        <div className="eula">{t("signup_credentials_accept_contents", "")}</div>
+        <Button onClick={() => { setAccepted(true); setLicenseOpen(false); }}>{t("general_confirm", "Confirm")}</Button>
+      </Dialog>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------- OTP */
+
+function useCountdown(seconds: number) {
+  const [left, setLeft] = useState(seconds);
+  useEffect(() => {
+    if (left <= 0) return;
+    const id = window.setTimeout(() => setLeft((l) => l - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [left]);
+  const mmss = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
+  return { left, mmss, restart: () => setLeft(seconds) };
+}
+
+/** Five single-digit boxes. Typing advances, backspace retreats, and a pasted or
+ *  autofilled code (browsers put one-time codes into the first box) fills them all.
+ *  There is deliberately no `maxLength`: it would truncate the paste to one digit. */
+function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = Array.from({ length: OTP_LENGTH }, (_, i) => value[i] ?? "");
+  const spread = (from: number, typed: string) => {
+    const next = digits.slice();
+    typed.split("").slice(0, OTP_LENGTH - from).forEach((d, k) => { next[from + k] = d; });
+    onChange(next.join("").slice(0, OTP_LENGTH));
+    refs.current[Math.min(from + typed.length, OTP_LENGTH - 1)]?.focus();
+  };
+  return (
+    <div className="otp-boxes" dir="ltr">
+      {digits.map((d, i) => (
+        <input key={i} ref={(el) => { refs.current[i] = el; }} inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"} aria-label={`Digit ${i + 1}`} value={d}
+          onPaste={(e) => { e.preventDefault(); spread(i, e.clipboardData.getData("text").replace(/\D/g, "")); }}
+          onChange={(e) => {
+            const typed = e.target.value.replace(/\D/g, "");
+            if (typed.length > 1) {
+              // Either an autofill/paste into this box, or a digit typed over an existing one.
+              spread(i, typed.length === 2 && d ? typed.replace(d, "") || typed.slice(-1) : typed);
+              return;
+            }
+            const next = digits.slice(); next[i] = typed; onChange(next.join(""));
+            if (typed && i < OTP_LENGTH - 1) refs.current[i + 1]?.focus();
+          }}
+          onKeyDown={(e) => { if (e.key === "Backspace" && !d && i > 0) refs.current[i - 1]?.focus(); }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** `OTP` — shared by signup and password recovery. Verifying in signup goes straight
+ *  to the profile step without signing in, as Android does. */
+export function OtpScreen() {
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const { act, toast, messageOf } = useFeedback();
+  const { state: signUp } = useSignUp();
+  const [code, setCode] = useState("");
+  const { left, mmss, restart } = useCountdown(120);
+
+  useEffect(() => { if (!signUp.email) navigate("/intro", { replace: true }); }, [signUp.email, navigate]);
+
+  const submit = async () => {
+    try {
+      await act(t("loading_user_otp_verify", "Verifying OTP code"), () => userService.verifyOTP(signUp.email, code));
+      navigate(signUp.isPasswordRecovery ? "/setup-password" : "/sign-up/profile", { state: { otp: code } });
+    } catch (e) { toast(messageOf(e)); }
+  };
+  const resend = async () => {
+    try {
+      await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(signUp.email));
+      restart();
+    } catch (e) { toast(messageOf(e)); }
+  };
+
+  return (
+    <Page header={<BackHeader title={t("signup_otp_title", "OTP Confirmation")} />}>
+      <div className="stack center">
+        <p className="lead">{t("signup_otp_message", "Kindly enter the 5-digit OTP that we sent to your email.")}</p>
+        <OtpBoxes value={code} onChange={setCode} />
+        <Button trailingIcon="ic_chevron_forward" disabled={code.length !== OTP_LENGTH} onClick={() => void submit()}>
+          {t("signup_otp_continue", "Continue")}
+        </Button>
+        <p>{t("signup_otp_didnot_receive_otp", "Didn't receive the OTP?")}</p>
+        {left > 0
+          ? <p className="link-muted">{t("signup_otp_wait_to_resend", "Wait for mm:ss to re-send").replace("mm:ss", mmss)}</p>
+          : <button type="button" className="link" onClick={() => void resend()}>{t("signup_otp_resend", "Re-send")}</button>}
+      </div>
+    </Page>
+  );
+}
+
+/* ------------------------------------------------------ Password recovery */
+
+export function ForgotPasswordScreen() {
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const { act, toast, messageOf } = useFeedback();
+  const { update } = useSignUp();
+  const [email, setEmail] = useState("");
+  const [confirming, setConfirming] = useState(false);
+
+  const send = async () => {
+    setConfirming(false);
+    try {
+      await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(email.trim()));
+      update({ email: email.trim(), isPasswordRecovery: true });
+      navigate("/otp");
+    } catch (e) { toast(messageOf(e)); }
+  };
+
+  return (
+    <Page header={<BackHeader title={t("signup_forgot_password_title", "Forgot Password")} />}>
+      <div className="stack">
+        <p className="lead">{t("signup_forgot_password_message", "Enter your email for instruction.")}</p>
+        <TextField label={t("signup_forgot_password_email", "Email Address")} required icon="ic_email"
+          type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
+          placeholder={t("signup_forgot_password_email_placeholder", "Enter your email address...")} />
+        <Button trailingIcon="ic_arrow_forward" disabled={validateEmail(email) !== null}
+          onClick={() => setConfirming(true)}>
+          {t("signup_forgot_password_reset_password", "Reset Password")}
+        </Button>
+      </div>
+      <Dialog open={confirming} onClose={() => setConfirming(false)} labelledBy="fp-title"
+        title={t("signup_forgot_password_dialog_title", "Are You Sure ?")}>
+        <p>{t("signup_forgot_password_dialog_description", "You have selected to reset password of below email:")}</p>
+        <p className="strong-blue">{email}</p>
+        <div className="dialog-actions">
+          <Button variant="outline" onClick={() => setConfirming(false)}>{t("signup_forgot_password_dialog_deny", "Edit")}</Button>
+          <Button onClick={() => void send()}>{t("signup_forgot_password_dialog_confirm", "Confirm")}</Button>
+        </div>
+      </Dialog>
+    </Page>
+  );
+}
+
+/** `SetupPassword` — final step of recovery. Calls `users/password/reset` exactly as
+ *  Android does; the server's answer is shown as-is. */
+export function SetupPasswordScreen() {
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const { act, toast, messageOf, unavailable } = useFeedback();
+  const { state: signUp, reset } = useSignUp();
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const otp = (window.history.state?.usr?.otp as string | undefined) ?? "";
+
+  const rules = passwordRules(password);
+  const valid = isPasswordValid(password) && password === confirmation;
+
+  const submit = async () => {
+    try {
+      await act(t("loading_user_password_reset", "Resetting password"),
+        () => userService.resetPassword(signUp.email, otp, password));
+      reset();
+      navigate("/sign-in", { replace: true });
+    } catch (e) {
+      toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("signup_forgot_password_title", "Forgot Password")) : messageOf(e));
+    }
+  };
+
+  return (
+    <Page header={<BackHeader title={t("signup_setup_password_title", "Set Up Password")} />}>
+      <div className="stack">
+        <TextField label={t("signup_setup_password_password", "Password")} required icon="ic_lock" type="password"
+          autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)}
+          placeholder={t("signup_setup_password_password_placeholder", "Enter your password...")} />
+        <RuleChips rules={rules} />
+        <TextField label={t("signup_setup_password_confirm_password", "Confirm Password")} required icon="ic_lock"
+          type="password" autoComplete="new-password" value={confirmation}
+          onChange={(e) => setConfirmation(e.target.value)}
+          error={confirmation && confirmation !== password ? t("signup_credentials_password_match", "Passwords do not match.") : null}
+          placeholder={t("signup_setup_password_confirm_password_placeholder", "Confirm your password...")} />
+        <Button trailingIcon="ic_arrow_forward" disabled={!valid} onClick={() => void submit()}>
+          {t("signup_setup_password_continue", "Continue")}
+        </Button>
+      </div>
+    </Page>
+  );
+}
+
+/** Show/hide control drawn over a frame's (static) eye icon. */
+function PasswordToggle({ revealed, onToggle }: { revealed: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" className="scene-hit eye-toggle" onClick={onToggle} aria-pressed={revealed}
+      aria-label={revealed ? "Hide password" : "Show password"}>
+      <Icon name={revealed ? "ic_visible" : "ic_hidden"} size={22} tint="var(--text-secondary)" />
+    </button>
+  );
+}
+
+/** The link text ("license agreement") doubles as the dialog title. */
+const capitalized = (s: string) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
+
+/** The five password-rule chips with their Android glyphs. */
+export function RuleChips({ rules }: { rules: ReturnType<typeof passwordRules> }) {
+  const glyph: Record<string, string> = {
+    "8_letters": "8+", "1_uppercase": "A", "1_lowercase": "a", "1_number": "1", "1_special_symbol": "@",
+  };
+  return (
+    <div className="rule-chips" dir="ltr">
+      {/* The frames order the chips 8+, A, a, 1, @. */}
+      {Object.keys(glyph).map((id) => rules.find((r) => r.id === id)!).map((r) => (
+        <span key={r.id} className={`rule-chip ${r.satisfied ? "on" : ""}`} aria-label={`${r.label}: ${r.satisfied ? "met" : "not met"}`}>
+          <Icon name={r.satisfied ? "ic_check_circle" : "ic_radiobutton_off"} size={16}
+            tint={r.satisfied ? "var(--success)" : "var(--text-secondary)"} />
+          {glyph[r.id]}
+        </span>
+      ))}
+    </div>
+  );
+}
