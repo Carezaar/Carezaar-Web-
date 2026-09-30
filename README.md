@@ -43,17 +43,17 @@ Set in `.env`:
 
 ```
 src/
-  api/          API client (timeouts, single-flight token refresh), typed services, session storage
+  api/          API client (timeouts, single-flight token refresh), typed services, runtime response schemas, session storage
   app/          app-wide providers: i18n, lookup-table cache, notifications, feedback, recovery
   auth/         session state and route gating
-  screens/      feature screens (auth and its web cards, onboarding wizards, matches, chat, profile, settings)
+  screens/      feature screens (auth and its web cards, onboarding wizards, matches, pending, chat, partner profile, background check, settings)
   components/   Figma scene renderer (DesignElement and its text, image, vector parts)
   figma/        scene loading and binding of live data and behaviour to Figma nodes
   ui/           UI kit (buttons, dialogs, cards, icons), app frames, photo cropper, HTML sanitiser
   navigation/   return-to-route after sign-in
   design/       design tokens and scene types
   styles/       app styles
-  validation/   form validation rules
+  validation/   form validation rules (including the Background Check rules)
 public/
   scenes/       Figma scene data for the pixel-matched screens (splash, intro, sign-in, create account, preferences intro)
   app-assets/   icons and illustrations
@@ -64,5 +64,15 @@ public/
 - **Copy.** All UI copy comes from the server (`base/contents`) in 8 languages. Arabic and Farsi render right to left.
 - **Lookup tables.** They're cached in `localStorage` and only refetched when `base/info` reports a change.
 - **Sessions.** Stored in `localStorage`, together with the signed-in role (only the role). On a returning visit, the first page of matches loads alongside `auth/info` instead of after it (`src/app/matchesPrefetch.ts`). An in-progress signup lives in the tab's `sessionStorage`.
-- **Chat.** An open chat checks for new messages every 10 seconds while it's visible, and whenever the window regains focus. Messages are sent in order through a small outbox.
-- **Server-side failures.** Some endpoints currently fail on the server for every client: password reset and change, issue reports, profile edit after signup, and account deletion. The app sends the documented requests and directs the user to support@carezaar.com.
+- **Chat.** An open chat checks for new messages every 10 seconds while it's visible, and whenever the window regains focus. Messages appear at once as "Sending" and go out in order; unsent text returns to the box on failure.
+- **Matching.** A partner's profile shows Request a Match, Pending Acceptance / Pending Review, or Unmatch (`src/screens/usePartnerMatch.ts`). A request opens the Pending screen (`/pending/:id`). Unmatch ends the match with `DELETE users/matches/{id}`.
+- **Verification gate.** Messaging and match requests need a verified account; other users go to Background Check first. The server doesn't enforce this yet (see the backend issues).
+- **Runtime checks.** Responses for the session, user, profiles, matches and lookup tables are validated in `src/api/schema.ts`. A malformed response shows an error with Try Again, not a broken screen.
+- **Server-side failures.** Report an Issue still fails on the server for every client; the app sends the documented request and directs the user to support@carezaar.com. Password reset and change, profile edit and account deletion were fixed on the server on 2026-10-01 and work from the web app. The same error handling stays in place should any of them fail again.
+- **Password recovery.** The server uses up an emailed code once `users/otp/verify` accepts it, so in password recovery the code screen passes the code straight to Set Up Password, and `users/password/reset` checks it. A wrong code returns the user to the code screen. Signup still verifies the code on the code screen.
+- **Profile photo.** Since the 2026-10-01 fix, the server deletes the photo when a profile save carries none (backend issue BE-15). Until that's fixed, editing a profile without picking a photo removes the current one.
+
+## Further documentation
+
+- [`docs/WEB-VS-ANDROID.md`](docs/WEB-VS-ANDROID.md): intentional differences from the Android app, and the verification rule.
+- [`docs/FIGMA-SCENES.md`](docs/FIGMA-SCENES.md): how `public/scenes` is exported from Figma, and the Figma layer names the code relies on.
