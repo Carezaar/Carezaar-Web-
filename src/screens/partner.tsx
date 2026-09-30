@@ -2,6 +2,7 @@ import { localTime } from "../app/serverTime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/errors";
 import { useNavigate, useParams } from "react-router-dom";
+import { useGoBack } from "../navigation/back";
 import { caregiverService, clientService, userService, type BaseTable } from "../api/services";
 import type { CaregiverFull, ChatFull, ChatMessage, ClientFull, Match, MatchListType } from "../api/types";
 import { awaitsPartner, awaitsResponse, formatDistance, isVerified, matchStage, reviewBy } from "../api/match";
@@ -24,6 +25,7 @@ import { CHATS_CHANGED, MessagesDesktop } from "./main";
 export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const goBack = useGoBack("/main/matches");
   const { user } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
@@ -93,7 +95,7 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   return (
     <Page className="detail-page" header={
       <header className="detail-header">
-        <button type="button" className="icon-btn" onClick={() => navigate(-1)} aria-label="Back">
+        <button type="button" className="icon-btn" onClick={() => goBack()} aria-label="Back">
           <Icon name="ic_arrow_backward" size={26} tint="var(--text)" className="flip-rtl" />
         </button>
         <button type="button" className="icon-btn" onClick={() => void toggleFavorite()} aria-pressed={partner.is_favorite}
@@ -198,6 +200,9 @@ export function ChatScreen() {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
+  // Queued messages show at once, in order, until the server confirms each one.
+  const [queued, setQueued] = useState<{ key: number; text: string; parent: string | null }[]>([]);
+  const queueKey = useRef(0);
   const end = useRef<HTMLDivElement>(null);
   const desktop = useIsDesktop();
 
@@ -207,7 +212,7 @@ export function ChatScreen() {
       .then((c) => setChat(chronological(c))).catch(setError);
   }, [chatId, run, t]);
   useEffect(load, [load]);
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [chat?.messages.length]);
+  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [chat?.messages.length, queued.length]);
 
   // There is no push channel on the web (Android refreshes on an FCM message), so an
   // open conversation checks for new messages and read receipts while it is visible.
@@ -262,16 +267,20 @@ export function ChatScreen() {
       return;
     }
     const parentId = replyTo?.id ?? null;
+    const key = ++queueKey.current;
+    setQueued((q) => [...q, { key, text, parent: replyTo?.message ?? null }]);
     setDraft(""); setReplyTo(null);
     outbox.current = outbox.current.then(async () => {
       try {
-        const updated = await run(t("loading_chat_send", "Sending a new message"),
-          () => userService.sendMessage(Number(chatId), text, parentId));
+        const updated = await userService.sendMessage(Number(chatId), text, parentId);
         setChat(chronological(updated));
         window.dispatchEvent(new Event(CHATS_CHANGED));
       } catch (e) {
         toast(chatMessage(e));
-        setDraft((current) => current || text);
+        // Every unsent message goes back to the box, in the order it was written.
+        setDraft((current) => (current ? `${current}\n${text}` : text));
+      } finally {
+        setQueued((q) => q.filter((m) => m.key !== key));
       }
     });
   };
@@ -311,7 +320,7 @@ export function ChatScreen() {
           // Not the user's chat (or the match has ended): retrying cannot help.
           onRetry={chatMessage(error) === messageOf(error) ? load : undefined} />
         : !chat ? <Spinner />
-        : chat.messages.length === 0 ? <EmptyState title={t("chat_screen_no_messages_yet", "No Messages Yet")} />
+        : chat.messages.length === 0 && queued.length === 0 ? <EmptyState title={t("chat_screen_no_messages_yet", "No Messages Yet")} />
         : (
           <ol className="transcript">
             {chat.messages.map((m) => (
@@ -337,6 +346,18 @@ export function ChatScreen() {
                       <Icon name="ic_edit" size={18} tint="var(--text)" />{t("chat_screen_copy", "Copy")}</button>
                   </div>
                 )}
+              </li>
+            ))}
+            {queued.map((m) => (
+              <li key={`queued-${m.key}`} className="bubble-row mine queued" aria-busy="true">
+                <div className="bubble">
+                  {m.parent && <p className="quote" dir="auto">{m.parent}</p>}
+                  <p dir="auto">{m.text}</p>
+                  <span className="bubble-meta" role="status">
+                    <Icon name="ic_clock" size={14} tint="rgba(255,255,255,.9)" />
+                    {t("loading_chat_send", "Sending a new message")}
+                  </span>
+                </div>
               </li>
             ))}
           </ol>
