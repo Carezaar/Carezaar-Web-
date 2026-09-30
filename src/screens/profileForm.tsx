@@ -119,9 +119,9 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
         goBack();
       }
     } catch (e) {
-      // After signup the live server refuses every profile update with "The selected
-      // Email is invalid." (it only accepts accounts still in signup), which would
-      // wrongly tell the user their email is bad.
+      // Until 2026-10-01 the server refused every profile update after signup with "The
+      // selected Email is invalid." (BE-05). Should it happen again, that message would
+      // wrongly tell the user their email is bad, so it is shown as unavailable instead.
       if (mode === "edit" && e instanceof ApiError && (e.isServiceFault || /email/i.test(e.message) && !e.fieldError("first_name"))) {
         toast(unavailable(t("profile_edit_title", "Edit profile")));
       } else if (e instanceof ApiError && e.kind === "validation") {

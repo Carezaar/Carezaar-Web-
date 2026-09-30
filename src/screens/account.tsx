@@ -337,8 +337,9 @@ export function ChangePasswordScreen() {
     setConfirming(false);
     try {
       await act(t("loading_user_password_change", "Changing password"), () => userService.changePassword(current, next));
+      // Android restarts at its splash screen after a password change; the web signs out and opens Intro.
       await signOut();
-      navigate("/sign-in", { replace: true });
+      navigate("/intro", { replace: true });
     } catch (e) {
       toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("settings_change_password_title", "Change Password")) : messageOf(e));
     }
@@ -387,11 +388,12 @@ export function DeleteAccountScreen() {
   const lose = ["delete_account_data_profile", "delete_account_data_matches", "delete_account_data_messages", "delete_account_data_favorites", "delete_account_data_settings"];
   const submit = async () => {
     try {
-      await act(t("loading_deleting_user_account", "Deleting user account"), () => userService.deleteAccount(reason === "" ? null : reason));
+      if (reason === "") return;
+      await act(t("loading_deleting_user_account", "Deleting user account"), () => userService.deleteAccount(reason));
       await signOut();
       navigate("/intro", { replace: true });
     } catch (e) {
-      // The live server rejects every reason id in its own `base/reasons` table.
+      // Until 2026-10-01 the server rejected every reason id (BE-04); a refusal still gets the support message.
       toast(e instanceof ApiError && (e.isServiceFault || e.fieldError("reason_id"))
         ? unavailable(t("delete_account_title", "Delete Account")) : messageOf(e));
     }
@@ -400,7 +402,7 @@ export function DeleteAccountScreen() {
     <Page header={<BackHeader title={t("delete_account_title", "Delete Account")} />}
       footer={<div className="dialog-actions">
         <Button variant="outline" onClick={() => goBack()}>{t("delete_account_action_cancel", "Cancel")}</Button>
-        <Button variant="danger" disabled={!aware} onClick={() => void submit()}>{t("delete_account_action_delete", "Delete Account")}</Button>
+        <Button variant="danger" disabled={!aware || reason === ""} onClick={() => void submit()}>{t("delete_account_action_delete", "Delete Account")}</Button>
       </div>}>
       <div className="stack">
         <div className="center"><Icon name="ic_trash" size={72} tint="var(--error)" />
@@ -410,7 +412,9 @@ export function DeleteAccountScreen() {
           <div><b>{t("delete_account_alert_title", "This action cannot be undone")}</b><p className="small">{t("delete_account_alert_description", "")}</p></div></div>
         <section className="pref-card"><header><h3>{t("delete_account_data_title", "What you will lose")}</h3></header>
           <ul className="bullet-list">{lose.map((k) => <li key={k}><Icon name="ic_clear_circle" size={18} tint="var(--error)" />{t(k, "")}</li>)}</ul></section>
-        <Field label={`${t("delete_account_reason_title", "Why are you deleting your account?")} (${t("delete_account_optional", "Optional")})`}>
+        {/* A reason is required, as on Android (its delete call takes a non-optional reason id). */}
+        <Field label={t("delete_account_reason_title", "Why are you deleting your account?")} required
+          error={aware && reason === "" ? t("general_required", "This field is required.") : null}>
           <select aria-label={t("delete_account_reason_title", "Reason")} value={String(reason)}
             onChange={(e) => setReason(e.target.value === "" ? "" : Number(e.target.value))}>
             <option value="">{t("delete_account_reason_placeholder", "Select a reason")}</option>
@@ -420,115 +424,5 @@ export function DeleteAccountScreen() {
         <Checkbox checked={aware} onChange={setAware}>{t("delete_account_confirm", "I am aware of the consequences of this decision.")}</Checkbox>
       </div>
     </Page>
-  );
-}
-
-/* ---------------------------------------------------- Verification (gate) */
-
-/** Background check. Messaging and match requests route here for any viewer who is
- *  not VERIFIED. After submitting, the account is PENDING and the confirmation
- *  message is shown instead of the form. */
-export function VerificationScreen() {
-  const goBack = useGoBack("/main/profile");
-  const { t } = useI18n();
-  const { states } = useBaseData();
-  const { user, refreshUser } = useSession();
-  const { act, toast, messageOf } = useFeedback();
-  const { languageId } = useI18n();
-  const [form, setForm] = useState({ first: user?.first_name ?? "", middle: "", last: user?.last_name ?? "", dob: "", ssn: "", street: "", zip: "", state: "" });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showSsn, setShowSsn] = useState(false);
-  const status = user?.status.toUpperCase();
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const submit = async () => {
-    const req = t("general_required", "This field is required.");
-    const next: Record<string, string> = {};
-    (["first", "last", "dob", "ssn", "street", "zip", "state"] as const).forEach((k) => { if (!form[k].trim()) next[k] = req; });
-    setErrors(next);
-    if (Object.keys(next).length) return;
-    try {
-      await act(t("loading_submitting_verification_request", "Submitting verification request"), () => userService.verifyIdentity({
-        firstName: form.first.trim(), middleName: form.middle.trim() || null, lastName: form.last.trim(),
-        dateOfBirth: form.dob.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1"), socialSecurityNumber: form.ssn.trim(), streetAddress: form.street.trim(),
-        zipCode: form.zip.trim(), stateId: Number(form.state),
-      }));
-      await refreshUser();
-    } catch (e) {
-      if (e instanceof ApiError && e.kind === "validation") {
-        const map: Record<string, string> = { first_name: "first", middle_name: "middle", last_name: "last", date_of_birth: "dob", social_security_number: "ssn", street_address: "street", zip_code: "zip", state_id: "state" };
-        setErrors(Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [map[k] ?? k, v[0]])));
-      } else toast(messageOf(e));
-    }
-  };
-
-  const stateName = (s: (typeof states)[number]) => s.translations.find((x) => x.language_id === languageId)?.name ?? s.translations[0]?.name ?? s.slug ?? "";
-  return (
-    <Page header={<BackHeader title={t("general_background_check_title", "Background Check")} />}
-      footer={status === "PENDING" ? <Button onClick={() => goBack()}>{t("general_ok", "OK")}</Button>
-        : <Button onClick={() => void submit()}>{t("general_background_check_submit", "Submit")}</Button>}>
-      {status === "PENDING" ? (
-        <div className="center stack"><Icon name="ic_timer" size={80} tint="var(--primary)" />
-          <p className="lead">{t("general_background_check_submitted", "Your information has been received.")}</p></div>
-      ) : (
-        // Figma v2 frame 738:11737.
-        <div className="bgc">
-          <p className="bgc-intro">{t("general_background_check_required", "")}</p>
-          <div className="bgc-grid">
-            <BgcField label={t("general_background_check_first_name", "First Name")} required error={errors.first}>
-              <input value={form.first} onChange={set("first")} autoComplete="given-name" placeholder={t("general_background_check_first_name", "First Name")} />
-            </BgcField>
-            <BgcField label={t("general_background_check_middle_name", "Middle Name")} error={errors.middle}>
-              <input value={form.middle} onChange={set("middle")} autoComplete="additional-name" placeholder={t("general_background_check_middle_name", "Middle Name")} />
-            </BgcField>
-            <BgcField label={t("general_background_check_last_name", "Last Name")} required error={errors.last}>
-              <input value={form.last} onChange={set("last")} autoComplete="family-name" placeholder={t("general_background_check_last_name", "Last Name")} />
-            </BgcField>
-            <BgcField label={t("general_background_check_date_of_birth", "Date of Birth")} required error={errors.dob} icon="ic_calendar">
-              <input type="date" value={form.dob} onChange={set("dob")} aria-label={t("general_background_check_date_of_birth", "Date of Birth")} />
-            </BgcField>
-            <BgcField wide label={t("general_background_check_social_security_number", "Social Security Number")} required error={errors.ssn}>
-              {/* Masked like a password: it is a national identity number. */}
-              <input type={showSsn ? "text" : "password"} inputMode="numeric" value={form.ssn} onChange={set("ssn")}
-                autoComplete="off" placeholder={t("general_background_check_social_security_number", "Social Security Number")} />
-              <button type="button" className="icon-btn" onClick={() => setShowSsn((v) => !v)} aria-pressed={showSsn}
-                aria-label={showSsn ? "Hide Social Security Number" : "Show Social Security Number"}>
-                <Icon name={showSsn ? "ic_visible" : "ic_hidden"} size={20} tint="#555" />
-              </button>
-            </BgcField>
-            <BgcField label={t("general_background_check_street_address", "Street Address")} required error={errors.street}>
-              <input value={form.street} onChange={set("street")} autoComplete="street-address" placeholder={t("general_background_check_street_address", "Street Address")} />
-            </BgcField>
-            <BgcField label={t("general_background_check_zip_code", "ZIP Code")} required error={errors.zip}>
-              <input inputMode="numeric" value={form.zip} onChange={set("zip")} autoComplete="postal-code" placeholder={t("general_background_check_zip_code", "ZIP Code")} />
-            </BgcField>
-            <BgcField wide label={t("general_background_check_state", "State")} required error={errors.state} trailing="ic_chevron_down">
-              <select value={form.state} onChange={set("state")} className={form.state ? "" : "placeholder"}
-                aria-label={t("general_background_check_state", "State")}>
-                <option value="">{t("general_background_check_state", "State")}</option>
-                {states.map((s) => <option key={s.id} value={s.id}>{stateName(s)}</option>)}
-              </select>
-            </BgcField>
-          </div>
-        </div>
-      )}
-    </Page>
-  );
-}
-
-/** A labelled input in the Background Check frame: "Label: *" above a 54px box. */
-function BgcField({ label, required = false, error, wide = false, icon, trailing, children }: {
-  label: string; required?: boolean; error?: string; wide?: boolean; icon?: string; trailing?: string; children: React.ReactNode;
-}) {
-  return (
-    <label className={`bgc-field ${wide ? "wide" : ""} ${error ? "invalid" : ""}`}>
-      <span className="bgc-label">{label}:{required && <b> *</b>}</span>
-      <span className="bgc-box">
-        {icon && <Icon name={icon} size={20} tint="#555" />}
-        {children}
-        {trailing && <Icon name={trailing} size={18} tint="#888" />}
-      </span>
-      {error && <span className="bgc-error" role="alert">{error}</span>}
-    </label>
   );
 }

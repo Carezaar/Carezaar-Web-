@@ -1,22 +1,19 @@
 import { api, type FormValue } from "./client";
 import { DEFAULT_PAGE_SIZE } from "./config";
 import { loginDeviceFields, tokenStore } from "./session";
-import type {
-  AppNotification, BaseInfo, BaseItem, FaqCategory, CaregiverBrief, CaregiverFull, ChatBrief,
-  ChatFull, ClientBrief, ClientFull, Faq, Issue, Language, Match,
-  MatchListType, MatchSort, Session, USState, User, UserRole,
-} from "./types";
+import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asStates, asUser } from "./schema";
+import type { AppNotification, BaseInfo, FaqCategory, CaregiverFull, ChatBrief, ChatFull, ClientFull, Faq, Issue, Match, MatchListType, MatchSort, Session, User, UserRole } from "./types";
 
 /* ------------------------------------------------------------------ auth/ */
 
 export const authService = {
   async login(email: string, password: string): Promise<Session> {
-    const session = await api.send<Session>({
+    const session = asSession(await api.send<unknown>({
       method: "POST",
       path: "auth/login",
       auth: false,
       form: { email, password, ...loginDeviceFields() },
-    });
+    }));
     tokenStore.save(session);
     return session;
   },
@@ -31,7 +28,7 @@ export const authService = {
   },
 
   currentUser() {
-    return api.send<User>({ method: "GET", path: "auth/info" });
+    return api.send<unknown>({ method: "GET", path: "auth/info" }).then(asUser);
   },
 
   /** Clears the local session even if the call fails, so a dead token never traps
@@ -64,20 +61,20 @@ export const baseService = {
     return api.send<BaseInfo>({ method: "GET", path: "base/info", auth: false, query: { ts_cache: 0 } });
   },
   items(table: BaseTable, tsCache = 0) {
-    return api.send<BaseItem[]>({
+    return api.send<unknown>({
       method: "GET", path: `base/${table}`, auth: false, query: { ts_cache: tsCache },
-    });
+    }).then((items) => asBaseItems(items, `base/${table}`));
   },
   languages(tsCache = 0) {
-    return api.send<Language[]>({
+    return api.send<unknown>({
       method: "GET", path: "base/languages", auth: false, query: { ts_cache: tsCache },
-    });
+    }).then(asLanguages);
   },
   /** The only public base endpoint the Android client actually uses. */
   states(tsCache = 0) {
-    return api.send<USState[]>({
+    return api.send<unknown>({
       method: "GET", path: "base/states", auth: false, query: { ts_cache: tsCache },
-    });
+    }).then(asStates);
   },
   faqs(tsCache = 0) {
     return api.send<Faq[]>({ method: "GET", path: "base/faqs", auth: false, query: { ts_cache: tsCache } });
@@ -111,16 +108,15 @@ export const userService = {
     });
   },
 
-  /** Declared by the Android client but **not served by the backend** — the deployed
-   *  API answers 404. Wired so it works the moment the route ships; callers surface
-   *  the real error rather than a fake success. */
+  /** Final step of Forgot Password (served by the backend since 2026-10-01; before
+   *  that it answered 404). Callers surface the real error rather than a fake success. */
   resetPassword(email: string, otp: string, password: string) {
     return api.sendIgnoringResult({
       method: "POST", path: "users/password/reset", auth: false,
       form: { email, otp, password },
     });
   },
-  /** Also 404 on the backend. See `resetPassword`. */
+  /** Served by the backend since 2026-10-01 (404 before). See `resetPassword`. */
   changePassword(oldPassword: string, newPassword: string) {
     return api.sendIgnoringResult({
       method: "PATCH", path: "users/password/change",
@@ -173,8 +169,9 @@ export const userService = {
     });
   },
 
-  /** The reason is optional on the Android screen ("Optional"); omitted when unset. */
-  async deleteAccount(reasonId: number | null) {
+  /** Android's delete call takes a non-optional reason id, so a reason is required
+   *  (although its screen copy still says "Optional"). */
+  async deleteAccount(reasonId: number) {
     await api.sendIgnoringResult({
       method: "DELETE", path: "users", query: { reason_id: reasonId },
     });
@@ -183,17 +180,27 @@ export const userService = {
 
   /* matches */
   matches(type: MatchListType, page = 1, perPage = DEFAULT_PAGE_SIZE) {
-    return api.sendPaged<Match[]>({
+    return api.sendPaged<unknown>({
       method: "GET", path: "users/matches", query: { type, page, perPage },
-    });
+    }).then(({ result, meta }) => ({ result: asMatches(result, "users/matches"), meta }));
+  },
+  /** The viewer's active match and open request with one partner, if any. Profiles
+   *  only report `is_match`, so a pending request (in either direction) is found in the
+   *  viewer's own lists. 50 is the largest page size the backend accepts. */
+  async relationWith(partnerId: string): Promise<{ active: Match | null; pending: Match | null }> {
+    const withPartner = (m: Match) => m.client?.id === partnerId || m.caregiver?.id === partnerId;
+    const [active, requests] = await Promise.all([
+      userService.matches("matches", 1, 50), userService.matches("requests", 1, 50),
+    ]);
+    return { active: active.result.find(withPartner) ?? null, pending: requests.result.find(withPartner) ?? null };
   },
   match(id: number) {
-    return api.send<Match>({ method: "GET", path: `users/matches/${id}` });
+    return api.send<unknown>({ method: "GET", path: `users/matches/${id}` }).then((m) => asMatch(m, "users/matches/{id}"));
   },
   requestMatch(partnerId: string) {
-    return api.send<Match>({
+    return api.send<unknown>({
       method: "POST", path: "users/matches", form: { partner_id: partnerId },
-    });
+    }).then((m) => asMatch(m, "users/matches (request)"));
   },
   acceptMatch(id: number) {
     return api.send<Match>({ method: "PATCH", path: `users/matches/${id}/accept` });
@@ -329,7 +336,7 @@ function clientSharedFields(p: ClientPreferences): Record<string, FormValue> {
 
 export const clientService = {
   profile() {
-    return api.send<ClientFull>({ method: "GET", path: "clients/profile" });
+    return api.send<unknown>({ method: "GET", path: "clients/profile" }).then((p) => asClientFull(p, "clients/profile"));
   },
 
   /** Final signup step, before any session exists: keyed by `user_id`. The account
@@ -361,13 +368,13 @@ export const clientService = {
   },
 
   matches(sort: MatchSort = "distance", page = 1, perPage = DEFAULT_PAGE_SIZE) {
-    return api.sendPaged<CaregiverBrief[]>({
+    return api.sendPaged<unknown>({
       method: "GET", path: "clients/matches", query: { sort, page, perPage },
-    });
+    }).then(({ result, meta }) => ({ result: asCaregiverBriefs(result), meta }));
   },
 
   caregiver(id: string) {
-    return api.send<CaregiverFull>({ method: "GET", path: `clients/caregivers/${id}` });
+    return api.send<unknown>({ method: "GET", path: `clients/caregivers/${id}` }).then((p) => asCaregiverFull(p, "clients/caregivers/{id}"));
   },
 };
 
@@ -413,7 +420,7 @@ function caregiverSharedFields(s: CaregiverSkills): Record<string, FormValue> {
 
 export const caregiverService = {
   profile() {
-    return api.send<CaregiverFull>({ method: "GET", path: "caregivers/profile" });
+    return api.send<unknown>({ method: "GET", path: "caregivers/profile" }).then((p) => asCaregiverFull(p, "caregivers/profile"));
   },
   /** Final signup step, before any session exists: keyed by `user_id`. */
   create(userId: string, s: CaregiverSkills) {
@@ -429,11 +436,11 @@ export const caregiverService = {
     });
   },
   matches(sort: MatchSort = "distance", page = 1, perPage = DEFAULT_PAGE_SIZE) {
-    return api.sendPaged<ClientBrief[]>({
+    return api.sendPaged<unknown>({
       method: "GET", path: "caregivers/matches", query: { sort, page, perPage },
-    });
+    }).then(({ result, meta }) => ({ result: asClientBriefs(result), meta }));
   },
   client(id: string) {
-    return api.send<ClientFull>({ method: "GET", path: `caregivers/clients/${id}` });
+    return api.send<unknown>({ method: "GET", path: `caregivers/clients/${id}` }).then((p) => asClientFull(p, "caregivers/clients/{id}"));
   },
 };

@@ -523,9 +523,16 @@ export function OtpScreen() {
   useEffect(() => { if (!signUp.email) navigate("/intro", { replace: true }); }, [signUp.email, navigate]);
 
   const submit = async () => {
+    // Password recovery: the server uses up a code once `otp/verify` accepts it, and
+    // `password/reset` then refuses it, so the code goes to the last step unverified and
+    // is checked there. A wrong code brings the user back here (see SetupPasswordScreen).
+    if (signUp.isPasswordRecovery) {
+      navigate("/setup-password", { state: { otp: code } });
+      return;
+    }
     try {
       await act(t("loading_user_otp_verify", "Verifying OTP code"), () => userService.verifyOTP(signUp.email, code));
-      navigate(signUp.isPasswordRecovery ? "/setup-password" : "/sign-up/profile", { state: { otp: code } });
+      navigate("/sign-up/profile", { state: { otp: code } });
     } catch (e) { toast(messageOf(e)); }
   };
   const resend = async () => {
@@ -596,8 +603,8 @@ export function ForgotPasswordScreen() {
   );
 }
 
-/** `SetupPassword` — final step of recovery. Calls `users/password/reset` exactly as
- *  Android does; the server's answer is shown as-is. */
+/** `SetupPassword` — final step of recovery. Calls `users/password/reset` with the
+ *  emailed code, the same request as Android's; the server's answer is shown as-is. */
 export function SetupPasswordScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -618,6 +625,8 @@ export function SetupPasswordScreen() {
       navigate("/sign-in", { replace: true });
     } catch (e) {
       toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("signup_forgot_password_title", "Forgot Password")) : messageOf(e));
+      // The code is first checked here: if it was wrong or expired, re-enter or resend it.
+      if (e instanceof ApiError && (e.fieldError("otp") || /\botp\b/i.test(e.message))) navigate("/otp", { replace: true });
     }
   };
 

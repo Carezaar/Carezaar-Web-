@@ -15,11 +15,15 @@ import {
 import { ProfileFormScreen } from "./screens/profileForm";
 import { CaregiverSkillsWizard, ClientPreferencesWizard } from "./screens/wizard";
 import { MainScreen } from "./screens/main";
-import { ChatScreen, ManageMatchesScreen, PartnerDetailScreen } from "./screens/partner";
+import { PartnerDetailScreen } from "./screens/partner";
+import { ChatScreen } from "./screens/chat";
+import { ManageMatchesScreen } from "./screens/matchesManage";
+import { PendingScreen } from "./screens/pending";
 import {
   ChangeLanguageScreen, ChangePasswordScreen, DeleteAccountScreen, FaqScreen, FavoritesScreen,
-  HelpCenterScreen, NotificationsScreen, ReportIssueScreen, VerificationScreen,
+  HelpCenterScreen, NotificationsScreen, ReportIssueScreen,
 } from "./screens/account";
+import { VerificationScreen } from "./screens/verification";
 import { AppFrame, AuthFrame } from "./ui/frames";
 import { peekReturnTo, rememberReturnTo, takeReturnTo } from "./navigation/returnTo";
 
@@ -105,6 +109,7 @@ export function App() {
                     <Route path="/caregivers/:id" element={inn(<PartnerDetailScreen kind="caregiver" />, "client")} />
                     <Route path="/clients/:id" element={inn(<PartnerDetailScreen kind="client" />, "caregiver")} />
                     <Route path="/chat/:chatId" element={inn(<ChatScreen />)} />
+                    <Route path="/pending/:matchId" element={inn(<PendingScreen />)} />
                     <Route path="/notifications" element={inn(<NotificationsScreen />)} />
                     <Route path="/favorites" element={inn(<FavoritesScreen />)} />
                     <Route path="/help" element={inn(<HelpCenterScreen />)} />
