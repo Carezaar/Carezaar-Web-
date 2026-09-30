@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
 import { userService } from "../api/services";
 import { useSession } from "../auth/SessionContext";
@@ -31,6 +32,7 @@ function isAdult(iso: string): boolean {
  *  prefilled from `auth/info`. Photo is optional, as in the Android app. */
 export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const navigate = useNavigate();
+  const goBack = useGoBack("/main/profile");
   const { t, label } = useI18n();
   const { run, act, toast, messageOf, unavailable } = useFeedback();
   const { items } = useBaseData();
@@ -58,7 +60,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   useEffect(() => {
     if (mode !== "edit") return;
     void run(t("loading_auth_info", "Getting user information"), refreshUser).catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh once when the edit screen opens
   }, [mode]);
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
       setGenderId(user.gender_id); setDob(toInputDate(user.date_of_birth)); setBio(user.bio ?? "");
       setPreview((p) => (photo ? p : user.photo));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refill the form only when the user record changes
   }, [user]);
 
   // A freshly picked photo waits for the square crop, as on Android.
@@ -114,7 +116,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
         navigate(signUp.role === "client" ? "/onboarding/client" : "/onboarding/caregiver");
       } else {
         await refreshUser();
-        navigate(-1);
+        goBack();
       }
     } catch (e) {
       // After signup the live server refuses every profile update with "The selected

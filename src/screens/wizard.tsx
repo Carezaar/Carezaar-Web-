@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
 import { caregiverService, clientService, type BaseTable } from "../api/services";
 import type { BaseItem } from "../api/types";
@@ -159,17 +160,17 @@ const CLIENT_ILLUSTRATIONS = new Set(["101:11970", "101:11969", "101:11971"]);
 function WizardIntro({ title, description, caregiver = false, onStart }: {
   title?: string; description?: string; caregiver?: boolean; onStart: () => void;
 }) {
-  const navigate = useNavigate();
+  const goBack = useGoBack("/main/matches");
   const binder = useMemo<SceneBinder>(() => ({
     handle: (n) => {
-      if (n.name === "Back" || n.name === "Header") { navigate(-1); return true; }
+      if (n.name === "Back" || n.name === "Header") { goBack(); return true; }
       if (n.name === "Button" || n.actionTarget) { onStart(); return true; }
       return false;
     },
     text: (n) => (n.name === "Title" && title ? title : n.name === "Description" && description ? description : undefined),
     // The caregiver frame (715:11684) shows its own skills illustration.
     isHidden: (n) => caregiver && CLIENT_ILLUSTRATIONS.has(n.id),
-  }), [navigate, onStart, title, description, caregiver]);
+  }), [goBack, onStart, title, description, caregiver]);
   return <FigmaScreen sceneKey="v2-65-19934" binder={binder} overlays={caregiver ? [
     { x: 94, y: 110, width: 224, height: 238, content: <img src="/assets/mobile-match-skills-illustration.png" alt="" width="100%" height="100%" /> },
   ] : []} />;
@@ -241,6 +242,7 @@ function ReviewCard({ title, description, children }: { title: string; descripti
 
 export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
+  const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
   const { run, act, toast, messageOf } = useFeedback();
@@ -280,7 +282,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         setSalaryMin(p.salary_min); setSalaryMax(p.salary_max);
       })
       .catch((e) => toast(messageOf(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load the saved preferences once; the setters are stable
   }, [mode]);
 
   const need = (value: unknown[], property: string) =>
@@ -390,7 +392,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         reset();
       } else {
         await act(t("loading_profile_set", "Updating profile"), () => clientService.updateProfile(prefs));
-        navigate(-1);
+        goBack();
       }
     } catch (e) {
       toast(e instanceof ApiError && e.kind === "validation" ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
@@ -403,7 +405,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
     <>
       <Wizard steps={steps} review={review} reviewTitle={t("signup_form_client_review", "Review Your Preferences")}
         saveLabel={mode === "signup" ? t("general_save", "Save") : t("profile_save", "Save")}
-        onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : navigate(-1))} />
+        onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
         onConfirm={(p) => { setLocation(p); setPicking(false); }} /></Suspense>}
     </>
@@ -414,6 +416,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
 
 export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
+  const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
   const { run, act, toast, messageOf } = useFeedback();
@@ -452,7 +455,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         setSalaryMin(p.salary_min); setSalaryMax(p.salary_max);
       })
       .catch((e) => toast(messageOf(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load the saved preferences once; the setters are stable
   }, [mode]);
 
   const need = (ok: boolean, property: string) =>
@@ -560,7 +563,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         reset();
       } else {
         await act(t("loading_profile_set", "Updating profile"), () => caregiverService.updateProfile(skills));
-        navigate(-1);
+        goBack();
       }
     } catch (e) {
       toast(e instanceof ApiError && e.kind === "validation" ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
@@ -575,7 +578,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
       <Wizard steps={steps} review={review}
         reviewTitle={t("signup_form_caregiver_review_title", "Review your skills and availability")}
         saveLabel={t("general_save", "Save")}
-        onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : navigate(-1))} />
+        onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
         onConfirm={(p) => { setLocation(p); setPicking(false); }} /></Suspense>}
     </>

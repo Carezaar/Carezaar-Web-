@@ -1,6 +1,7 @@
 import { localTime } from "../app/serverTime";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
 import { baseService, userService } from "../api/services";
 import type { AppNotification, Faq, FaqCategory, Issue, User } from "../api/types";
@@ -14,7 +15,7 @@ import { BackHeader, Page } from "../ui/layout";
 import { Avatar, Button, cardLink, Checkbox, Dialog, EmptyState, ErrorState, Field, InfiniteSentinel, Spinner, TextArea, TextField } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 import { sanitizeHtml } from "../ui/sanitize";
-import { RuleChips } from "./auth";
+import { RuleChips } from "../ui/RuleChips";
 import { useNotifications } from "../app/notifications";
 
 const partnerPath = (u: User) => (u.role === "caregiver" ? `/caregivers/${u.id}` : `/clients/${u.id}`);
@@ -219,7 +220,7 @@ export function ReportIssueScreen() {
     setError(null);
     run(t("loading_user_issues_get", "Getting reported issues"), () => userService.issues()).then(setIssues).catch(setError);
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load the list once on mount
   useEffect(load, []);
 
   const submit = async () => {
@@ -291,7 +292,7 @@ export function ReportIssueScreen() {
 /* ---------------------------------------------------------- Change language */
 
 export function ChangeLanguageScreen() {
-  const navigate = useNavigate();
+  const goBack = useGoBack("/main/profile");
   const { t, languages, languageId, setLanguage } = useI18n();
   const [choice, setChoice] = useState(languageId);
   const flag: Record<string, string> = { en: "ic_flag_us", sp: "ic_flag_es", ar: "ic_flag_sa", fr: "ic_flag_fr", fa: "ic_flag_ir", cn: "ic_flag_cn", in: "ic_flag_in", ru: "ic_flag_ru" };
@@ -300,7 +301,7 @@ export function ChangeLanguageScreen() {
       footer={<Button onClick={() => {
         const next = languages.find((l) => l.id === choice);
         if (next) setLanguage(next);
-        navigate(-1);
+        goBack();
       }}>{t("settings_change_language_save", "Save Changes")}</Button>}>
       <div className="stack">
         <div className="info-card"><Icon name="ic_language" size={34} tint="var(--primary-dark)" />
@@ -373,6 +374,7 @@ export function ChangePasswordScreen() {
 
 export function DeleteAccountScreen() {
   const navigate = useNavigate();
+  const goBack = useGoBack("/main/profile");
   const { t, label } = useI18n();
   const { items } = useBaseData();
   const { act, toast, messageOf, unavailable } = useFeedback();
@@ -397,7 +399,7 @@ export function DeleteAccountScreen() {
   return (
     <Page header={<BackHeader title={t("delete_account_title", "Delete Account")} />}
       footer={<div className="dialog-actions">
-        <Button variant="outline" onClick={() => navigate(-1)}>{t("delete_account_action_cancel", "Cancel")}</Button>
+        <Button variant="outline" onClick={() => goBack()}>{t("delete_account_action_cancel", "Cancel")}</Button>
         <Button variant="danger" disabled={!aware} onClick={() => void submit()}>{t("delete_account_action_delete", "Delete Account")}</Button>
       </div>}>
       <div className="stack">
@@ -427,7 +429,7 @@ export function DeleteAccountScreen() {
  *  not VERIFIED. After submitting, the account is PENDING and the confirmation
  *  message is shown instead of the form. */
 export function VerificationScreen() {
-  const navigate = useNavigate();
+  const goBack = useGoBack("/main/profile");
   const { t } = useI18n();
   const { states } = useBaseData();
   const { user, refreshUser } = useSession();
@@ -463,7 +465,7 @@ export function VerificationScreen() {
   const stateName = (s: (typeof states)[number]) => s.translations.find((x) => x.language_id === languageId)?.name ?? s.translations[0]?.name ?? s.slug ?? "";
   return (
     <Page header={<BackHeader title={t("general_background_check_title", "Background Check")} />}
-      footer={status === "PENDING" ? <Button onClick={() => navigate(-1)}>{t("general_ok", "OK")}</Button>
+      footer={status === "PENDING" ? <Button onClick={() => goBack()}>{t("general_ok", "OK")}</Button>
         : <Button onClick={() => void submit()}>{t("general_background_check_submit", "Submit")}</Button>}>
       {status === "PENDING" ? (
         <div className="center stack"><Icon name="ic_timer" size={80} tint="var(--primary)" />

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useGoBack } from "../navigation/back";
 import { useSession } from "../auth/SessionContext";
 import { useI18n } from "../app/i18n";
 import { Avatar } from "./kit";
@@ -39,10 +40,10 @@ export function AppHeader({ unread = 0 }: { unread?: number }) {
 
 /** Secondary screens: back button, centred title, logo mark. */
 export function BackHeader({ title, onBack }: { title?: ReactNode; onBack?: () => void }) {
-  const navigate = useNavigate();
+  const goBack = useGoBack("/");
   return (
     <header className="back-header">
-      <button type="button" className="back-btn" onClick={onBack ?? (() => navigate(-1))} aria-label="Back">
+      <button type="button" className="back-btn" onClick={onBack ?? (() => goBack())} aria-label="Back">
         <Icon name="ic_arrow_backward" size={22} tint="var(--text)" className="flip-rtl" />
       </button>
       <h1>{title}</h1>
