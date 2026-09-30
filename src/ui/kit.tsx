@@ -25,21 +25,21 @@ export function Button({
 }
 
 export function Field({
-  label, required, error, icon, trailing, hint, children,
+  label, required, error, icon, trailing, hint, htmlFor, children,
 }: {
   label?: string; required?: boolean; error?: string | null; icon?: string;
-  trailing?: ReactNode; hint?: ReactNode; children: ReactNode;
+  trailing?: ReactNode; hint?: ReactNode; htmlFor?: string; children: ReactNode;
 }) {
   return (
     <div className={`field ${error ? "field-error" : ""}`}>
       {label && (
         <div className="field-label">
-          <span>{label}{required && <b className="req"> *</b>}</span>
+          <label htmlFor={htmlFor}>{label}{required && <b className="req"> *</b>}</label>
           {hint}
         </div>
       )}
       <div className="field-box">
-        {icon && <Icon name={icon} size={22} tint="var(--text-secondary)" />}
+        {icon && <Icon name={icon} size={22} tint="var(--primary)" />}
         {children}
         {trailing}
       </div>
@@ -57,7 +57,7 @@ export function TextField({
   const [revealed, setRevealed] = useState(false);
   const isPassword = input.type === "password";
   return (
-    <Field label={label} required={required} error={error} icon={icon} hint={hint}
+    <Field label={label} required={required} error={error} icon={icon} hint={hint} htmlFor={id}
       trailing={isPassword ? (
         <button type="button" className="icon-btn" onClick={() => setRevealed((r) => !r)}
           aria-label={revealed ? "Hide password" : "Show password"}>

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { DesignNode } from "../design/types";
-import { rgba } from "../design/types";
+import { rgba, type RGBA } from "../design/types";
 let canvas: HTMLCanvasElement | null = null;
 export function measureText(text: string, weight: number, size: number, family: string): number {
   canvas ??= document.createElement("canvas");
@@ -8,6 +8,13 @@ export function measureText(text: string, weight: number, size: number, family: 
   if (!ctx) return 0;
   ctx.font = `${weight} ${size}px '${family}', sans-serif`;
   return ctx.measureText(text).width;
+}
+
+/** The frames' mid greys (#7F7F7F–#A3A3A3) are 2.6–4.0:1 on white, below WCAG AA for
+ *  body text; they render as the app's secondary text grey (#666, 5.7:1). */
+function textColor(c?: RGBA): string {
+  if (c && Math.abs(c[0] - c[1]) < 0.01 && Math.abs(c[1] - c[2]) < 0.01 && c[0] > 0.45 && c[0] < 0.66 && c[3] > 0.9) return "#666666";
+  return rgba(c);
 }
 
 /** Preserves source baselines without converting readable text to outlines. */
@@ -37,7 +44,7 @@ export function SourceText({ node }: { node: DesignNode }) {
       <span className="source-text substituted" dir="auto" style={{
         ...(centred ? { display: "block", width: "100%", textAlign: "center" as const } : { textAlign: "start" as const }),
         fontFamily: `'${node.fontFamily}', system-ui, sans-serif`, fontWeight: node.fontWeight,
-        fontSize: fitted, color: rgba(node.fills.find((p) => p.color)?.color),
+        fontSize: fitted, color: textColor(node.fills.find((p) => p.color)?.color),
         whiteSpace: singleLine || fitted > size * floor ? "nowrap" : "normal", lineHeight: 1.25,
         overflowWrap: "anywhere",
       }}>{node.text}</span>
@@ -57,7 +64,7 @@ export function SourceText({ node }: { node: DesignNode }) {
             <path
               key={i}
               d={p.d}
-              fill={rgba(p.color ?? node.fills.find((p) => p.color)?.color)}
+              fill={textColor(p.color ?? node.fills.find((p) => p.color)?.color)}
               fillRule="nonzero"
             />
           ))}
@@ -74,7 +81,7 @@ export function SourceText({ node }: { node: DesignNode }) {
     fontFamily: `'${node.fontFamily}', system-ui, sans-serif`,
     fontWeight: node.fontWeight,
     fontSize: size,
-    color: rgba(node.fills.find((p) => p.color)?.color),
+    color: textColor(node.fills.find((p) => p.color)?.color),
     letterSpacing:
       node.letterSpacing?.units === "PERCENT"
         ? (size * node.letterSpacing.value) / 100
