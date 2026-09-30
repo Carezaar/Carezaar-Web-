@@ -9,23 +9,30 @@ import { assetUrl, Icon } from "./Icon";
 
 /** Desktop and laptop get the layout from the Figma "Brainstorming · Desktop" frames;
  *  anything narrower keeps the mobile app exactly as designed. */
-export const DESKTOP_QUERY = "(min-width: 1024px)";
+const DESKTOP_QUERY = "(min-width: 1024px)";
+/** From tablet width up, signed-out screens are web forms rather than the phone frames. */
+const WIDE_QUERY = "(min-width: 768px)";
 
-export function useIsDesktop(): boolean {
-  const [desktop, setDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
-    const mq = window.matchMedia(DESKTOP_QUERY);
-    const on = () => setDesktop(mq.matches);
+    const mq = window.matchMedia(query);
+    const on = () => setMatches(mq.matches);
+    on();
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
-  }, []);
-  return desktop;
+  }, [query]);
+  return matches;
 }
 
-/** Signed-in frame: sidebar navigation + top bar (desktop frames 766:12, 766:18). */
+export const useIsDesktop = () => useMediaQuery(DESKTOP_QUERY);
+export const useIsWide = () => useMediaQuery(WIDE_QUERY);
+
+/** Signed-in frame: sidebar navigation + top bar (desktop frames 766:12, 766:18) from
+ *  tablet width up. The element tree is the same at every width, and CSS hides the
+ *  sidebar on phones, so crossing the breakpoint (a phone turned sideways) keeps the
+ *  screen mounted: a half-typed message or form survives. */
 export function AppFrame({ children }: { children: ReactNode }) {
-  const desktop = useIsDesktop();
-  if (!desktop) return <>{children}</>;
   return <DesktopShell>{children}</DesktopShell>;
 }
 
@@ -74,7 +81,7 @@ function DesktopShell({ children }: { children: ReactNode }) {
           </button>
         </nav>
         <figure className="desk-art">
-          <img src={"/assets/desktop-people-care-art.jpg"} alt="" />
+          <img src="/assets/desktop-people-care-art.jpg" alt="" loading="lazy" />
         </figure>
       </aside>
       <div className="desk-main">
@@ -108,20 +115,20 @@ function DesktopShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Signed-out frame (desktop frames 767:30–767:39): brand and care photograph on one
- *  side, the screen itself in a card on the other. */
+/** Signed-out frame (desktop frames 767:30–767:39). On desktop: brand and care
+ *  photograph on one side, the screen in a card on the other. On tablets the card is
+ *  centred under the brand. On phones only the screen shows, full width. As with
+ *  AppFrame, the tree does not change with the width, so typed input survives a resize. */
 export function AuthFrame({ children }: { children: ReactNode }) {
-  const desktop = useIsDesktop();
   const { t } = useI18n();
-  if (!desktop) return <>{children}</>;
   return (
-    <div className="auth-split">
+    <div className="auth-layout">
       <section className="auth-art" aria-hidden="true">
         <div className="auth-brand">
           <img src={assetUrl("logo")} alt="" width={72} height={72} />
           <div><b>Carezaar</b><span>{t("splash_slogan", "Care, Connect, Compassion")}</span></div>
         </div>
-        <img className="auth-photo" src={"/assets/desktop-signin-photo.jpg"} alt="" />
+        <img className="auth-photo" src="/assets/desktop-signin-photo.jpg" alt="" loading="lazy" width={695} height={638} />
       </section>
       <section className="auth-card">{children}</section>
     </div>

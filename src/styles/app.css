@@ -45,6 +45,9 @@ a { color: var(--primary); }
 }
 @media (max-width: 480px) { .app-column { box-shadow: none; } }
 [dir="rtl"] .flip-rtl { transform: scaleX(-1); }
+/* The web shell's sidebar/top bar and the sign-in photograph exist at every width (a
+   stable tree survives resizing) but only show from tablet width up. */
+.desk-sidebar, .desk-topbar, .auth-art { display: none; }
 
 /* ---------- page frame ---------- */
 .page { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -80,7 +83,7 @@ a { color: var(--primary); }
 .icon-btn { border: 0; background: transparent; padding: 4px; cursor: pointer; display: inline-grid; place-items: center; border-radius: 10px; }
 .icon-btn:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .badge-host { position: relative; }
-.badge { position: absolute; top: -2px; inset-inline-end: -4px; background: var(--error); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 18px; padding: 1px 5px; text-align: center; }
+.badge { position: absolute; top: -6px; inset-inline-end: -12px; box-shadow: 0 0 0 2px #fff; line-height: 16px; background: var(--error); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 18px; padding: 1px 5px; text-align: center; }
 
 /* ---------- hero ---------- */
 .hero { position: relative; height: 196px; background-size: cover; background-position: center; border-end-end-radius: 36px; display: flex; align-items: center; padding: 0 20px; }
@@ -123,6 +126,7 @@ a { color: var(--primary); }
 .req { color: var(--error); }
 .field-box { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 14px; border: 1.2px solid #c9ced6; border-radius: var(--radius); background: #fff; }
 .field-box:focus-within { border-color: var(--text); }
+.field-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 122, 254, .2); }
 .field-error .field-box { border-color: var(--error); }
 .field-box input, .field-box select, .field-box textarea { flex: 1; border: 0; outline: none; background: transparent; min-height: 52px; font-size: 15px; min-width: 0; }
 .field-box textarea { padding: 14px 0; resize: vertical; min-height: 110px; }
@@ -237,7 +241,7 @@ a { color: var(--primary); }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
 .segmented button { border: 0; background: #fff; padding: 14px 0; font-size: 16px; cursor: pointer; }
 .segmented button + button { border-inline-start: 1px solid var(--line); }
-.segmented button.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.segmented button.on { background: var(--primary-soft); color: var(--primary-dark); font-weight: 700; }
 .match-row { display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow); cursor: pointer; }
 .match-row-text { flex: 1; min-width: 0; }
 .match-row-text h3 { margin: 0 0 6px; font-size: 16px; }
@@ -374,14 +378,14 @@ a { color: var(--primary); }
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, .6); pointer-events: none; }
 .cropper-zoom { margin: 16px 24px max(24px, env(safe-area-inset-bottom)); accent-color: var(--primary); }
 
-/* ---------- desktop (Figma "Brainstorming · Desktop" frames) ---------- */
-@media (min-width: 1024px) {
+/* ---------- tablet and desktop (Figma "Brainstorming · Desktop" frames) ---------- */
+@media (min-width: 768px) {
   html, body { background: #f3f7fc; }
   .app-column { max-width: none; background: transparent; box-shadow: none; overflow-x: visible; }
 
   /* signed in: sidebar + top bar */
   .desk-shell { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100dvh; }
-  .desk-sidebar { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 22px;
+  .desk-sidebar { position: sticky; top: 0; height: 100dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 22px;
     padding: 22px 16px 24px; background: #f8fbff; border-inline-end: 1px solid #e3ebf5; overflow-y: auto; }
   .desk-brand { display: flex; align-items: center; gap: 10px; padding: 0 10px; text-decoration: none; color: var(--primary-dark); }
   .desk-brand b { font-size: 28px; letter-spacing: -.5px; }
@@ -389,7 +393,7 @@ a { color: var(--primary); }
   .desk-sidebar nav a, .desk-sidebar nav button { display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: 12px;
     border: 0; background: none; cursor: pointer; text-decoration: none; color: var(--text); font-size: 16px; text-align: start; }
   .desk-sidebar nav a:hover, .desk-sidebar nav button:hover { background: #eef4fc; }
-  .desk-sidebar nav a.active { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+  .desk-sidebar nav a.active { background: var(--primary-soft); color: var(--primary-dark); font-weight: 700; }
   .desk-sidebar nav .danger { color: var(--error); }
   .desk-art { margin: auto 0 0; text-align: center; font-size: 14px; }
   .desk-art img { width: 100%; max-width: 226px; margin: 0 auto; border-radius: 12px; }
@@ -415,22 +419,26 @@ a { color: var(--primary); }
   .desk-content .fab { inset-inline-end: 48px; bottom: 40px; }
   .desk-content .map-screen { max-width: 880px; inset: 40px; margin: auto; border-radius: var(--radius-lg); overflow: hidden; }
 
-  /* signed out: brand + photograph, screen in a card */
-  .auth-split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(440px, 520px); gap: 48px; align-items: center;
-    min-height: 100dvh; padding: 32px max(40px, 6vw); background: linear-gradient(180deg, #f6faff, #eaf3fd); }
-  .auth-art { position: relative; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  /* signed out: the screen in a card; desktop adds the brand photograph beside it */
+  /* Anchored to the top, not centred: the card's height changes between screens (and when
+     the splash gives way), and centring would make the whole page jump each time. */
+  .auth-layout { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 28px; padding: 48px 32px; background: linear-gradient(180deg, #f6faff, #eaf3fd); }
+  .auth-art { display: contents; }
+  .auth-photo { display: none; }
   .auth-brand { display: flex; align-items: center; gap: 12px; color: var(--primary-dark); }
   .auth-brand b { display: block; font-size: 40px; letter-spacing: -1px; line-height: 1; }
   .auth-brand span { color: #5d6b7c; font-size: 17px; }
-  .auth-photo { width: 100%; max-width: 680px; border-radius: 24px; mix-blend-mode: multiply; }
-  .auth-card { width: 100%; max-height: calc(100dvh - 64px); overflow-y: auto; background: #fff; border-radius: 24px;
-    box-shadow: 0 20px 60px rgba(16, 40, 80, .12); }
+  .auth-card { width: 100%; max-width: 560px; background: #fff; border-radius: 24px; box-shadow: 0 20px 60px rgba(16, 40, 80, .12); }
   .auth-card .page, .auth-card .splash { min-height: 0; }
   .auth-card .page-footer { border-radius: 0 0 24px 24px; }
   .auth-card .map-screen { max-width: 520px; inset: 32px; margin: auto; border-radius: 24px; overflow: hidden; }
 }
 @media (min-width: 1024px) {
-  .auth-split { grid-template-columns: minmax(0, 1.05fr) minmax(400px, 480px); }
+  .auth-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(420px, 520px); align-items: start; gap: 56px;
+    padding: 40px max(40px, 6vw, calc((100vw - 1280px) / 2)); }
+  .auth-art { display: flex; flex-direction: column; gap: 20px; padding-top: 8px; }
+  .auth-photo { display: block; width: 100%; max-width: 680px; height: auto; aspect-ratio: 695 / 638; border-radius: 24px; mix-blend-mode: multiply; }
   .desk-content .tile-scroll, .desk-content .pill-scroll, .desk-content .chip-scroll { flex-wrap: wrap; overflow: visible; }
   .messages-split { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 16px; margin-top: 16px;
     height: max(520px, calc(100dvh - 76px - 230px - 56px)); }
@@ -454,7 +462,7 @@ a { color: var(--primary); }
 .faq-chevron { flex: none; transition: transform .2s; }
 .faq[open] .faq-chevron { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .faq-chevron { transition: none; } }
-@media (min-width: 1024px) and (max-width: 1279px) {
+@media (min-width: 768px) and (max-width: 1279px) {
   .desk-shell { grid-template-columns: 220px minmax(0, 1fr); }
   .desk-content { padding: 0 20px 32px; }
   .messages-split { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
@@ -510,3 +518,64 @@ a { color: var(--primary); }
 
 /* Whole-card links (match, favourite, match history) are keyboard focusable. */
 .match-card:focus-visible, .fav-card:focus-visible, .match-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- signed-out web cards (tablet and desktop; desktop designs 767:30–767:36) ---------- */
+.auth-form { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 32px 36px 36px; }
+.auth-form h1 { margin: 4px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -.5px; line-height: 1.15; color: var(--text); }
+.auth-sub { margin: -10px 0 4px; color: var(--text-secondary); font-size: 16px; }
+.auth-top { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.auth-top-logo { margin-inline-start: auto; }
+.round-btn { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%;
+  background: #fff; cursor: pointer; transition: background .15s; }
+.round-btn:hover { background: var(--primary-soft); }
+.auth-fields { display: flex; flex-direction: column; gap: 18px; }
+.auth-fields > .btn { width: 100%; min-height: 54px; margin-top: 4px; }
+.auth-row-end { display: flex; justify-content: flex-end; margin-top: -8px; }
+.auth-rules { display: flex; flex-direction: column; gap: 8px; margin-top: -6px; }
+.auth-rules p { margin: 0; text-align: center; }
+.auth-alt { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 0; font-size: 15px; }
+.auth-alt.stacked { flex-direction: column; gap: 4px; padding-top: 18px; border-top: 1px solid var(--line); }
+.auth-alt .link { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; }
+.select-box { width: 100%; cursor: pointer; text-align: start; font-size: 16px; }
+.select-box > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-box:hover { border-color: var(--primary); }
+
+.auth-intro { gap: 16px; padding-top: 24px; }
+.auth-language { position: relative; align-self: flex-end; height: 40px; }
+.auth-language .language-pill { border: 1px solid var(--line); background: #fff; font-size: 15px; box-shadow: none; }
+.auth-language .language-menu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 5; width: 170px; }
+.auth-intro-brand { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--primary-dark); }
+.auth-intro-brand b { font-size: 34px; letter-spacing: -.5px; line-height: 1.1; }
+.auth-form .auth-divider-title { display: flex; align-items: center; gap: 14px; margin: 4px 0; font-size: 21px; font-weight: 700; text-align: center; }
+.auth-divider-title::before, .auth-divider-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.role-cards { display: flex; flex-direction: column; gap: 14px; }
+.role-card { display: flex; align-items: center; gap: 16px; width: 100%; padding: 18px 20px; border: 1.5px solid transparent;
+  border-radius: 18px; text-align: start; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.role-card-client { background: var(--care); }
+.role-card-caregiver { background: var(--caregiver); }
+.role-card:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+.role-card-caregiver:hover { border-color: var(--success); }
+.role-card-icon { display: grid; place-items: center; flex: none; width: 58px; height: 58px; border-radius: 50%; background: #fff; }
+.role-card-text { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.role-card-text b { font-size: 19px; }
+.role-card-text span { color: var(--text-secondary); font-size: 14px; }
+.role-card-go { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--primary); }
+.role-card-caregiver .role-card-go { background: var(--success-text); }
+.trust-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 4px 0 0; padding: 0; list-style: none; }
+.trust-row li { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 8px; font-size: 13px; line-height: 1.3; }
+.trust-row li + li { border-inline-start: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { .role-card, .round-btn { transition: none; } }
+@media (min-width: 768px) and (max-width: 1023px) {
+  .desk-content .hero { padding: 0 24px; }
+  .desk-content .hero-card { max-width: 64%; }
+  .desk-content .hero-card h1 { font-size: 30px; }
+}
+
+/* Loading state in the auth card (tablet and desktop). */
+.auth-splash { align-items: center; justify-content: center; gap: 6px; min-height: 420px; text-align: center; }
+.auth-splash-name { margin-top: 10px; color: var(--primary-dark); font-size: 34px; letter-spacing: -.5px; }
+.auth-splash-status { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(280px, 100%); margin-top: 28px; }
+.auth-splash-status p { margin: 0; }
+.auth-splash-bar { width: 100%; height: 6px; border-radius: 999px; background: var(--primary-soft); overflow: hidden; }
+.auth-splash-bar span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .3s; }
+@media (prefers-reduced-motion: reduce) { .auth-splash-bar span { transition: none; } }

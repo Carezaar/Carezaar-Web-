@@ -2,8 +2,9 @@
 
 The web client for Carezaar, the caregiver-matching platform, built with React 19, TypeScript and Vite. It talks to the
 Carezaar API (`https://new.carezaar.com/api/`) and matches the Android app's behaviour and the Carezaar Figma designs:
-- **Phones and tablets:** the mobile layouts.
-- **From 1024 px:** the desktop layouts (sidebar with top bar, two-pane messages, split sign-in).
+- **Phones (below 768 px):** the mobile designs. The Intro, Sign In and Create Account screens render the pixel-matched Figma frames.
+- **Tablets and desktops (from 768 px):** a web layout. It has a sidebar with a top bar and native web sign-in and sign-up forms in a card. Desktops also show the brand photograph beside that card.
+- **From 1024 px:** the Messages list and the conversation show side by side.
 
 ## Getting started
 
@@ -45,10 +46,10 @@ src/
   api/          API client (timeouts, single-flight token refresh), typed services, session storage
   app/          app-wide providers: i18n, lookup-table cache, notifications, feedback, recovery
   auth/         session state and route gating
-  screens/      feature screens (auth, onboarding wizards, matches, chat, profile, settings)
+  screens/      feature screens (auth and its web cards, onboarding wizards, matches, chat, profile, settings)
   components/   Figma scene renderer (DesignElement and its text, image, vector parts)
   figma/        scene loading and binding of live data and behaviour to Figma nodes
-  ui/           UI kit (buttons, dialogs, cards, icons), photo cropper, HTML sanitiser
+  ui/           UI kit (buttons, dialogs, cards, icons), app frames, photo cropper, HTML sanitiser
   navigation/   return-to-route after sign-in
   design/       design tokens and scene types
   styles/       app styles
