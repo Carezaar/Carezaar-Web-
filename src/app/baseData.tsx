@@ -48,6 +48,9 @@ export function BaseDataProvider({ children }: { children: ReactNode }) {
       force,
       onStart: (names) => { setTotal(names.length); setPending(names); },
       onDone: (name) => setPending((p) => p.filter((n) => n !== name)),
+      // First visit: open the app once the copy and languages are in; the other tables
+      // fill in behind it. A stored copy is already showing, so it is kept until the end.
+      onEssentials: (partial) => setCache((shown) => shown ?? partial),
     });
     setCache(result.cache);
     setFailed(result.failed);

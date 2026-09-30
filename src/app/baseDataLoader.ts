@@ -38,36 +38,55 @@ export interface LoadResult {
   failed: boolean;
 }
 
-/** Loads every lookup table unless the stored copy is current, then stores the result. */
+/** Loads every lookup table unless the stored copy is current, then stores the result.
+ *
+ *  The server answers these requests a few at a time, and every screen needs the content
+ *  table (all copy is server-driven) and the language list before anything else. So those
+ *  two are fetched first and reported through `onEssentials`, which lets the app open
+ *  while the other tables finish. Without a stored copy nothing can be skipped, so the
+ *  tables start at once instead of waiting for `base/info`. */
 export async function loadBaseData(opts: {
   force?: boolean;
   onStart?: (names: string[]) => void;
   onDone?: (name: string) => void;
+  onEssentials?: (partial: BaseDataCache) => void;
 } = {}): Promise<LoadResult> {
-  const { force = false, onStart, onDone = () => {} } = opts;
+  const { force = false, onStart, onDone = () => {}, onEssentials } = opts;
   const current = readBaseCache();
-  const info = await baseService.info().catch(() => null);
-  if (!force && current && info && info.ts_cache === current.tsCache
-      && Object.keys(current.tables).length >= BASE_TABLES.length) {
-    return { cache: current, upToDate: true, failed: false };
+  const infoRequest = baseService.info().catch(() => null);
+  if (!force && current) {
+    const info = await infoRequest;
+    if (info && info.ts_cache === current.tsCache && Object.keys(current.tables).length >= BASE_TABLES.length) {
+      return { cache: current, upToDate: true, failed: false };
+    }
   }
   onStart?.([...BASE_TABLES, "languages", "states"]);
 
   const tables: Partial<Record<BaseTable, BaseItem[]>> = {};
   let anyFailed = false;
-  const [languages, states] = await Promise.all([
-    baseService.languages().then((v) => { onDone("languages"); return v; })
-      .catch(() => { anyFailed = true; onDone("languages"); return current?.languages ?? []; }),
-    baseService.states().then((v) => { onDone("states"); return v; })
-      .catch(() => { anyFailed = true; onDone("states"); return current?.states ?? []; }),
-    ...BASE_TABLES.map((table) => baseService.items(table)
-      .then((items) => { tables[table] = items; onDone(table); })
-      .catch(() => {
-        anyFailed = true;
-        if (current?.tables[table]) tables[table] = current.tables[table];
-        onDone(table);
-      })),
+  const table = (name: BaseTable) => baseService.items(name)
+    .then((items) => { tables[name] = items; onDone(name); })
+    .catch(() => {
+      anyFailed = true;
+      if (current?.tables[name]) tables[name] = current.tables[name];
+      onDone(name);
+    });
+  const list = <T,>(name: string, request: () => Promise<T>, fallback: T) => request()
+    .then((v) => { onDone(name); return v; })
+    .catch(() => { anyFailed = true; onDone(name); return fallback; });
+
+  const [languages] = await Promise.all([
+    list("languages", () => baseService.languages(), current?.languages ?? []),
+    table("contents"),
   ]);
+  if (tables.contents) {
+    onEssentials?.({ tsCache: 0, tables: { ...tables }, languages, states: current?.states ?? [] });
+  }
+  const [states] = await Promise.all([
+    list("states", () => baseService.states(), current?.states ?? []),
+    ...BASE_TABLES.filter((name) => name !== "contents").map(table),
+  ]);
+  const info = await infoRequest;
   const next: BaseDataCache = {
     tsCache: anyFailed ? (current?.tsCache ?? 0) : (info?.ts_cache ?? 0),
     tables, languages: languages as Language[], states: states as USState[],
