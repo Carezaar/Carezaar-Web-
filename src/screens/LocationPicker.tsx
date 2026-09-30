@@ -28,7 +28,7 @@ export function LocationPicker({ initial, onConfirm, onCancel }: {
     }).addTo(map.current);
     if (!initial) locate();
     return () => { map.current?.remove(); map.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the map is created once per mount
   }, []);
 
   function locate() {

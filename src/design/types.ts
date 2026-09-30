@@ -66,13 +66,5 @@ export interface DesignNode {
     color: RGBA;
   }[];
 }
-export interface ScreenRecord {
-  key: string;
-  name: string;
-  width: number;
-  height: number;
-  page: string;
-  node: string;
-}
 export const rgba = (c?: RGBA) =>
   c ? `rgba(${c[0] * 255},${c[1] * 255},${c[2] * 255},${c[3]})` : "transparent";

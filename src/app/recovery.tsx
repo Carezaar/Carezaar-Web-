@@ -6,7 +6,7 @@ const RELOADED = "carezaar.chunkReload";
 /** `lazy` for code-split screens. After a new deploy an open tab still asks for the
  *  old chunk names, which no longer exist; reload once to pick up the new build
  *  rather than failing the screen. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the same constraint React.lazy declares
 export function lazyWithReload<T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) {
   return lazy(() => factory().then(
     (module) => { sessionStorage.removeItem(RELOADED); return module; },
