@@ -1,7 +1,9 @@
 /** Mirrors the Android error string resources and the live backend contract:
- *  403 for a missing/expired token (not 401), 422 for field validation. */
+ *  403 for a missing/expired token (not 401), 403 with field errors for an action the
+ *  user isn't allowed to take, 422 for field validation. */
 export type ApiErrorKind =
   | "unauthenticated"
+  | "forbidden"
   | "validation"
   | "notFound"
   | "server"
@@ -50,6 +52,8 @@ function defaultMessage(kind: ApiErrorKind): string {
   switch (kind) {
     case "unauthenticated":
       return "Your session has expired. Please sign in again.";
+    case "forbidden":
+      return "You can't do this.";
     case "notFound":
       return "Not found.";
     case "server":

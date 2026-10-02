@@ -590,6 +590,9 @@ a { color: var(--primary); }
 .pending-info { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 440px; margin: 10px 0 0; padding: 0; list-style: none; text-align: start; }
 .pending-info li { display: flex; align-items: flex-start; gap: 14px; }
 .pending-info b { display: block; margin-bottom: 2px; }
+/* Sender's footer: Cancel Request + Keep Exploring side by side; stacked on phones, primary first. */
+.pending-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; }
+@media (max-width: 480px) { .pending-actions { grid-template-columns: 1fr; } .pending-actions > :first-child { order: 1; } }
 .pending-info .muted { font-size: 14px; }
 .pending-icon { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--care); }
 .pending-closed { font-size: 17px; }

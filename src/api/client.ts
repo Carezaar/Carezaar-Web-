@@ -152,6 +152,15 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
     return envelope;
   }
 
+  // 403 means two things on this backend: a missing, invalid or expired token (no field
+  // errors, e.g. "Token is invalid!"), or the caller not being allowed to touch a record,
+  // which names the field (e.g. withdrawing a request that isn't theirs: {"id": [...]}).
+  // Only the first is a session problem.
+  const fieldErrors = (envelope?.errors ?? raw.errors) as Record<string, string[]> | null | undefined;
+  if (response.status === 403 && fieldErrors && Object.keys(fieldErrors).length > 0) {
+    throw new ApiError("forbidden", message, response.status, fieldErrors);
+  }
+
   switch (response.status) {
     case 401:
     case 403:

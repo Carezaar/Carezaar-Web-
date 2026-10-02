@@ -102,12 +102,22 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
     setErrors(next);
     if (Object.keys(next).length) return;
     const email = mode === "signup" ? signUp.email : user?.email ?? "";
+    // A save without a photo removes the current one, so keep it unless the user removed it.
+    let photoToSend = photo;
+    if (mode === "edit" && !photo && preview && preview === user?.photo) {
+      try {
+        photoToSend = await userService.currentPhotoFile(preview);
+      } catch {
+        toast(t("profile_edit_photo_keep_failed", "Your current photo couldn't be kept. Choose it again or remove it, then save."));
+        return;
+      }
+    }
     try {
       const saved = await act(
         mode === "signup" ? t("loading_auth_register", "Registering") : t("loading_profile_set", "Updating profile"),
         () => userService.setProfile({
           email, genderId, firstName: firstName.trim(), lastName: lastName.trim(),
-          bio: bio.trim() || null, dateOfBirth: new Date(`${dob}T00:00:00`), photo,
+          bio: bio.trim() || null, dateOfBirth: new Date(`${dob}T00:00:00`), photo: photoToSend,
           anonymous: mode === "signup",
         }),
       );

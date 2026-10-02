@@ -7,11 +7,12 @@ import { useSession } from "../auth/SessionContext";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { BackHeader, Page } from "../ui/layout";
-import { Avatar, Button, ErrorState, Spinner, cardLink } from "../ui/kit";
+import { Avatar, Button, Dialog, ErrorState, Spinner, cardLink } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 
 /** `Pending/{id}` — shown after a match request, as on Android: the two people, what
- *  happens next, and Keep Exploring. The receiving side sees the partner variant. The
+ *  happens next, and Keep Exploring; the sender can also cancel the request. The
+ *  receiving side sees the partner variant. The
  *  copy keys and English defaults are Android's (`pending_*`, with its "{PARTER}" typo
  *  and "Tap the {PARTNER}'s" wording corrected); the server's content table does not
  *  have them yet, so English is shown until it does. */
@@ -20,9 +21,10 @@ export function PendingScreen() {
   const navigate = useNavigate();
   const { user, role } = useSession();
   const { t } = useI18n();
-  const { run, messageOf } = useFeedback();
+  const { run, act, toast, messageOf } = useFeedback();
   const [match, setMatch] = useState<Match | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -50,6 +52,14 @@ export function PendingScreen() {
   const keepExploring = (
     <Button trailingIcon="ic_arrow_forward" onClick={() => navigate("/main/matches")}>{t("pending_keep", "Keep Exploring")}</Button>
   );
+  // The sender can cancel their own request (`DELETE users/matches/{id}/withdraw`).
+  const withdraw = async () => {
+    setCancelling(false);
+    try {
+      await act(t("loading_match_withdraw", "Cancelling match request"), () => userService.withdrawMatch(match.id));
+      if (partnerPath) navigate(partnerPath, { replace: true });
+    } catch (e) { toast(messageOf(e)); }
+  };
 
   if (stage !== "pending") {
     return (
@@ -67,8 +77,15 @@ export function PendingScreen() {
     ["ic_match_on", t("pending_fit_title", "A better fit for everyone"), t("pending_fit_message", "Matches help ensure the best care experience.")],
   ];
 
+  const footer = mine
+    ? <div className="pending-actions">
+        <Button variant="outline" onClick={() => setCancelling(true)}>{t("match_withdraw_button", "Cancel Request")}</Button>
+        {keepExploring}
+      </div>
+    : keepExploring;
+
   return (
-    <Page header={header} footer={keepExploring}>
+    <Page header={header} footer={footer}>
       <div className="pending">
         <div className="pending-pair">
           <Avatar src={user?.photo} size={96} name={user?.first_name ?? undefined} />
@@ -90,6 +107,13 @@ export function PendingScreen() {
           ))}
         </ul>
       </div>
+      <Dialog open={cancelling} onClose={() => setCancelling(false)} labelledBy="withdraw-title" title={t("match_withdraw_title", "Cancel")}>
+        <p>{t("match_withdraw_message", "Are you sure you want to cancel your match request with this user?")}</p>
+        <div className="dialog-actions">
+          <Button variant="outline" onClick={() => setCancelling(false)}>{t("general_cancel", "Cancel")}</Button>
+          <Button variant="danger" onClick={() => void withdraw()}>{t("general_confirm", "Confirm")}</Button>
+        </div>
+      </Dialog>
     </Page>
   );
 }

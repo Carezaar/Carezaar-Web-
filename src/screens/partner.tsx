@@ -37,7 +37,7 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
       .then(setDetail).catch(setError);
   }, [kind, id, run, t]);
   useEffect(load, [load]);
-  const match = usePartnerMatch(id, user, detail?.is_match, load);
+  const match = usePartnerMatch(id, user, detail, load);
 
   if (error) return <Page header={<BackHeader />}><ErrorState message={messageOf(error)} error={error} onRetry={load} /></Page>;
   if (!detail) return <Page header={<BackHeader />}><Spinner /></Page>;
@@ -70,7 +70,7 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   // Messaging and match requests need a verified viewer; ending a match does not.
   const mainAction = () => {
     if (match.action === "unmatch") { setConfirm("unmatch"); return; }
-    if (match.pending) { navigate(`/pending/${match.pending.id}`); return; }
+    if (match.pendingId !== null) { navigate(`/pending/${match.pendingId}`); return; }
     if (!verifiedViewer) { navigate("/verification"); return; }
     setConfirm("request");
   };

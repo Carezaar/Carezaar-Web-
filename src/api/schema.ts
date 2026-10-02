@@ -73,12 +73,12 @@ export const caregiverBriefSchema = shape({ ...partnerBrief, salary_min: nullabl
 export const clientBriefSchema = shape({ ...partnerBrief, clienttype_id: nullable(num), salary_min: nullable(num), salary_max: nullable(num) });
 
 export const caregiverFullSchema = shape({
-  ...partnerBrief, commute_id: nullable(num), experience_id: nullable(num), role_id: nullable(num), worktype_id: nullable(num),
+  ...partnerBrief, match_id: nullable(num), commute_id: nullable(num), experience_id: nullable(num), role_id: nullable(num), worktype_id: nullable(num),
   carecondition_ids: ids, careday_ids: ids, carespecial_ids: ids, certification_ids: ids, clienttype_ids: ids,
   languageskill_ids: ids, shift_ids: ids,
 });
 export const clientFullSchema = shape({
-  ...partnerBrief, clienttype_id: nullable(num),
+  ...partnerBrief, match_id: nullable(num), clienttype_id: nullable(num),
   carecondition_ids: ids, careday_ids: ids, carespecial_ids: ids, certification_ids: ids, commute_ids: ids,
   experience_ids: ids, gender_ids: ids, languageskill_ids: ids, role_ids: ids, shift_ids: ids, worktype_ids: ids,
 });

@@ -3,7 +3,12 @@ import { resolve } from "node:path";
 
 // Two entries: the app itself, and a tiny cache warmer the landing page loads on the
 // same origin. The warmer keeps a fixed name so the landing can reference it.
+// Profile photos are read through the app's own origin (see README → Deployment).
+const uploads = { "/uploads": { target: "https://new.carezaar.com", changeOrigin: true } };
+
 export default defineConfig({
+  server: { proxy: uploads },
+  preview: { proxy: uploads },
   build: {
     rollupOptions: {
       // React Router ships "use client" directives for server components; they are

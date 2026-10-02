@@ -41,7 +41,15 @@ export interface CaregiverBrief {
   is_match: boolean;
 }
 
-export interface CaregiverFull extends CaregiverBrief {
+/** Detail endpoints only (`clients/caregivers/{id}`, `caregivers/clients/{id}`): the
+ *  viewer's match with this partner. `is_match` true → the active match's id;
+ *  `is_match` false → the pending request the viewer sent; null → neither. A request
+ *  the partner sent is not reported here (it is `null`), only in `users/matches`. */
+interface PartnerMatchRef {
+  match_id: number | null;
+}
+
+export interface CaregiverFull extends CaregiverBrief, PartnerMatchRef {
   commute_id: number;
   experience_id: number;
   role_id: number;
@@ -69,7 +77,7 @@ export interface ClientBrief {
   is_match: boolean;
 }
 
-export interface ClientFull extends ClientBrief {
+export interface ClientFull extends ClientBrief, PartnerMatchRef {
   carecondition_ids: number[];
   careday_ids: number[];
   carespecial_ids: number[];

@@ -1,6 +1,7 @@
 import { api, type FormValue } from "./client";
-import { DEFAULT_PAGE_SIZE } from "./config";
+import { API_BASE_URL, DEFAULT_PAGE_SIZE } from "./config";
 import { loginDeviceFields, tokenStore } from "./session";
+import { awaitsResponse } from "./match";
 import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asStates, asUser } from "./schema";
 import type { AppNotification, BaseInfo, FaqCategory, CaregiverFull, ChatBrief, ChatFull, ClientFull, Faq, Issue, Match, MatchListType, MatchSort, Session, User, UserRole } from "./types";
 
@@ -149,6 +150,21 @@ export const userService = {
     });
   },
 
+  /** The user's current photo as a file, so a profile save can send it again: the server
+   *  removes the photo from any save that carries none. Photos live under the API host's
+   *  `/uploads/`, which sends no CORS headers, so the app reads them through the same path
+   *  on its own origin, proxied to the API host (see README → Deployment). */
+  async currentPhotoFile(url: string): Promise<File> {
+    const source = new URL(url);
+    if (source.origin !== new URL(API_BASE_URL).origin || !source.pathname.startsWith("/uploads/")) {
+      throw new Error(`Unexpected photo location: ${source.origin}`);
+    }
+    const res = await fetch(source.pathname, { credentials: "omit" });
+    const blob = await res.blob();
+    if (!res.ok || !blob.type.startsWith("image/")) throw new Error(`Photo unavailable (${res.status})`);
+    return new File([blob], source.pathname.split("/").pop() ?? "photo", { type: blob.type });
+  },
+
   verifyIdentity(input: {
     firstName: string; middleName?: string | null; lastName: string;
     dateOfBirth: string; socialSecurityNumber: string; streetAddress: string;
@@ -184,15 +200,12 @@ export const userService = {
       method: "GET", path: "users/matches", query: { type, page, perPage },
     }).then(({ result, meta }) => ({ result: asMatches(result, "users/matches"), meta }));
   },
-  /** The viewer's active match and open request with one partner, if any. Profiles
-   *  only report `is_match`, so a pending request (in either direction) is found in the
-   *  viewer's own lists. 50 is the largest page size the backend accepts. */
-  async relationWith(partnerId: string): Promise<{ active: Match | null; pending: Match | null }> {
-    const withPartner = (m: Match) => m.client?.id === partnerId || m.caregiver?.id === partnerId;
-    const [active, requests] = await Promise.all([
-      userService.matches("matches", 1, 50), userService.matches("requests", 1, 50),
-    ]);
-    return { active: active.result.find(withPartner) ?? null, pending: requests.result.find(withPartner) ?? null };
+  /** A request this partner sent the viewer and the viewer hasn't answered. The partner
+   *  profile's `match_id` covers only the viewer's own request and active match, so the
+   *  incoming case still comes from the request list. */
+  async incomingRequestFrom(partnerId: string, role: UserRole): Promise<Match | null> {
+    const requests = await userService.matches("requests", 1, 50);
+    return requests.result.find((m) => (m.client?.id === partnerId || m.caregiver?.id === partnerId) && awaitsResponse(m, role)) ?? null;
   },
   match(id: number) {
     return api.send<unknown>({ method: "GET", path: `users/matches/${id}` }).then((m) => asMatch(m, "users/matches/{id}"));
