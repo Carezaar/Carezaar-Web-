@@ -18,23 +18,21 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
 ## Differences
 
 ### Unmatch on the partner's profile
-- **Android:** the red Unmatch button on a matched partner's profile opens the Matches screen, where the match is ended.
-- **Web:** Unmatch asks for confirmation ("Are you sure you want to end your match with this user?"), then ends the match with `DELETE users/matches/{id}`. The profile switches to Request a Match, and the match moves to History for both people.
-- **Reason:** requested by the client in the code review. Android's withdraw-by-partner endpoint (`DELETE users/matches/{partner_id}/withdraw/partner`) isn't used, because:
-  - called as documented, it returns 422;
-  - with the partner ID added as a field, it reports success without ending an active match;
-  - in a live test it removed an older History record for the pair (**BE-09**).
+- **Android (1.0.0):** the red Unmatch button on a matched partner's profile opens the Matches screen, where the match is ended.
+- **Web:** Unmatch asks for confirmation ("Are you sure you want to end your match with this user?"), then ends the match with `DELETE users/matches/{match_id}`, using the `match_id` from the profile. The profile switches to Request a Match, and the match moves to History for both people; earlier History records are kept.
+- **Reason:** requested by the client in the code review. Android's withdraw-by-partner endpoint (`DELETE users/matches/{partner_id}/withdraw/partner`) isn't used at all. Since the backend fix of 2026-10-02 it only cancels a pending request the caller sent, and answers 400 on an active match (verified live).
 - **Status:** intentional (client request).
 
 ### Request a Match → Pending
 - **Android:** after a request, opens `Pending/{id}`, "Waiting for a Match", with Keep Exploring.
-- **Web:** the same screen, at `/pending/:id`, with Android's text. There are three additions:
-  - reopening the profile shows **Pending Acceptance** (sender) or **Pending Review** (receiver) instead of a second Request a Match, which prevents duplicate requests (the server accepts duplicates: **BE-08**);
-  - if the request was accepted meanwhile, the screen opens the partner's profile;
-  - if it was withdrawn, it says the request is no longer pending.
+- **Web:** the same screen, at `/pending/:id`, with Android's text. There are some additions:
+  - the profile reads `is_match` / `match_id`: reopening it shows **Pending Acceptance** (the user's own request) or **Pending Review** (the partner's request), never a second Request a Match;
+  - the sender's Pending screen has **Cancel Request**, which withdraws the request with `DELETE users/matches/{match_id}/withdraw` and returns to the profile;
+  - `POST users/matches` can answer with an active match (`is_active: true`), when the partner had already asked; the app then stays on the profile, which shows the match, instead of opening Pending;
+  - if the request was accepted meanwhile, Pending opens the partner's profile; if it was withdrawn, it says the request is no longer pending.
 
   The web also corrects Android's text typo `{PARTER}` and "Tap the {name}'s picture card".
-- **Reason:** web users can refresh and deep-link, so the state has to be recovered from the server. The profile API has no pending field (**BE-11**), so the web reads the viewer's request list.
+- **Reason:** web users can refresh and deep-link, so the state has to come from the server; the backend now reports it (`match_id`, `is_active`).
 - **Status:** intentional.
 
 ### Background Check messages
@@ -95,6 +93,12 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
 - **Android:** restarts at the splash screen.
 - **Web:** signs the user out and opens the start screen (Intro), where they sign in with the new password.
 - **Reason:** the web equivalent of Android's restart. The web signs out explicitly, so the old session can't outlive the password change.
+- **Status:** intentional.
+
+### Editing the profile keeps the photo
+- **Android (1.0.0):** sends the photo only when a new one is picked.
+- **Web:** sends the current photo again with every save unless the user removed it (read through the app's own `/uploads/` path, proxied to the API host).
+- **Reason:** the server removes the photo from a save that carries none. Without the resend, editing a name or bio would delete the photo.
 - **Status:** intentional.
 
 ### Links, Back and roles

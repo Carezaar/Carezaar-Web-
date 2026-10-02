@@ -31,6 +31,7 @@ Set in `.env`:
 
 `dist/` is a static single-page app and can be served by any static host or CDN.
 - **Deep links.** Every path that isn't a file must fall back to `index.html`, so that deep links work. `public/_redirects` does this on hosts that support that file; elsewhere, configure the equivalent rewrite.
+- **Profile photos.** Proxy `/uploads/*` to `https://new.carezaar.com/uploads/*` (a rewrite, before the `index.html` fallback). The server removes the photo from any profile save that carries none, so Edit Profile sends the current photo again, and a browser can only read it from the app's own origin: the API host serves `/uploads/` without CORS headers. `public/_redirects` and the Vite dev/preview servers already do this. Without the proxy, Edit Profile asks the user to choose the photo again rather than remove it.
 - **Security headers.** Serve these on every response:
   - `Content-Security-Policy`: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' blob: https://new.carezaar.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
   - `X-Frame-Options: DENY`
@@ -65,12 +66,19 @@ public/
 - **Lookup tables.** They're cached in `localStorage` and only refetched when `base/info` reports a change.
 - **Sessions.** Stored in `localStorage`, together with the signed-in role (only the role). On a returning visit, the first page of matches loads alongside `auth/info` instead of after it (`src/app/matchesPrefetch.ts`). An in-progress signup lives in the tab's `sessionStorage`.
 - **Chat.** An open chat checks for new messages every 10 seconds while it's visible, and whenever the window regains focus. Messages appear at once as "Sending" and go out in order; unsent text returns to the box on failure.
-- **Matching.** A partner's profile shows Request a Match, Pending Acceptance / Pending Review, or Unmatch (`src/screens/usePartnerMatch.ts`). A request opens the Pending screen (`/pending/:id`). Unmatch ends the match with `DELETE users/matches/{id}`.
+- **Matching.** A partner's profile reads its state from the profile's own `is_match` and `match_id` (`src/screens/usePartnerMatch.ts`):
+  - `is_match` → **Unmatch**, which ends the match with `DELETE users/matches/{match_id}`;
+  - `match_id` without `is_match` → the user's own request is pending: **Pending Acceptance**, which opens the Pending screen (`/pending/:id`), where **Cancel Request** withdraws it with `DELETE users/matches/{match_id}/withdraw`;
+  - an unanswered request from the partner (found in the request list, because `match_id` doesn't report it) → **Pending Review**;
+  - otherwise → **Request a Match**. `POST users/matches` returns the existing request or match when there is one and accepts the partner's request, so the app opens Pending only when the answer has `is_active: false`; with `is_active: true` it stays on the profile, which now shows the match.
+
+  `DELETE users/matches/{partner_id}/withdraw/partner` isn't used.
 - **Verification gate.** Messaging and match requests need a verified account; other users go to Background Check first. The server doesn't enforce this yet (see the backend issues).
 - **Runtime checks.** Responses for the session, user, profiles, matches and lookup tables are validated in `src/api/schema.ts`. A malformed response shows an error with Try Again, not a broken screen.
-- **Server-side failures.** Report an Issue still fails on the server for every client; the app sends the documented request and directs the user to support@carezaar.com. Password reset and change, profile edit and account deletion were fixed on the server on 2026-10-01 and work from the web app. The same error handling stays in place should any of them fail again.
+- **Server-side failures.** Report an Issue still fails on the server for every client; the app sends the documented request and directs the user to support@carezaar.com. Password reset and change, profile edit and account deletion work from the web app since the server fixes of 2026-10-01/02. The same error handling stays in place should any of them fail again.
+- **403 responses.** The server answers 403 both for a missing or expired token and for an action the user isn't allowed to take (for example withdrawing someone else's request). Only the first, which has no field errors, refreshes the session or signs the user out (`src/api/client.ts`); the second shows the server's message.
 - **Password recovery.** The server uses up an emailed code once `users/otp/verify` accepts it, so in password recovery the code screen passes the code straight to Set Up Password, and `users/password/reset` checks it. A wrong code returns the user to the code screen. Signup still verifies the code on the code screen.
-- **Profile photo.** Since the 2026-10-01 fix, the server deletes the photo when a profile save carries none (backend issue BE-15). Until that's fixed, editing a profile without picking a photo removes the current one.
+- **Profile photo.** The server removes the photo from any profile save that carries none. Edit Profile therefore reads the current photo through the app's own `/uploads/` path and sends it again with the save, so editing the name or bio keeps the photo; Remove Photo saves without one. See Deployment for the proxy this needs. JPEG, PNG and WebP are accepted.
 
 ## Further documentation
 
