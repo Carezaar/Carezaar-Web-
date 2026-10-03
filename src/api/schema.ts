@@ -62,13 +62,16 @@ const translations = arrayOf(shape({ id: num, language_id: num, name: str }));
 
 export const sessionSchema = shape({ access_token: str, refresh_token: str });
 
-export const userSchema = shape({
-  id: str, role: oneOf("client", "caregiver"), status: str, email: str,
+const userFields = {
+  id: str, role: oneOf("client", "caregiver"), status: str,
   first_name: nullable(str), last_name: nullable(str), photo: nullable(str),
   gender_id: nullable(num), date_of_birth: nullable(str), bio: nullable(str),
-});
+};
+export const userSchema = shape({ ...userFields, email: str });
+/** Another user: since 2026-10-03 the server no longer sends their email (or date of birth). */
+const partnerUserSchema = shape({ ...userFields, email: nullable(str) });
 
-const partnerBrief = { id: str, user: userSchema, distance: nullable(num), is_match: nullable(bool) };
+const partnerBrief = { id: str, user: partnerUserSchema, distance: nullable(num), is_match: nullable(bool) };
 export const caregiverBriefSchema = shape({ ...partnerBrief, salary_min: nullable(num), salary_max: nullable(num) });
 export const clientBriefSchema = shape({ ...partnerBrief, clienttype_id: nullable(num), salary_min: nullable(num), salary_max: nullable(num) });
 

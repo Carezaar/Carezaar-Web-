@@ -7,6 +7,10 @@ export type UserRole = "client" | "caregiver";
  *  uppercase. Compare with `isVerified()` rather than a literal. */
 export type UserStatus = string;
 
+/** Another user, as profiles and matches return them: the server withholds their email
+ *  (null) and date of birth. */
+export type PartnerUser = Omit<User, "email"> & { email: string | null };
+
 export interface User {
   id: string;
   country_id: number;
@@ -34,7 +38,7 @@ export interface Session {
 
 export interface CaregiverBrief {
   id: string;
-  user: User;
+  user: PartnerUser;
   salary_min: number;
   salary_max: number;
   distance: number;
@@ -67,7 +71,7 @@ export interface CaregiverFull extends CaregiverBrief, PartnerMatchRef {
 
 export interface ClientBrief {
   id: string;
-  user: User;
+  user: PartnerUser;
   clienttype_id: number;
   lat: number;
   lng: number;

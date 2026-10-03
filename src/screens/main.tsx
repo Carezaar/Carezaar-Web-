@@ -2,7 +2,7 @@ import { localTime } from "../app/serverTime";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { caregiverService, clientService, userService } from "../api/services";
-import type { CaregiverBrief, ClientBrief, MatchSort, User } from "../api/types";
+import type { CaregiverBrief, ClientBrief, MatchSort, PartnerUser } from "../api/types";
 import { formatDistance, isVerified } from "../api/match";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
@@ -36,7 +36,7 @@ export function MainScreen() {
 
 /* ----------------------------------------------------------------- Matches */
 
-type Card = { id: string; user: User; min: number | null; max: number | null; distance: number;
+type Card = { id: string; user: PartnerUser; min: number | null; max: number | null; distance: number;
   clienttypeId?: number };
 
 function MatchesTab() {
