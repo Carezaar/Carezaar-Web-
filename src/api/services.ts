@@ -159,7 +159,8 @@ export const userService = {
     if (source.origin !== new URL(API_BASE_URL).origin || !source.pathname.startsWith("/uploads/")) {
       throw new Error(`Unexpected photo location: ${source.origin}`);
     }
-    const res = await fetch(source.pathname, { credentials: "omit" });
+    // Same-origin credentials, so a password-protected deployment (HTTP auth) can serve it too.
+    const res = await fetch(source.pathname, { credentials: "same-origin" });
     const blob = await res.blob();
     if (!res.ok || !blob.type.startsWith("image/")) throw new Error(`Photo unavailable (${res.status})`);
     return new File([blob], source.pathname.split("/").pop() ?? "photo", { type: blob.type });
