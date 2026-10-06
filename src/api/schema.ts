@@ -89,6 +89,7 @@ export const clientFullSchema = shape({
 export const matchSchema = shape({
   id: num, client: nullable(clientBriefSchema), caregiver: nullable(caregiverBriefSchema),
   is_client_accepted: bool, is_caregiver_accepted: bool, finished_at: nullable(str), created_at: nullable(str),
+  introduction: nullable(str),
 });
 
 export const baseItemsSchema = arrayOf(shape({ id: num, code: nullable(str), icon: nullable(str), translations }));

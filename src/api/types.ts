@@ -107,6 +107,8 @@ export interface Match {
   id: number;
   client: ClientBrief | null;
   caregiver: CaregiverBrief | null;
+  /** Optional message sent with the request (max 1000 characters). */
+  introduction?: string | null;
   review_client: Review | null;
   review_caregiver: Review | null;
   created_at: string | null;

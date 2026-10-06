@@ -98,6 +98,12 @@ export function PendingScreen() {
         <p className="muted">{fill(mine
           ? t("pending_owner_message", "We will let you know as soon as {PARTNER} likes your profile too and accepts your request.")
           : t("pending_partner_message", "Tap {PARTNER}'s picture card to learn more about them. When you're ready, go back to the previous page to accept or reject their match request. We'll let them know your decision."))}</p>
+        {match.introduction && (
+          <blockquote className="pending-intro">
+            <b>{t("match_introduction_title", "Introduction")}</b>
+            <p dir="auto">{match.introduction}</p>
+          </blockquote>
+        )}
         <ul className="pending-info">
           {info.map(([icon, title, text]) => (
             <li key={icon}>

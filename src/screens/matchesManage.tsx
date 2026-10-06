@@ -91,6 +91,9 @@ export function ManageMatchesScreen() {
                         <button type="button" className="mini-primary" onClick={() => setReviewing(m)}>{t("match_review_button", "Review")}</button>
                       )}
                     </div>
+                    {stage === "pending" && m.introduction && (
+                      <p className="match-intro" dir="auto"><b>{t("match_introduction_title", "Introduction")}:</b> {m.introduction}</p>
+                    )}
                   </article>
                 </li>
               );

@@ -9,3 +9,6 @@ export const APP_VERSION = "1.0.0";
 /** The backend only accepts `perPage` of 10, 25 or 50 (anything else is a 422);
  *  Android always sends 10. */
 export const DEFAULT_PAGE_SIZE = 10;
+
+/** Server limit for the introduction sent with a match request (422 above it). */
+export const INTRODUCTION_MAX_LENGTH = 1000;

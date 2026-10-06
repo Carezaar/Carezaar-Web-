@@ -242,7 +242,7 @@ a { color: var(--primary); }
 .segmented button { border: 0; background: #fff; padding: 14px 0; font-size: 16px; cursor: pointer; }
 .segmented button + button { border-inline-start: 1px solid var(--line); }
 .segmented button.on { background: var(--primary-soft); color: var(--primary-dark); font-weight: 700; }
-.match-row { display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow); cursor: pointer; }
+.match-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow); cursor: pointer; }
 .match-row-text { flex: 1; min-width: 0; }
 .match-row-text h3 { margin: 0 0 6px; font-size: 16px; }
 .match-row-text p { margin: 2px 0; font-size: 14px; }
@@ -591,6 +591,13 @@ a { color: var(--primary); }
 .pending-info li { display: flex; align-items: flex-start; gap: 14px; }
 .pending-info b { display: block; margin-bottom: 2px; }
 /* Sender's footer: Cancel Request + Keep Exploring side by side; stacked on phones, primary first. */
+/* Introduction sent with a match request. */
+.match-intro { flex-basis: 100%; margin: -4px 0 0; color: var(--text-secondary); font-size: 13px; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pending-intro { width: 100%; max-width: 440px; margin: 4px 0 0; padding: 12px 14px; text-align: start;
+  border-radius: 12px; background: var(--primary-soft); }
+.pending-intro p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.field-counter, .dialog .field-counter { margin: -6px 0 8px; text-align: end; }
 .pending-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; }
 @media (max-width: 480px) { .pending-actions { grid-template-columns: 1fr; } .pending-actions > :first-child { order: 1; } }
 .pending-info .muted { font-size: 14px; }

@@ -9,7 +9,8 @@ import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { BackHeader, Page } from "../ui/layout";
-import { Button, Dialog, ErrorState, PhotoBox, Spinner } from "../ui/kit";
+import { Button, Dialog, ErrorState, PhotoBox, Spinner, TextArea } from "../ui/kit";
+import { INTRODUCTION_MAX_LENGTH } from "../api/config";
 import { Icon } from "../ui/Icon";
 import { usePartnerMatch } from "./usePartnerMatch";
 
@@ -29,6 +30,7 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   const [detail, setDetail] = useState<CaregiverFull | ClientFull | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [confirm, setConfirm] = useState<"request" | "unmatch" | null>(null);
+  const [introduction, setIntroduction] = useState("");
 
   const load = useCallback(() => {
     setError(null);
@@ -72,12 +74,13 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
     if (match.action === "unmatch") { setConfirm("unmatch"); return; }
     if (match.pendingId !== null) { navigate(`/pending/${match.pendingId}`); return; }
     if (!verifiedViewer) { navigate("/verification"); return; }
+    setIntroduction("");
     setConfirm("request");
   };
   const confirmed = () => {
     const which = confirm;
     setConfirm(null);
-    void (which === "unmatch" ? match.unmatch() : match.requestMatch());
+    void (which === "unmatch" ? match.unmatch() : match.requestMatch(introduction));
   };
 
   const isCaregiver = kind === "caregiver";
@@ -151,6 +154,15 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
         <p>{confirm === "unmatch"
           ? t("match_unmatch_message", "Are you sure you want to end your match with this user?")
           : t("match_match_message", "Are you sure you want to match with this user?")}</p>
+        {confirm === "request" && (
+          <>
+            {/* Optional introduction sent with the request, as in the native app. */}
+            <TextArea label={t("match_introduction_title", "Introduction")} value={introduction} maxLength={INTRODUCTION_MAX_LENGTH}
+              onChange={(e) => setIntroduction(e.target.value)} dir="auto"
+              placeholder={t("match_introduction_message", "You can introduce yourself here (Optional)")} />
+            <p className="field-counter muted small" aria-live="polite">{introduction.length}/{INTRODUCTION_MAX_LENGTH}</p>
+          </>
+        )}
         <div className="dialog-actions">
           <Button variant="outline" onClick={() => setConfirm(null)}>{t("general_cancel", "Cancel")}</Button>
           <Button variant={confirm === "unmatch" ? "danger" : "primary"} onClick={confirmed}>{t("general_confirm", "Confirm")}</Button>

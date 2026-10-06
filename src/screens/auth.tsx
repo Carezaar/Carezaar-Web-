@@ -614,6 +614,15 @@ export function SetupPasswordScreen() {
   const [confirmation, setConfirmation] = useState("");
   const otp = (window.history.state?.usr?.otp as string | undefined) ?? "";
 
+  // Reached without the recovery steps (direct link, or the code was lost): start again
+  // from the step that is missing instead of offering a reset that can only fail.
+  const finished = useRef(false);
+  useEffect(() => {
+    if (finished.current) return;
+    if (!signUp.email || !signUp.isPasswordRecovery) navigate("/forgot-password", { replace: true });
+    else if (!otp) navigate("/otp", { replace: true });
+  }, [signUp.email, signUp.isPasswordRecovery, otp, navigate]);
+
   const rules = passwordRules(password);
   const valid = isPasswordValid(password) && password === confirmation;
 
@@ -621,6 +630,8 @@ export function SetupPasswordScreen() {
     try {
       await act(t("loading_user_password_reset", "Resetting password"),
         () => userService.resetPassword(signUp.email, otp, password));
+      // Clearing the recovery state must not trigger the "no recovery in progress" redirect.
+      finished.current = true;
       reset();
       navigate("/sign-in", { replace: true });
     } catch (e) {

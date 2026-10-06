@@ -99,7 +99,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         ?? need(specials, t("signup_form_client_caregiver_qualities", "What qualities are important in a caregiver?"))
         ?? need(experiences, t("signup_form_client_minimum_experience", "Minimum Experience"))
         ?? need(roles, t("signup_form_client_preferred_caregiver_role", "Preferred Caregiver Role"))
-        ?? need(certifications, t("signup_form_client_required_certifications", "Required Certifications"))
+        // Certifications are optional, as in the native app (and for caregivers).
         ?? need(languages, t("signup_form_client_preferred_language", "Preferred Language")),
     },
     {

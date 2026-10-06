@@ -211,9 +211,12 @@ export const userService = {
   match(id: number) {
     return api.send<unknown>({ method: "GET", path: `users/matches/${id}` }).then((m) => asMatch(m, "users/matches/{id}"));
   },
-  requestMatch(partnerId: string) {
+  /** `introduction` is optional (the server stores an empty one as null) and at most
+   *  1000 characters; it is shown to the partner with the request. */
+  requestMatch(partnerId: string, introduction?: string) {
+    const text = introduction?.trim();
     return api.send<unknown>({
-      method: "POST", path: "users/matches", form: { partner_id: partnerId },
+      method: "POST", path: "users/matches", form: { partner_id: partnerId, ...(text ? { introduction: text } : {}) },
     }).then((m) => asMatch(m, "users/matches (request)"));
   },
   acceptMatch(id: number) {

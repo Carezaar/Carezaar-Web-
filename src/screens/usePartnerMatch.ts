@@ -46,9 +46,9 @@ export function usePartnerMatch(partnerId: string, viewer: { role: UserRole; sta
   /** `POST users/matches` returns the existing request or match when there is one, and
    *  accepts the partner's own request, so the answer is not always a new pending request:
    *  only a pending one opens the Pending screen. */
-  const requestMatch = useCallback(async () => {
+  const requestMatch = useCallback(async (introduction?: string) => {
     try {
-      const match = await act(t("loading_match_submit", "Submitting match request"), () => userService.requestMatch(partnerId));
+      const match = await act(t("loading_match_submit", "Submitting match request"), () => userService.requestMatch(partnerId, introduction));
       if (match.is_active || matchStage(match) === "active") {
         reloadDetail();
         toast(t("match_matched_message", "You are now matched."));
