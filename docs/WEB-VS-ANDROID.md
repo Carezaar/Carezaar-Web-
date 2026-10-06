@@ -11,7 +11,7 @@ Android behaviour was taken from the shipped release build (`com.carezaar.app` 1
 | **Android** | On a partner's profile, both **Message** and **Request a Match** first check the viewer's status. If the viewer isn't `VERIFIED`, they go to the Verification (Background Check) screen. A verified viewer can message only a current match; otherwise they see "You can only send messages to your current matches." |
 | **Web** | The same. For an unverified viewer, **Message** and **Request a Match** open `/verification`, and nothing is sent. A verified viewer gets the request confirmation, and messaging still needs a match. **Unmatch** is not gated, so a user can always end a match. |
 | **Backend** | **Not enforced.** Unverified accounts can call `POST users/matches` and `POST users/chats` directly, and the server accepts them (**BE-14**). The rule is only as strong as the apps until the server checks it too. |
-| **Status** | The web matches Android. Server-side enforcement is a **backend action**. |
+| **Status** | **Product decision pending (client feedback, 2026-10-06).** The web matches Android 1.0.0, which gates both actions. The client reports that the *current* native build doesn't, and the backend developer said the server-side rule was "removed entirely" by decision. The web keeps the gate until the product team confirms which behaviour is official; removing it means dropping the two `verifiedViewer` checks in `src/screens/partner.tsx` (Message and Request a Match). |
 
 Tests: `CR-V01` (unverified: both actions go to Background Check, no request sent) and `CR-V02` (verified: request confirmation; messaging needs a match).
 
@@ -34,6 +34,16 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
   The web also corrects Android's text typo `{PARTER}` and "Tap the {name}'s picture card".
 - **Reason:** web users can refresh and deep-link, so the state has to come from the server; the backend now reports it (`match_id`, `is_active`).
 - **Status:** intentional.
+
+### Introduction with a match request
+- **Native (current build):** the match request has an optional Introduction ("You can introduce yourself here (Optional)").
+- **Web:** the same, in the Request a Match confirmation (content keys `match_introduction_title` / `match_introduction_message`). It's sent as `introduction` with `POST users/matches`, up to 1000 characters (the server's limit, shown with a counter). The partner sees it on the request in Profile → Matches → Requests and on the Pending screen.
+- **Status:** matches native.
+
+### Client Certifications
+- **Native:** choosing a Certification is optional.
+- **Web:** optional too (it used to be required in the client preferences); the server accepts an empty list.
+- **Status:** matches native.
 
 ### Background Check messages
 - **Android:** the same rules (see `src/validation/backgroundCheck.ts`). Invalid fields are only highlighted.
@@ -81,7 +91,8 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
 - **Android:** the reason is required; the delete call takes a non-optional reason ID, although the screen text says "Optional".
 - **Web:** the reason is required, and Delete stays disabled until one is chosen.
 - **Reason:** parity with Android's actual behaviour.
-- **Status:** matches Android.
+- **Awareness checkbox:** the web (and iOS) also ask the user to tick "I am aware of the consequences of this decision." (content key `delete_account_confirm`). The Android build never uses that key, so native has no checkbox.
+- **Status:** the reason matches Android. The checkbox is a **product decision pending** (client feedback, 2026-10-06). It's kept until confirmed, because it guards an irreversible action.
 
 ### Forgot Password
 - **Android:** after the emailed code is entered, it calls `users/otp/verify` and then opens the signup profile screen. Nothing in the release build opens its Set Up Password screen, so the new password is never set.

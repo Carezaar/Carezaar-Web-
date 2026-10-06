@@ -70,7 +70,7 @@ public/
   - `is_match` → **Unmatch**, which ends the match with `DELETE users/matches/{match_id}`;
   - `match_id` without `is_match` → the user's own request is pending: **Pending Acceptance**, which opens the Pending screen (`/pending/:id`), where **Cancel Request** withdraws it with `DELETE users/matches/{match_id}/withdraw`;
   - an unanswered request from the partner (found in the request list, because `match_id` doesn't report it) → **Pending Review**;
-  - otherwise → **Request a Match**. `POST users/matches` returns the existing request or match when there is one and accepts the partner's request, so the app opens Pending only when the answer has `is_active: false`; with `is_active: true` it stays on the profile, which now shows the match.
+  - otherwise → **Request a Match**. The confirmation has an optional **Introduction** (up to 1000 characters, sent as `introduction`), which the partner sees on the request and on the Pending screen. `POST users/matches` returns the existing request or match when there is one and accepts the partner's request, so the app opens Pending only when the answer has `is_active: false`; with `is_active: true` it stays on the profile, which now shows the match.
 
   `DELETE users/matches/{partner_id}/withdraw/partner` isn't used.
 - **Verification gate.** Messaging and match requests need a verified account; other users go to Background Check first. The server doesn't enforce this yet (see the backend issues).
