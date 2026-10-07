@@ -93,11 +93,9 @@ Renaming one of these in Figma, then regenerating the scene, **silently breaks**
 | `Button` | Sign In, Create Account, Preferences intro | The primary action (Sign In, Continue, Get started). In Create Account it's also the dialog's Edit and Confirm buttons, told apart by their text. | `auth.tsx` (`SignInScene`, `SignUpScene` binders), `wizardParts.tsx` (`WizardIntro`), `DesignElement.tsx` (makes the node a real `<button>`) | The button stops being clickable, and submit and enable/disable stop working | Yes |
 | `Back` | Sign In, Create Account, Preferences intro | Back arrow | Same binders; `DesignElement.tsx` | Back stops working | Yes |
 | `Header` | Sign In, Create Account, Preferences intro | Header group; clicking it goes back | Same binders | Back via the header stops working | Yes |
-| `Info` | Create Account | Country info icon → shows the country hint | `SignUpScene` | The hint no longer opens | Optional |
 | `Error` | Create Account | Error line under the password | `SignUpScene` (hidden until there's an error, then shows it) | Validation messages stop appearing | Yes |
-| `Credentials` | Create Account | Static "Country / Email" lines in the dialog, replaced by live values | `SignUpScene` (hidden) | Static placeholder text shows in the dialog | Yes |
+| `Credentials` | Create Account | Static "Country / Email" lines in the dialog, replaced by the live email (sign-up no longer asks for a country) | `SignUpScene` (hidden) | Static placeholder text shows in the dialog | Yes |
 | `Dialog`, `Rectangle 2931` | Create Account | The "Are you sure?" dialog and its scrim | `SignUpScene` (hidden until Continue) | The dialog shows permanently, or never | Yes |
-| `United States` | Create Account | Country value, replaced by the selected country | `SignUpScene` | The country always reads "United States" | Yes |
 | `Lanuage` (sic) | Intro | The frame's own language pill, hidden and replaced by a working one | `IntroScene` | Two language pills appear | Yes |
 | `Group 1` | Intro | The frame's "Sign in" group, hidden and replaced by a real link | `IntroScene` | Duplicate Sign in link | Yes |
 | `Title`, `Description` | Preferences intro | Text replaced for the caregiver variant | `WizardIntro` | The caregiver sees the client copy | Yes |
@@ -111,6 +109,8 @@ Renaming one of these in Figma, then regenerating the scene, **silently breaks**
 | Node ID | Scene | Purpose | If it changes |
 |---|---|---|---|
 | `56:84399` | Create Account | The frame's static password-rule chips, hidden and replaced by live chips | Static chips show under the live ones |
+| `56:84381` | Create Account | The frame's Country group, hidden: sign-up no longer asks for a country (client decision, 2026-10-07). Location is set later in the role's preferences. | The Country field reappears |
+| `56:84390`, `56:84391`, `56:84392`, `56:84405`, `56:84406` | Create Account | Top-level nodes below the Country group, moved up by its height (104) through the binder's `offsetY`, so no gap is left. The overlays in `auth.tsx` are shifted by the same amount. | A 104-point gap, or fields overlapping their live inputs |
 | `101:11969`, `101:11970`, `101:11971` | Preferences intro | Client illustration, hidden for caregivers, who get their own image | Caregivers see the client illustration |
 
 ### Exact texts

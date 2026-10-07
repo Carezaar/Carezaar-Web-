@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { IntroModel, SignInForm, SignUpForm } from "./auth";
 import { Button, Checkbox, Dialog, TextField } from "../ui/kit";
 import { assetUrl, Icon } from "../ui/Icon";
@@ -157,25 +157,8 @@ export function SignInCard({ form }: { form: SignInForm }) {
 
 /* -------------------------------------------------------- Create account */
 
-function SelectBox({ label, required, value, icon, onOpen }: {
-  label: string; required?: boolean; value: ReactNode; icon?: string | null; onOpen: () => void;
-}) {
-  return (
-    <div className="field">
-      <div className="field-label"><span>{label}{required && <b className="req"> *</b>}</span></div>
-      <button type="button" className="field-box select-box" aria-haspopup="dialog"
-        aria-label={`${label}: ${typeof value === "string" ? value : ""}`} onClick={onOpen}>
-        {icon && <Icon name={icon} size={24} />}
-        <span>{value}</span>
-        <Icon name="ic_chevron_down" size={18} tint="var(--text-secondary)" />
-      </button>
-    </div>
-  );
-}
-
 export function SignUpCard({ form }: { form: SignUpForm }) {
-  const { t, label, languageId } = form.i18n;
-  const countryName = label(form.country);
+  const { t, languageId } = form.i18n;
   const mismatch = form.confirmation !== "" && form.confirmation !== form.password;
   return (
     <main className="auth-form">
@@ -183,8 +166,6 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
       <h1>{t("signup_credentials_title", "Create Account")}</h1>
       <p className="auth-sub">{t("signup_credentials_description", "Setup your account credentials.")}</p>
       <form className="auth-fields" noValidate onSubmit={submitHandler(() => { if (form.valid) form.proceed(); })}>
-        <SelectBox label={t("signup_credentials_country_label", "Country")} required value={countryName}
-          icon={form.country?.icon} onOpen={() => form.setPickingCountry(true)} />
         <TextField label={t("signup_credentials_email", "Email Address")} required icon="ic_email" type="email"
           autoComplete="email" value={form.email} onChange={(e) => form.setEmail(e.target.value)}
           placeholder={t("signup_credentials_email_placeholder", "Enter your email address...")} />
@@ -214,9 +195,8 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
       </form>
       <Dialog open={form.confirming} onClose={() => form.setConfirming(false)} labelledBy="signup-confirm"
         title={t("signup_credentials_confirm_dialog_title", "Are You Sure?")}>
-        <p>{t("signup_credentials_confirm_dialog_description", "Please review the details below. The selected country and email address will be used to continue.")}</p>
+        <p>{t("signup_credentials_confirm_dialog_email_description", "Please review your email address below. It will be used to continue.")}</p>
         <div className="dialog-credentials">
-          <span>{t("signup_credentials_country_label", "Country")}: <b>{countryName}</b></span>
           <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{form.email}</b></span>
         </div>
         <div className="dialog-actions">

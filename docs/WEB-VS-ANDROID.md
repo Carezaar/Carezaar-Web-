@@ -121,6 +121,12 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
 - **Reason:** the web has URLs, tabs and bookmarks.
 - **Status:** intentional (platform).
 
+### Country at sign-up
+- **Android:** Create Account asks for a country.
+- **Web:** it doesn't. Create Account takes the email, password, confirmation and licence agreement only, and `auth/register` is sent `role, email, password`. Location is still collected later, on the map in the role's preferences.
+- **Reason:** client decision (2026-10-07): the platform is global. The current API doesn't take a country at registration.
+- **Status:** intentional (product). iOS should do the same.
+
 ### Screen sizes
 - **Android:** phone only.
 - **Web:**

@@ -143,7 +143,7 @@ export function DesignElement({
   const style: CSSProperties = {
     position: "absolute",
     left: mirrored ? parentWidth - n.x - n.width - widened : n.x,
-    top: n.y,
+    top: n.y + (binder?.offsetY?.(n) ?? 0),
     width: n.width + widened,
     height: n.height,
     opacity: binder?.opacity?.(n) ?? n.opacity,

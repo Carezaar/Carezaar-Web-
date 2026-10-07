@@ -17,6 +17,9 @@ export interface SceneBinder {
   isSelected?: (node: DesignNode) => boolean | undefined;
   /** Overrides an input node's type, e.g. "text" while a password is revealed. */
   inputType?: (node: DesignNode) => string | undefined;
+  /** Moves a node vertically by this many frame points, e.g. to close the gap left by a
+   *  field the product removed from a designed frame. */
+  offsetY?: (node: DesignNode) => number | undefined;
   /** Mirror the frame's absolute layout for right-to-left languages, as iOS does. */
   rtl?: boolean;
 }

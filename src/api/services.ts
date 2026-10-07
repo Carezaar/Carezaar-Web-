@@ -19,12 +19,14 @@ export const authService = {
     return session;
   },
 
-  register(countryId: number, role: UserRole, email: string, password: string) {
+  /** `role`, `email` and `password` only: the API no longer takes a country at sign-up;
+   *  location is collected later in the role's preferences. */
+  register(role: UserRole, email: string, password: string) {
     return api.send<User>({
       method: "POST",
       path: "auth/register",
       auth: false,
-      form: { country_id: countryId, role, email, password },
+      form: { role, email, password },
     });
   },
 

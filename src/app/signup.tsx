@@ -11,7 +11,6 @@ import type { UserRole } from "../api/types";
  *  sign in with the credentials held here. */
 export interface SignUpState {
   role: UserRole;
-  countryId: number;
   email: string;
   password: string;
   userId: string | null;
@@ -22,7 +21,7 @@ export interface SignUpState {
 }
 
 const initial: SignUpState = {
-  role: "client", countryId: 1, email: "", password: "", userId: null, entityCreated: false, isPasswordRecovery: false,
+  role: "client", email: "", password: "", userId: null, entityCreated: false, isPasswordRecovery: false,
 };
 
 const SignUpContext = createContext<{

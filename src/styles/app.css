@@ -536,9 +536,6 @@ a { color: var(--primary); }
 .auth-alt { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 0; font-size: 15px; }
 .auth-alt.stacked { flex-direction: column; gap: 4px; padding-top: 18px; border-top: 1px solid var(--line); }
 .auth-alt .link { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; }
-.select-box { width: 100%; cursor: pointer; text-align: start; font-size: 16px; }
-.select-box > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.select-box:hover { border-color: var(--primary); }
 
 .auth-intro { gap: 16px; padding-top: 24px; }
 .auth-language { position: relative; align-self: flex-end; height: 40px; }

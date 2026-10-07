@@ -26,6 +26,11 @@ import { RuleChips } from "../ui/RuleChips";
 /** The frame's password-rule chips (Frame 5) are drawn in fixed met/unmet states; the
  *  live `RuleChips` replace them. */
 const RULE_CHIP_ROW = "56:84399";
+/** Create Account frame (56:84378): the Country group, which sign-up no longer asks for,
+ *  and the top-level nodes below it, which move up by its height (182 → 286 in the frame). */
+const COUNTRY_GROUP = "56:84381";
+const COUNTRY_HEIGHT = 104;
+const BELOW_COUNTRY = new Set(["56:84390", "56:84391", "56:84392", "56:84405", "56:84406"]);
 
 /* ---------------------------------------------------------------- Splash */
 
@@ -291,16 +296,11 @@ function useSignUpForm() {
   const { t } = i18n;
   const { act, toast, messageOf } = useFeedback();
   const { state: signUp, update } = useSignUp();
-  const { items } = useBaseData();
-  const countries = items("countries");
-  const country = countries.find((c) => c.id === signUp.countryId) ?? countries[0];
-
   const [email, setEmail] = useState(signUp.email);
   const [password, setPassword] = useState(signUp.password);
   const [confirmation, setConfirmation] = useState(signUp.password);
   const [accepted, setAccepted] = useState(false);
   const [licenseOpen, setLicenseOpen] = useState(false);
-  const [pickingCountry, setPickingCountry] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -320,8 +320,8 @@ function useSignUpForm() {
     setConfirming(false);
     try {
       await act(t("loading_auth_register", "Registering"), async () => {
-        await authService.register(country?.id ?? 1, role, email.trim(), password);
-        update({ role, countryId: country?.id ?? 1, email: email.trim(), password, isPasswordRecovery: false });
+        await authService.register(role, email.trim(), password);
+        update({ role, email: email.trim(), password, isPasswordRecovery: false });
         await userService.sendOTP(email.trim());
       });
       navigate("/otp");
@@ -330,12 +330,12 @@ function useSignUpForm() {
         setError(e.fieldError("email") ?? e.fieldError("password") ?? e.message);
       } else toast(messageOf(e));
     }
-  }, [act, t, country, role, email, password, update, navigate, toast, messageOf]);
+  }, [act, t, role, email, password, update, navigate, toast, messageOf]);
 
   return {
-    i18n, toast, goBack, countries, country, selectCountry: (id: number) => update({ countryId: id }),
+    i18n, toast, goBack,
     email, setEmail, password, setPassword, confirmation, setConfirmation, accepted, setAccepted,
-    licenseOpen, setLicenseOpen, pickingCountry, setPickingCountry, confirming, setConfirming,
+    licenseOpen, setLicenseOpen, confirming, setConfirming,
     error, rules, valid, proceed, confirm,
   };
 }
@@ -345,26 +345,10 @@ export type SignUpForm = ReturnType<typeof useSignUpForm>;
  *  tablet width up. */
 export function SignUpCredentialsScreen() {
   const form = useSignUpForm();
-  const { t, label } = form.i18n;
-  const { country } = form;
+  const { t } = form.i18n;
   return (
     <>
       {useIsWide() ? <SignUpCard form={form} /> : <SignUpScene form={form} />}
-      <Dialog open={form.pickingCountry} onClose={() => form.setPickingCountry(false)}
-        title={t("signup_credentials_country_label", "Country")} labelledBy="country-title">
-        <div className="option-list" role="listbox">
-          {form.countries.map((c) => (
-            <button key={c.id} type="button" role="option" aria-selected={c.id === country?.id}
-              className={`option-row ${c.id === country?.id ? "on" : ""}`}
-              onClick={() => { form.selectCountry(c.id); form.setPickingCountry(false); }}>
-              {c.icon && <Icon name={c.icon} size={24} />}
-              <span className="option-label">{label(c)}</span>
-              {c.id === country?.id && <Icon name="ic_check" size={18} tint="var(--primary)" />}
-            </button>
-          ))}
-        </div>
-        <p className="muted small">{t("signup_credentials_country_hint", "")}</p>
-      </Dialog>
       <Dialog open={form.licenseOpen} onClose={() => form.setLicenseOpen(false)}
         title={capitalized(t("signup_credentials_accept_license", "License agreement"))} labelledBy="eula">
         <div className="eula">{t("signup_credentials_accept_contents", "")}</div>
@@ -377,29 +361,31 @@ export function SignUpCredentialsScreen() {
 /** The phone frame, which contains the full form and the "Are you sure?" dialog. The
  *  dialog nodes stay hidden until Continue. */
 function SignUpScene({ form }: { form: SignUpForm }) {
-  const { t, label, languageId } = form.i18n;
+  const { t, languageId } = form.i18n;
   const {
     email, setEmail, password, setPassword, confirmation, setConfirmation, accepted, setAccepted,
-    confirming, setConfirming, error, valid, country, rules, toast, goBack, proceed, confirm,
+    confirming, setConfirming, error, valid, rules, goBack, proceed, confirm,
   } = form;
   const [revealPassword, setRevealPassword] = useState(false);
   const [revealConfirm, setRevealConfirm] = useState(false);
 
   const binder = useMemo<SceneBinder>(() => {
     const isDialogNode = (n: DesignNode) => n.name === "Dialog" || n.name === "Rectangle 2931";
+    // Country isn't asked at sign-up (client decision, 2026-10-07): its group is hidden and
+    // the fields below it move up by its height.
     return {
       binding: (n) => n.inputType === "email" ? { value: email, onChange: setEmail }
         : n.inputType === "password" ? { value: password, onChange: setPassword } : undefined,
       handle: (n) => {
         const text = semanticLabel(n);
         if (n.name === "Header" || n.name === "Back") { goBack(); return true; }
-        if (n.name === "Info") { toast(t("signup_credentials_country_hint")); return true; }
         if (n.name === "Button" && text.includes("edit")) { setConfirming(false); return true; }
         if (n.name === "Button" && text.includes("confirm")) { void confirm(); return true; }
         if (n.name === "Button") { proceed(); return true; }
         return false;
       },
       isHidden: (n) => (isDialogNode(n) && !confirming)
+        || n.id === COUNTRY_GROUP
         || n.id === RULE_CHIP_ROW
         // Two lines with the values in blue, drawn as an overlay below.
         || n.name === "Credentials"
@@ -414,50 +400,47 @@ function SignUpScene({ form }: { form: SignUpForm }) {
       },
       text: (n) => {
         if (n.name === "Error") return error ?? undefined;
-        if (n.name === "United States") return label(country);
+        if (n.text?.startsWith("Please review the details below")) {
+          return t("signup_credentials_confirm_dialog_email_description", "Please review your email address below. It will be used to continue.");
+        }
         return undefined;
       },
+      offsetY: (n) => (BELOW_COUNTRY.has(n.id) ? -COUNTRY_HEIGHT : undefined),
       inputType: (n) => (n.inputType === "password" && revealPassword ? "text" : undefined),
     };
-  }, [email, setEmail, password, setPassword, confirming, setConfirming, error, valid, country, label, t, toast, goBack, proceed, confirm, languageId, revealPassword]);
+  }, [email, setEmail, password, setPassword, confirming, setConfirming, error, valid, t, goBack, proceed, confirm, languageId, revealPassword]);
 
   return (
     <FigmaScreen sceneKey="v2-56-84378" binder={binder} overlays={[
-      // Overlays sit above the frame; keep the chips out of the confirmation dialog.
-      ...(confirming ? [{ x: 58, y: 448, width: 296, height: 48, content: (
+      // Overlays sit above the frame, which moved the lower fields into the dialog's area:
+      // while it's open, show only its email line (the form keeps the values for Edit).
+      ...(confirming ? [{ x: 58, y: 460, width: 296, height: 24, content: (
         <div className="dialog-credentials">
-          <span>{t("signup_credentials_country_label", "Country")}: <b>{label(country)}</b></span>
           <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{email}</b></span>
         </div>
       ) }] : [
-        { x: 20, y: 514, width: 372, height: 32, content: <RuleChips rules={rules} /> },
-        { x: 348, y: 444, width: 32, height: 32, content: (
+        { x: 20, y: 514 - COUNTRY_HEIGHT, width: 372, height: 32, content: <RuleChips rules={rules} /> },
+        { x: 348, y: 444 - COUNTRY_HEIGHT, width: 32, height: 32, content: (
           <PasswordToggle revealed={revealPassword} onToggle={() => setRevealPassword((r) => !r)} />
         ) },
-        // Android's country field is a dropdown; the frame draws it as a static box.
-        { x: 20, y: 206, width: 330, height: 56, content: (
-          <button type="button" className="scene-hit" aria-haspopup="dialog"
-            aria-label={`${t("signup_credentials_country_label", "Country")}: ${label(country)}`}
-            onClick={() => form.setPickingCountry(true)} />
+        { x: 68, y: 617 - COUNTRY_HEIGHT, width: 278, height: 56, content: (
+          <input className="scene-input" aria-label={t("signup_credentials_confirm_password", "Confirm Password")}
+            type={revealConfirm ? "text" : "password"} value={confirmation}
+            placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")}
+            onChange={(e) => setConfirmation(e.target.value)} autoComplete="new-password" />
+        ) },
+        { x: 348, y: 629 - COUNTRY_HEIGHT, width: 32, height: 32, content: (
+          <PasswordToggle revealed={revealConfirm} onToggle={() => setRevealConfirm((r) => !r)} />
+        ) },
+        { x: 20, y: 676 - COUNTRY_HEIGHT, width: 372, height: 28, content: (
+          <Checkbox checked={accepted} onChange={setAccepted}>
+            {t("signup_credentials_accept_label", "I accept the")}{" "}
+            <button type="button" className="link" onClick={(e) => { e.preventDefault(); form.setLicenseOpen(true); }}>
+              {t("signup_credentials_accept_license", "license agreement")}
+            </button>
+          </Checkbox>
         ) },
       ]),
-      { x: 68, y: 617, width: 278, height: 56, content: (
-        <input className="scene-input" aria-label={t("signup_credentials_confirm_password", "Confirm Password")}
-          type={revealConfirm ? "text" : "password"} value={confirmation}
-          placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")}
-          onChange={(e) => setConfirmation(e.target.value)} autoComplete="new-password" />
-      ) },
-      { x: 348, y: 629, width: 32, height: 32, content: (
-        <PasswordToggle revealed={revealConfirm} onToggle={() => setRevealConfirm((r) => !r)} />
-      ) },
-      { x: 20, y: 676, width: 372, height: 28, content: (
-        <Checkbox checked={accepted} onChange={setAccepted}>
-          {t("signup_credentials_accept_label", "I accept the")}{" "}
-          <button type="button" className="link" onClick={(e) => { e.preventDefault(); form.setLicenseOpen(true); }}>
-            {t("signup_credentials_accept_license", "license agreement")}
-          </button>
-        </Checkbox>
-      ) },
     ]} />
   );
 }
