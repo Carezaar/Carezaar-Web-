@@ -10,6 +10,7 @@ import { usePaged } from "../app/usePaged";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, Spinner, TextArea } from "../ui/kit";
 import { Icon } from "../ui/Icon";
+import { requestPreview } from "../ui/requestPreview";
 
 /** Profile → Matches: the user's own match records in three tabs. */
 export function ManageMatchesScreen() {
@@ -64,6 +65,7 @@ export function ManageMatchesScreen() {
               const partner = role === "client" ? m.caregiver : m.client;
               const stage = matchStage(m);
               const myReview = role ? reviewBy(m, role) : null;
+              const preview = requestPreview(m.introduction ?? "");
               return (
                 <li key={m.id}>
                   <article className="match-row" {...cardLink(() => { if (partner) navigate(role === "client" ? `/caregivers/${partner.id}` : `/clients/${partner.id}`); }, `${partner?.user.first_name ?? ""} ${partner?.user.last_name ?? ""}`)}>
@@ -75,8 +77,10 @@ export function ManageMatchesScreen() {
                       {stage === "pending" && role && awaitsPartner(m, role) && <p className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</p>}
                     </div>
                     <div className="match-row-side" onClick={(e) => e.stopPropagation()}>
-                      <Icon name={stage === "history" ? "ic_match_off" : "ic_match_on"} size={34}
-                        tint={stage === "history" ? "var(--error)" : "var(--success)"} />
+                      {tab !== "requests" && stage !== "pending" && (
+                        <Icon name={stage === "history" ? "ic_match_off" : "ic_match_on"} size={34}
+                          tint={stage === "history" ? "var(--error)" : "var(--success)"} />
+                      )}
                       {stage === "active" && <button type="button" className="mini-danger" onClick={() => setConfirm({ match: m, action: "unmatch" })}>{t("general_unmatch", "Unmatch")}</button>}
                       {stage === "pending" && role && awaitsResponse(m, role) && (
                         <span className="mini-actions">
@@ -91,8 +95,12 @@ export function ManageMatchesScreen() {
                         <button type="button" className="mini-primary" onClick={() => setReviewing(m)}>{t("match_review_button", "Review")}</button>
                       )}
                     </div>
-                    {stage === "pending" && m.introduction && (
-                      <p className="match-intro" dir="auto"><b>{t("match_introduction_title", "Introduction")}:</b> {m.introduction}</p>
+                    {stage === "pending" && preview && (
+                      <button type="button" className="match-intro" dir="auto"
+                        aria-label={`${t("match_introduction_title", "Introduction")}: ${preview}`}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/pending/${m.id}`); }}>
+                        <span aria-hidden="true">💬 </span>{preview}
+                      </button>
                     )}
                   </article>
                 </li>

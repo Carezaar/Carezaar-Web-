@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carezaar — Care that finds you</title>
+  <meta name="description" content="Carezaar matches families with caregivers who fit their needs, schedule, distance and budget. Chat opens only between matches." />
+  <link rel="preload" href="/assets/Vazirmatn.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Reveal states apply only while JS runs. If main.js never finishes, fail visible after 3 s.
+    document.documentElement.classList.add("js");
+    setTimeout(function () { if (!document.documentElement.classList.contains("is-ready")) document.documentElement.classList.remove("js"); }, 3000);
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 40'%3E%3Cpath fill='%23007AFE' d='M24 1.2C21.8-1 18.6-.1 16.7 3.1c2.3 1.3 4.3 3.3 5.8 5.9-1.9-2.1-4.1-3.8-6.4-4.8-2.4-1-5-1.2-7.5-.4C3.4 5.5 1.3 9.6.5 22.6c.9 4.2 2.7 7.9 5.1 10.9 2.9 3.5 6.6 5.9 10.4 6.4.3 0 .6.1.9.1l-.2-.3c-1.6-2.3-3-4.9-4.1-7.6-1.1-2.7-2-5.5-2.7-8.5-.8-3.7-1-7.3-.8-10.8.1-1.3.4-2.6 1.1-3.7.2-.4.5-.8.7-1.1 1.3-1.6 3-2.2 4.5-1.7.4.2.8.4 1.2.8 1.6 1.6 2.1 4.6 1.2 7.2 2 1.2 4.5.4 6.3-2 1.9-3.5 1.6-8.1-.7-10.3z'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <div class="shell">
+    <span class="rail rail--l" aria-hidden="true"></span>
+    <span class="rail rail--r" aria-hidden="true"></span>
+
+    <!-- The care thread: one line from the home in the hero to the heart at the end, drawn as you read. -->
+    <svg class="thread" aria-hidden="true">
+      <path class="thread__route" />
+      <path class="thread__glow" />
+      <path class="thread__line" />
+      <g class="thread__head"><circle class="thread__halo" r="14" /><circle r="4.5" fill="#fff" /></g>
+    </svg>
+
+    <header class="nav" id="top">
+      <a class="brand" href="#top" aria-label="Carezaar home">
+        <svg class="brand__mark" viewBox="0 0 84 40" aria-hidden="true">
+          <defs>
+            <linearGradient id="swoosh" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#007AFE" stop-opacity="0" /><stop offset="1" stop-color="#007AFE" /></linearGradient>
+          </defs>
+          <path class="brand__swoosh" transform="translate(14.035 17.432)" fill="url(#swoosh)" d="M68.8248 0 L45.2671 8.2549 L44.0905 8.6655 L43.8417 8.7537 L8.8758 21.0013 L8.8659 21.0064 L4.6693 22.4775 L4.6643 22.4725 L4.5872 22.3843 C4.3906 22.1173 4.1991 21.8427 4.01 21.5706 C2.4578 19.3211 1.1145 16.8827 0 14.3208 L10.9181 12.0511 L14.5202 11.3005 L14.5252 11.3005 L43.4686 5.2799 L43.7223 5.227 L44.8989 4.9802 L68.8298 0.005 L68.8248 0" />
+          <path class="brand__c" fill="#007AFE" d="M24.0203 1.1633 C21.8337 -0.9653 18.6073 -0.0861 16.6744 3.0929 C18.9829 4.3524 20.9755 6.4231 22.5153 9.0051 C20.6148 6.8614 18.4058 5.2165 16.0799 4.2391 C14.8336 3.7176 13.5549 3.3876 12.2688 3.2818 C11.8385 3.2466 11.4081 3.234 10.9778 3.2491 C10.8434 3.2516 10.7141 3.2617 10.5797 3.2692 C6.5871 3.5564 3.4502 6.0402 1.6616 9.7911 C0.0173 13.2447 -0.4901 17.7613 0.5173 22.6206 C1.3805 26.7795 3.2264 30.543 5.6294 33.4978 C8.5125 37.0371 12.1942 39.4126 15.9604 39.9139 C16.2714 39.9592 16.5848 39.9844 16.8983 39.9995 C16.8237 39.8912 16.749 39.7829 16.6769 39.672 C15.0923 37.3369 13.7017 34.7826 12.5499 32.0569 C11.4131 29.3691 10.5101 26.5125 9.8932 23.54 C9.117 19.8043 8.8533 16.1844 9.0449 12.7862 L9.0797 12.7862 C9.1568 11.5141 9.5101 10.2143 10.1444 9.0555 C10.3683 8.6474 10.6171 8.2796 10.8832 7.9522 C12.1892 6.345 13.9281 5.7253 15.4281 6.3022 C15.8585 6.4659 16.2664 6.7254 16.6396 7.0906 C18.2515 8.6625 18.7068 11.6451 17.8784 14.3178 C19.871 15.5471 22.4059 14.741 24.1323 12.3026 C24.2765 12.0985 24.4183 11.8819 24.5502 11.6552 C24.59 11.5846 24.6323 11.5116 24.6721 11.4385 C26.5751 7.9673 26.2816 3.37 24.0153 1.1658 L24.0203 1.1633" />
+        </svg>
+        <span class="brand__word">Carezaar</span>
+      </a>
+      <nav class="nav__links" aria-label="Sections">
+        <span class="nav__thumb" aria-hidden="true"></span>
+        <a href="#how">How it works</a>
+        <a href="#care">Care types</a>
+        <a href="#trust">Safety</a>
+      </nav>
+      <a class="nav__signin" href="/sign-in" data-signed-in-href="/main/matches" data-signed-in-text="Open app">Sign in</a>
+      <a class="btn btn--outline nav__cta" href="/intro">Get started</a>
+    </header>
+
+    <main>
+      <!-- ============================================================ HERO -->
+      <section class="hero" data-role="family" aria-labelledby="hero-title">
+        <div class="hero__copy">
+          <div class="role" role="radiogroup" aria-label="Show Carezaar for" data-intro>
+            <span class="role__thumb" aria-hidden="true"></span>
+            <button type="button" role="radio" aria-checked="true" data-role="family">I need care</button>
+            <button type="button" role="radio" aria-checked="false" data-role="caregiver" tabindex="-1">I’m a caregiver</button>
+          </div>
+
+          <h1 class="hero__title" id="hero-title">
+            <span class="line"><span class="swap"><span class="word swap__a">Care</span><span class="word swap__b" aria-hidden="true">Work</span></span> <span class="word">that</span></span>
+            <span class="line"><em class="word word--accent">finds</em> <span class="word">you.</span></span>
+          </h1>
+
+          <div class="lead-swap" data-intro>
+            <p class="hero__lead for-family">Tell Carezaar what your family needs and see caregivers who fit your schedule, distance and budget. You only chat with the people you choose to match with.</p>
+            <p class="hero__lead for-caregiver" aria-hidden="true">Show families your skills, languages, shifts and rate. Accept only the requests that suit you, and chat once you both agree.</p>
+          </div>
+
+          <div class="hero__actions" data-intro>
+            <a class="btn btn--solid hero__start" href="/sign-up/client" data-magnetic><span>Get started</span><svg class="btn__arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg></a>
+            <a class="btn btn--outline" href="#how" data-magnetic>See how it works</a>
+          </div>
+        </div>
+
+        <figure class="constellation" aria-label="Illustration: caregivers within 5, 10 and 15 miles of a home, one of them connecting as a match">
+          <div class="c-tilt">
+            <svg viewBox="0 0 520 520" aria-hidden="true">
+              <defs>
+                <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0" stop-color="#007AFE" stop-opacity=".16" />
+                  <stop offset=".55" stop-color="#007AFE" stop-opacity=".06" />
+                  <stop offset="1" stop-color="#007AFE" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="matchline" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#007AFE" stop-opacity=".25" />
+                  <stop offset="1" stop-color="#007AFE" />
+                </linearGradient>
+              </defs>
+
+              <circle cx="260" cy="260" r="200" fill="url(#glow)" class="c-breathe" />
+
+              <!-- commute rings: Up to 5 / 10 / 15 miles, as in the app -->
+              <g class="layer-rings">
+                <g class="rings" fill="none" stroke="#fff">
+                  <circle cx="260" cy="260" r="80" stroke-opacity=".55" stroke-dasharray="2 7" />
+                  <circle cx="260" cy="260" r="140" stroke-opacity=".38" stroke-dasharray="2 9" />
+                  <circle cx="260" cy="260" r="200" stroke-opacity=".22" stroke-dasharray="2 11" />
+                </g>
+                <g class="ring-labels" fill="#fff" font-family="Manrope, sans-serif" font-size="11" font-weight="700" letter-spacing=".08em" text-anchor="middle">
+                  <text x="260" y="174" opacity=".8">5 MI</text>
+                  <text x="260" y="114" opacity=".6">10 MI</text>
+                  <text x="260" y="54" opacity=".45">15 MI</text>
+                </g>
+              </g>
+
+              <!-- people (or, for a caregiver, homes) drifting on the rings; each glyph counter-rotates to stay upright -->
+              <g class="layer-nodes">
+                <g class="orbit" style="--dur:26s;--delay:0s;--dir:normal;--rdir:reverse">
+                  <circle class="node__halo" cx="340" cy="260" r="16" />
+                  <g class="glyph" style="transform-origin:340px 260px"><circle class="g-person" cx="340" cy="260" r="9" /><path class="g-home" d="M332 261 L340 254 L348 261 M334.5 259 V267 H345.5 V259" /></g>
+                </g>
+                <g class="orbit" style="--dur:38s;--delay:-12s;--dir:reverse;--rdir:normal">
+                  <circle class="node__halo" cx="400" cy="260" r="14" />
+                  <g class="glyph" style="transform-origin:400px 260px"><circle class="g-person" cx="400" cy="260" r="7" /><path class="g-home" d="M393 261 L400 255 L407 261 M395 259 V266 H405 V259" /></g>
+                </g>
+                <g class="orbit" style="--dur:52s;--delay:-30s;--dir:normal;--rdir:reverse">
+                  <g class="glyph" style="transform-origin:460px 260px"><circle class="g-person" cx="460" cy="260" r="6" /><path class="g-home" d="M454 261 L460 256 L466 261 M456 259 V265 H464 V259" /></g>
+                </g>
+                <g class="orbit" style="--dur:34s;--delay:-8s;--dir:normal;--rdir:reverse">
+                  <g class="glyph" style="transform-origin:120px 260px"><circle class="g-person" cx="120" cy="260" r="7" /><path class="g-home" d="M113 261 L120 255 L127 261 M115 259 V266 H125 V259" /></g>
+                </g>
+                <g class="orbit" style="--dur:60s;--delay:-20s;--dir:reverse;--rdir:normal">
+                  <g class="glyph" style="transform-origin:60px 260px"><circle class="g-person" cx="60" cy="260" r="5" /><path class="g-home" d="M55 261 L60 257 L65 261 M56.5 259 V264 H63.5 V259" /></g>
+                </g>
+              </g>
+
+              <!-- the match: a line reaches one of them and a heart travels it -->
+              <g class="match">
+                <path class="match__thread" d="M260 260 C 300 220, 330 200, 357 178" fill="none" stroke="url(#matchline)" stroke-width="2.4" stroke-linecap="round" />
+                <circle class="match__pulse" cx="357" cy="178" r="12" fill="#fff" />
+                <circle class="match__node" cx="357" cy="178" r="10" fill="#fff" />
+                <path class="match__heart" d="M0 3.2C0 1.4 1.4 0 3.1 0c1 0 1.9.5 2.4 1.3C6 .5 6.9 0 7.9 0 9.6 0 11 1.4 11 3.2c0 3.1-5.5 6.8-5.5 6.8S0 6.3 0 3.2z" fill="#007AFE" />
+              </g>
+
+              <!-- the centre: a home for a family, a heart for a caregiver -->
+              <g class="home">
+                <circle cx="260" cy="260" r="34" fill="#fff" />
+                <circle cx="260" cy="260" r="34" fill="none" stroke="#fff" stroke-opacity=".5" class="home__ping" />
+                <path class="home__icon" d="M246 262 L260 249 L274 262 M250 259 V273 H270 V259" fill="none" stroke="#0b5fd6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+                <path class="home__heart" d="M257.5 267.5c0-1.3 1-2.1 2.1-1.4.4.2.4.2.8 0 1.1-.7 2.1.1 2.1 1.4 0 1.9-2.5 3.4-2.5 3.4s-2.5-1.5-2.5-3.4z" fill="#0b5fd6" />
+              </g>
+            </svg>
+          </div>
+
+          <figcaption class="match-card" aria-hidden="true">
+            <span class="match-card__avatar"></span>
+            <span class="match-card__body">
+              <span class="for-family"><strong>New match</strong><span>3.2 mi away · $25–45 / hr</span></span>
+              <span class="for-caregiver"><strong>New request</strong><span>Senior care · Mornings · 2.4 mi</span></span>
+            </span>
+            <span class="match-card__heart">♥</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <!-- ============================================================ FACTS -->
+      <section class="facts" aria-label="What Carezaar guarantees">
+        <div class="fact" data-reveal>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v10.5H9l-5 4z" /><path d="M8.5 10.5h7" class="draw" /></svg>
+          <p><strong>Chat only after a match.</strong> Messages open when both sides agree and close when the match ends.</p>
+        </div>
+        <div class="fact" data-reveal>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9s1.2-6.4 3.8-9z" class="draw" /></svg>
+          <p><strong>Eight languages.</strong> Including Arabic and Farsi, with right-to-left layouts.</p>
+        </div>
+      </section>
+
+      <!-- ============================================================ TWO WAYS IN (try-it panels) -->
+      <section class="sides" aria-label="Two ways in">
+        <article class="side card" id="families" data-reveal>
+          <div class="side__art">
+            <p class="try"><span class="try__dot"></span>Try it: tap what matters</p>
+            <div class="chips" role="group" aria-label="Example care preferences">
+              <button type="button" class="chip" aria-pressed="false">Senior care</button>
+              <button type="button" class="chip" aria-pressed="false" data-auto>Bathing</button>
+              <button type="button" class="chip" aria-pressed="false">Patient</button>
+              <button type="button" class="chip" aria-pressed="false" data-auto>Mornings 6–12</button>
+              <button type="button" class="chip" aria-pressed="false">Up to 10 miles</button>
+              <button type="button" class="chip" aria-pressed="false">$20–$40 / hr</button>
+              <button type="button" class="chip" aria-pressed="false" data-auto>Medication help</button>
+              <button type="button" class="chip" aria-pressed="false">Dementia care</button>
+            </div>
+          </div>
+          <p class="eyebrow">For families</p>
+          <h2>Say what matters, <em>once.</em></h2>
+          <p class="side__text">Pick the type of care, the services, the qualities you want and when you need help. Carezaar lists caregivers who fit, sorted by distance or pay, and you can change your answers any time.</p>
+        </article>
+
+        <article class="side card" id="caregivers" data-reveal>
+          <div class="side__art">
+            <p class="try"><span class="try__dot"></span>Try it: set your week</p>
+            <div class="week" role="group" aria-label="Example weekly availability">
+              <span></span>
+              <span class="week__d" data-col="0">M</span><span class="week__d" data-col="1">T</span><span class="week__d" data-col="2">W</span><span class="week__d" data-col="3">T</span><span class="week__d" data-col="4">F</span><span class="week__d" data-col="5">S</span><span class="week__d" data-col="6">S</span>
+              <span class="week__r">AM</span>
+              <button type="button" aria-pressed="false" data-col="0" data-auto aria-label="Monday morning"></button><button type="button" aria-pressed="false" data-col="1" aria-label="Tuesday morning"></button><button type="button" aria-pressed="false" data-col="2" data-auto aria-label="Wednesday morning"></button><button type="button" aria-pressed="false" data-col="3" aria-label="Thursday morning"></button><button type="button" aria-pressed="false" data-col="4" data-auto aria-label="Friday morning"></button><button type="button" aria-pressed="false" data-col="5" aria-label="Saturday morning"></button><button type="button" aria-pressed="false" data-col="6" aria-label="Sunday morning"></button>
+              <span class="week__r">PM</span>
+              <button type="button" aria-pressed="false" data-col="0" aria-label="Monday evening"></button><button type="button" aria-pressed="false" data-col="1" data-auto aria-label="Tuesday evening"></button><button type="button" aria-pressed="false" data-col="2" aria-label="Wednesday evening"></button><button type="button" aria-pressed="false" data-col="3" data-auto aria-label="Thursday evening"></button><button type="button" aria-pressed="false" data-col="4" aria-label="Friday evening"></button><button type="button" aria-pressed="false" data-col="5" data-auto aria-label="Saturday evening"></button><button type="button" aria-pressed="false" data-col="6" aria-label="Sunday evening"></button>
+            </div>
+          </div>
+          <p class="eyebrow">For caregivers</p>
+          <h2>Work that fits <em>your week.</em></h2>
+          <p class="side__text">Show your skills, languages, certifications, shifts and rate. Families who need what you offer find you, and you decide which requests to accept.</p>
+        </article>
+      </section>
+
+      <!-- ============================================================ HOW IT WORKS -->
+      <section class="how" id="how" aria-labelledby="how-title">
+        <div class="how__intro">
+          <p class="eyebrow" data-reveal>How it works</p>
+          <h2 id="how-title" data-reveal>From first answer to <em>first hello.</em></h2>
+        </div>
+
+        <div class="how__grid">
+          <ol class="steps">
+            <li class="step" data-step="0">
+              <span class="step__num">01</span>
+              <h3>Say what you need</h3>
+              <p>Care type, services, schedule, distance and pay range. Four short steps, and you can change everything later.</p>
+            </li>
+            <li class="step" data-step="1">
+              <span class="step__num">02</span>
+              <h3>See who fits</h3>
+              <p>Matches show distance and pay up front. Open a profile to see care types, qualities, languages and shifts. Save the ones you like.</p>
+            </li>
+            <li class="step" data-step="2">
+              <span class="step__num">03</span>
+              <h3>Request, then accept</h3>
+              <p>Either side can send a match request. Nothing happens until the other person accepts, and either of you can end it later.</p>
+            </li>
+            <li class="step" data-step="3">
+              <span class="step__num">04</span>
+              <h3>Talk it through</h3>
+              <p>A private chat opens between you, with replies, read receipts and a notification when something new arrives.</p>
+            </li>
+          </ol>
+
+          <div class="phone-wrap">
+            <div class="phone-stage">
+              <div class="phone" aria-hidden="true">
+                <div class="phone__notch"></div>
+                <div class="screen is-active" data-screen="0">
+                  <div class="scr-top"><span class="scr-back">←</span><span class="scr-step"><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+                  <p class="scr-title">Tell us about your needs</p>
+                  <div class="scr-tiles">
+                    <span class="tile on">Bathing</span><span class="tile">Dressing</span><span class="tile on">Feeding</span>
+                    <span class="tile">Mobility</span><span class="tile on">Companion­ship</span><span class="tile">Meals</span>
+                    <span class="tile">Transport</span><span class="tile on">Medication</span><span class="tile">Overnight</span>
+                  </div>
+                  <span class="scr-btn">Continue →</span>
+                </div>
+                <div class="screen" data-screen="1">
+                  <p class="scr-title scr-title--big">My Matches</p>
+                  <div class="scr-card"><span class="av av--a"></span><span><b>Caregiver A</b><small>1.8 mi · $25–40</small></span><span class="fav">♥</span></div>
+                  <div class="scr-card"><span class="av av--b"></span><span><b>Caregiver B</b><small>3.2 mi · $22–38</small></span><span class="fav fav--off">♡</span></div>
+                  <div class="scr-card"><span class="av av--c"></span><span><b>Caregiver C</b><small>6.5 mi · $30–45</small></span><span class="fav fav--off">♡</span></div>
+                  <div class="scr-sort">Sort: Distance</div>
+                </div>
+                <div class="screen" data-screen="2">
+                  <p class="scr-title">Matches</p>
+                  <div class="scr-tabs"><span>Matches</span><span class="on">Requests</span><span>History</span></div>
+                  <div class="scr-request"><span class="av av--a"></span><span><b>Caregiver A</b><small>Start: today</small></span></div>
+                  <div class="scr-accept"><span class="btn-mini btn-mini--solid">Accept</span><span class="btn-mini">Reject</span></div>
+                  <div class="scr-matched"><span>✓</span> Matched</div>
+                </div>
+                <div class="screen" data-screen="3">
+                  <div class="scr-chat-head"><span class="av av--a"></span><b>Caregiver A</b></div>
+                  <div class="bubble bubble--them">Hi! I saw your request. Mornings work well for me.</div>
+                  <div class="bubble bubble--me"><span class="quote">Mornings work well for me.</span>Perfect. Mondays and Tuesdays, 8 to 11?<span class="ticks">✓✓</span></div>
+                  <div class="typing"><i></i><i></i><i></i></div>
+                  <div class="scr-composer">Type a message…</div>
+                </div>
+              </div>
+              <!-- satellites: one fact per step, floating beside the phone -->
+              <span class="sat sat--0" data-sat="0" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 11.5V13h1.5l7-7L10 4.5l-7 7zM11 3.5l1.5 1.5" /></svg>Change it any time</span>
+              <span class="sat sat--1" data-sat="1" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2" /><circle cx="8" cy="8" r="5.5" /></svg>Sorted by distance</span>
+              <span class="sat sat--2" data-sat="2" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7" /></svg>Both said yes</span>
+              <span class="sat sat--3" data-sat="3" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m1.5 8.5 3 3 5-6.5M7.5 11.5l5-6.5" /></svg>Seen</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ CARE TYPES: the lifeline -->
+      <section class="care" id="care" aria-labelledby="care-title">
+        <div class="care__track">
+          <div class="care__stage">
+            <div class="care__intro">
+              <p class="eyebrow" data-reveal>Care types</p>
+              <h2 id="care-title" data-reveal>Every stage of <em>life.</em></h2>
+            </div>
+
+            <div class="life">
+              <svg class="life__svg" viewBox="0 0 1000 200" aria-hidden="true">
+                <path class="life__route" d="M20 110.0 L28 111.6 L36 113.2 L44 114.7 L52 116.2 L60 117.7 L68 119.0 L76 120.3 L84 121.5 L92 122.5 L100 123.5 L108 124.3 L116 124.9 L124 125.4 L132 125.8 L140 126.0 L148 126.0 L156 125.9 L164 125.6 L172 125.1 L180 124.5 L188 123.8 L196 122.9 L204 121.9 L212 120.8 L220 119.6 L228 118.2 L236 116.8 L244 115.4 L252 113.8 L260 112.3 L268 110.7 L276 109.1 L284 107.5 L292 105.9 L300 104.4 L308 102.9 L316 101.5 L324 100.2 L332 99.0 L340 97.9 L348 96.9 L356 96.1 L364 95.3 L372 94.8 L380 94.4 L388 94.1 L396 94.0 L404 94.1 L412 94.3 L420 94.7 L428 95.2 L436 95.9 L444 96.7 L452 97.6 L460 98.7 L468 99.9 L476 101.2 L484 102.6 L492 104.0 L500 105.5 L508 107.1 L516 108.7 L524 110.3 L532 111.9 L540 113.4 L548 115.0 L556 116.5 L564 117.9 L572 119.3 L580 120.5 L588 121.7 L596 122.7 L604 123.6 L612 124.4 L620 125.0 L628 125.5 L636 125.8 L644 126.0 L652 126.0 L660 125.8 L668 125.5 L676 125.1 L684 124.4 L692 123.7 L700 122.8 L708 121.8 L716 120.6 L724 119.4 L732 118.0 L740 116.6 L748 115.1 L756 113.6 L764 112.0 L772 110.4 L780 108.8 L788 107.2 L796 105.7 L804 104.1 L812 102.7 L820 101.3 L828 100.0 L836 98.8 L844 97.7 L852 96.8 L860 95.9 L868 95.2 L876 94.7 L884 94.3 L892 94.1 L900 94.0 L908 94.1 L916 94.3 L924 94.7 L932 95.3 L940 96.0 L948 96.8 L956 97.8 L964 98.9 L972 100.1 L980 101.4" />
+                <g class="life__segs"></g>
+                <path class="life__line" d="M20 110.0 L28 111.6 L36 113.2 L44 114.7 L52 116.2 L60 117.7 L68 119.0 L76 120.3 L84 121.5 L92 122.5 L100 123.5 L108 124.3 L116 124.9 L124 125.4 L132 125.8 L140 126.0 L148 126.0 L156 125.9 L164 125.6 L172 125.1 L180 124.5 L188 123.8 L196 122.9 L204 121.9 L212 120.8 L220 119.6 L228 118.2 L236 116.8 L244 115.4 L252 113.8 L260 112.3 L268 110.7 L276 109.1 L284 107.5 L292 105.9 L300 104.4 L308 102.9 L316 101.5 L324 100.2 L332 99.0 L340 97.9 L348 96.9 L356 96.1 L364 95.3 L372 94.8 L380 94.4 L388 94.1 L396 94.0 L404 94.1 L412 94.3 L420 94.7 L428 95.2 L436 95.9 L444 96.7 L452 97.6 L460 98.7 L468 99.9 L476 101.2 L484 102.6 L492 104.0 L500 105.5 L508 107.1 L516 108.7 L524 110.3 L532 111.9 L540 113.4 L548 115.0 L556 116.5 L564 117.9 L572 119.3 L580 120.5 L588 121.7 L596 122.7 L604 123.6 L612 124.4 L620 125.0 L628 125.5 L636 125.8 L644 126.0 L652 126.0 L660 125.8 L668 125.5 L676 125.1 L684 124.4 L692 123.7 L700 122.8 L708 121.8 L716 120.6 L724 119.4 L732 118.0 L740 116.6 L748 115.1 L756 113.6 L764 112.0 L772 110.4 L780 108.8 L788 107.2 L796 105.7 L804 104.1 L812 102.7 L820 101.3 L828 100.0 L836 98.8 L844 97.7 L852 96.8 L860 95.9 L868 95.2 L876 94.7 L884 94.3 L892 94.1 L900 94.0 L908 94.1 L916 94.3 L924 94.7 L932 95.3 L940 96.0 L948 96.8 L956 97.8 L964 98.9 L972 100.1 L980 101.4" />
+                <g class="life__ticks">
+                  <line x1="80" x2="80" y1="146" y2="156" /><text x="80" y="176">0</text>
+                  <line x1="260" x2="260" y1="146" y2="156" /><text x="260" y="176">18</text>
+                  <line x1="730" x2="730" y1="146" y2="156" /><text x="730" y="176">65</text>
+                  <line x1="980" x2="980" y1="146" y2="156" /><text x="980" y="176">90+</text>
+                </g>
+                <g class="life__bead" transform="translate(80 120.9)"><circle class="life__halo" r="16" /><circle r="6" fill="#fff" /></g>
+              </svg>
+              <div class="life__stations" role="tablist" aria-label="Care types">
+                <button type="button" role="tab" class="station is-active" aria-selected="true" aria-controls="life-0" data-i="0" style="--x:8%;--y:60.45%"><span class="station__dot"></span><span class="station__label">Birth &amp; postpartum</span></button>
+                <button type="button" role="tab" class="station" aria-selected="false" aria-controls="life-1" data-i="1" style="--x:17%;--y:62.65%"><span class="station__dot"></span><span class="station__label">Child care</span></button>
+                <button type="button" role="tab" class="station" aria-selected="false" aria-controls="life-2" data-i="2" style="--x:49%;--y:51.8%"><span class="station__dot"></span><span class="station__label">Adult care</span></button>
+                <button type="button" role="tab" class="station" aria-selected="false" aria-controls="life-3" data-i="3" style="--x:85%;--y:48.5%"><span class="station__dot"></span><span class="station__label">Senior care</span></button>
+              </div>
+            </div>
+
+            <div class="life__panels">
+              <article class="life__panel is-active" id="life-0" role="tabpanel">
+                <svg viewBox="0 0 64 64" class="life__icon" aria-hidden="true"><path d="M32 12c-4 0-6 3-6 6 0 4 3 5 3 8-5 2-8 7-8 12 0 8 6 12 11 12s11-4 11-12c0-5-3-9-7-11" /><path d="M28 39c0-2 2.2-3.2 4-1.6 1.8-1.6 4-.4 4 1.6 0 2.8-4 5-4 5s-4-2.2-4-5z" /></svg>
+                <div><h3>Birth &amp; postpartum</h3><p>Pregnancy, postpartum, newborn care and family support.</p>
+                  <ul class="mini-chips"><li>Pregnancy</li><li>Postpartum</li><li>Newborn care</li><li>Family support</li></ul></div>
+              </article>
+              <article class="life__panel" id="life-1" role="tabpanel">
+                <svg viewBox="0 0 64 64" class="life__icon" aria-hidden="true"><circle cx="25" cy="22" r="6" /><circle cx="41" cy="27" r="4.5" /><path d="M15 48c0-7 4.5-12 10-12s10 5 10 12M33 48c0-5 3.5-8.5 8-8.5s8 3.5 8 8.5" /></svg>
+                <div><h3>Child care <span>under 18</span></h3><p>Babysitters, nannies, infant care, after-school care and more.</p>
+                  <ul class="mini-chips"><li>Babysitting</li><li>Nanny</li><li>Infant care</li><li>After-school care</li></ul></div>
+              </article>
+              <article class="life__panel" id="life-2" role="tabpanel">
+                <svg viewBox="0 0 64 64" class="life__icon" aria-hidden="true"><rect x="21" y="14" width="22" height="34" rx="5" /><path d="M27 23h10M27 30h10M27 37h6" /><path d="M43 42l6 6" /></svg>
+                <div><h3>Adult care <span>18–64</span></h3><p>Medication reminders, housekeeping, transportation and more.</p>
+                  <ul class="mini-chips"><li>Medication reminders</li><li>Housekeeping</li><li>Transportation</li></ul></div>
+              </article>
+              <article class="life__panel" id="life-3" role="tabpanel">
+                <svg viewBox="0 0 64 64" class="life__icon" aria-hidden="true"><circle cx="30" cy="18" r="6" /><path d="M18 50V38c0-5 3.5-8.5 8.5-8.5h7c5 0 8.5 3.5 8.5 8.5v12" /><path d="M44 30l4 20" /></svg>
+                <div><h3>Senior care <span>65+</span></h3><p>Companion care, personal care, dementia care and more.</p>
+                  <ul class="mini-chips"><li>Companion care</li><li>Personal care</li><li>Dementia care</li></ul></div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <!-- The real service list from the app, drifting -->
+        <div class="drift" aria-label="Services caregivers offer">
+          <div class="drift__row">
+            <ul class="drift__track">
+              <li>Bathing</li><li>Dressing</li><li>Toileting</li><li>Feeding</li><li>Mobility assistance</li><li>Bedridden care</li><li>Alzheimer’s &amp; dementia</li><li>Medication reminders</li><li>Housekeeping</li><li>Meal preparation</li><li>Transportation</li>
+            </ul>
+          </div>
+          <div class="drift__row drift__row--rev">
+            <ul class="drift__track">
+              <li>Companionship</li><li>Personal care</li><li>Respite care</li><li>Babysitting &amp; nanny</li><li>Overnight care</li><li>G-tube care</li><li>Injections</li><li>Wound care</li><li>Catheter care</li><li>Assessment</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ SAFETY: two gates -->
+      <section class="trust" id="trust" aria-labelledby="trust-title">
+        <div class="trust__track">
+          <div class="trust__stage">
+            <div class="trust__intro">
+              <p class="eyebrow" data-reveal>Safety</p>
+              <h2 id="trust-title" data-reveal>Safety at <em>every step.</em></h2>
+            </div>
+
+            <div class="gates">
+              <svg class="gates__svg" viewBox="0 0 1000 240" aria-hidden="true">
+                <path id="gatePath" class="gates__route" d="M90 180 C 320 40, 680 40, 910 180" />
+                <path class="gates__lit" d="M90 180 C 320 40, 680 40, 910 180" />
+                <g class="gates__end" transform="translate(90 180)">
+                  <circle r="28" />
+                  <path d="M0 9C-5 5.5-9 2.5-9-2c0-2.8 2.1-4.7 4.4-4.7 1.9 0 3.5 1.1 4.6 2.8 1.1-1.7 2.7-2.8 4.6-2.8C6.9-6.7 9-4.8 9-2 9 2.5 5 5.5 0 9z" />
+                </g>
+                <g class="gates__end gates__end--home" transform="translate(910 180)">
+                  <circle r="28" />
+                  <path d="M-10 1 L0 -8 L10 1 M-7 -1 V9 H7 V-1" />
+                </g>
+                <g class="gate" transform="translate(357.8 86)"><circle class="gate__pulse" r="30" /><circle class="gate__ring" r="30" /><path class="gate__icon" d="M-5.5 -2 V-6 A5.5 5.5 0 0 1 5.5 -6 V-2 M-9 -2 H9 V11 H-9 Z" /></g>
+                <g class="gate" transform="translate(642.2 86)"><circle class="gate__pulse" r="30" /><circle class="gate__ring" r="30" /><path class="gate__icon" d="M-5.5 -2 V-6 A5.5 5.5 0 0 1 5.5 -6 V-2 M-9 -2 H9 V11 H-9 Z" /></g>
+                <g class="token">
+                  <path d="M-13 -9 H13 A4 4 0 0 1 17 -5 V5 A4 4 0 0 1 13 9 H-4 L-10 14 V9 H-13 A4 4 0 0 1 -17 5 V-5 A4 4 0 0 1 -13 -9 Z" fill="#fff" />
+                  <circle class="token__dot" cx="-6" cy="0" r="2" /><circle class="token__dot" cx="0" cy="0" r="2" /><circle class="token__dot" cx="6" cy="0" r="2" />
+                </g>
+              </svg>
+              <span class="gates__label" style="--x:9%;--y:92%">Caregiver</span>
+              <span class="gates__label" style="--x:91%;--y:92%">Family</span>
+              <span class="gates__label gate-label" style="--x:35.78%;--y:54.1%">Both say yes</span>
+              <span class="gates__label gate-label" style="--x:64.22%;--y:54.1%">Chat opens</span>
+            </div>
+
+            <ol class="gates__notes">
+              <li><b>Both say yes.</b> A request waits until the other person accepts it.</li>
+              <li><b>Chat opens.</b> Private, with replies and read receipts. It closes if the match ends.</li>
+            </ol>
+            <p class="gates__foot">After the work, families can rate the match and leave a review.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ LANGUAGES -->
+      <section class="langs" aria-labelledby="langs-title">
+        <h2 id="langs-title" class="langs__title" data-reveal>
+          <span class="say" aria-hidden="true"><span class="say__clip"><span class="say__word" lang="en">Care</span></span></span><span class="sr-only">Care</span>, <em>in your language.</em>
+          <span class="say__measure" aria-hidden="true"></span>
+        </h2>
+        <div class="langs__list" role="group" aria-label="Languages in the app" data-reveal>
+          <span class="langs__thumb" aria-hidden="true"></span>
+          <button type="button" lang="en" aria-pressed="true">English</button><button type="button" lang="es" aria-pressed="false">Español</button><button type="button" lang="fr" aria-pressed="false">Français</button><button type="button" lang="ru" aria-pressed="false">Русский</button><button type="button" lang="ar" dir="rtl" aria-pressed="false">عربي</button><button type="button" lang="fa" dir="rtl" aria-pressed="false">فارسی</button><button type="button" lang="hi" aria-pressed="false">हिंदी</button><button type="button" lang="zh" aria-pressed="false">中文</button>
+        </div>
+      </section>
+
+      <!-- ============================================================ FINAL: the clouds part, the thread arrives -->
+      <section class="final" id="start" aria-labelledby="final-title">
+        <div class="final__card">
+          <svg class="final__heart" viewBox="-20 -20 40 40" aria-hidden="true">
+            <path class="final__stem" d="M0 -55 V-11" />
+            <circle class="final__ring" r="9" />
+            <path class="final__shape" d="M0 7C-4 4-9 1-9-3.5-9-6.5-6.8-8.5-4.3-8.5-2.4-8.5-.9-7.4 0-5.9.9-7.4 2.4-8.5 4.3-8.5 6.8-8.5 9-6.5 9-3.5 9 1 4 4 0 7Z" />
+          </svg>
+          <h2 id="final-title" data-reveal>Ready when <em>you are.</em></h2>
+          <p data-reveal>Create an account in a few minutes. You can change your answers any time.</p>
+          <div class="hero__actions" data-reveal>
+            <a class="btn btn--solid" href="/sign-up/client" data-magnetic><span>I need care</span><svg class="btn__arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg></a>
+            <a class="btn btn--outline" href="/sign-up/caregiver" data-magnetic>I’m a caregiver</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <a class="brand brand--small" href="#top" aria-label="Back to top">
+        <svg class="brand__mark" viewBox="0 0 84 40" aria-hidden="true">
+          <defs><linearGradient id="swoosh2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#007AFE" stop-opacity="0" /><stop offset="1" stop-color="#007AFE" /></linearGradient></defs>
+          <path transform="translate(14.035 17.432)" fill="url(#swoosh2)" d="M68.8248 0 L4.6693 22.4775 C2.4578 19.3211 1.1145 16.8827 0 14.3208 L68.8248 0" />
+          <path fill="#007AFE" d="M24.0203 1.1633 C21.8337 -0.9653 18.6073 -0.0861 16.6744 3.0929 C18.9829 4.3524 20.9755 6.4231 22.5153 9.0051 C20.6148 6.8614 18.4058 5.2165 16.0799 4.2391 C14.8336 3.7176 13.5549 3.3876 12.2688 3.2818 C11.8385 3.2466 11.4081 3.234 10.9778 3.2491 C6.5871 3.5564 3.4502 6.0402 1.6616 9.7911 C0.0173 13.2447 -0.4901 17.7613 0.5173 22.6206 C1.3805 26.7795 3.2264 30.543 5.6294 33.4978 C8.5125 37.0371 12.1942 39.4126 15.9604 39.9139 C16.2714 39.9592 16.5848 39.9844 16.8983 39.9995 C15.0923 37.3369 13.7017 34.7826 12.5499 32.0569 C11.4131 29.3691 10.5101 26.5125 9.8932 23.54 C9.117 19.8043 8.8533 16.1844 9.0449 12.7862 C9.1568 11.5141 9.5101 10.2143 10.1444 9.0555 C10.3683 8.6474 10.6171 8.2796 10.8832 7.9522 C12.1892 6.345 13.9281 5.7253 15.4281 6.3022 C15.8585 6.4659 16.2664 6.7254 16.6396 7.0906 C18.2515 8.6625 18.7068 11.6451 17.8784 14.3178 C19.871 15.5471 22.4059 14.741 24.1323 12.3026 C24.2765 12.0985 24.4183 11.8819 24.5502 11.6552 C26.5751 7.9673 26.2816 3.37 24.0153 1.1658 Z" />
+        </svg>
+        <span class="brand__word">Carezaar</span>
+      </a>
+      <p>Care, Connect, Compassion.</p>
+      <a href="mailto:support@carezaar.com">support@carezaar.com</a>
+      <p class="foot__copy">© 2026 Carezaar</p>
+    </footer>
+  </div>
+
+  <script src="vendor/gsap.min.js" defer></script>
+  <script src="vendor/ScrollTrigger.min.js" defer></script>
+  <script src="vendor/MorphSVGPlugin.min.js" defer></script>
+  <script src="vendor/DrawSVGPlugin.min.js" defer></script>
+  <script src="main.js" defer></script>
+</body>
+</html>

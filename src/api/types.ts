@@ -3,9 +3,6 @@
  *  mapping layer to drift out of sync. */
 
 export type UserRole = "client" | "caregiver";
-/** The wire sends these lowercase (`"unverified"`); the Kotlin enum constants are
- *  uppercase. Compare with `isVerified()` rather than a literal. */
-export type UserStatus = string;
 
 /** Another user, as profiles and matches return them: the server withholds their email
  *  (null) and date of birth. */
@@ -22,7 +19,6 @@ export interface User {
   photo: string | null;
   bio: string | null;
   date_of_birth: string | null;
-  status: UserStatus;
   is_favorite: boolean;
 }
 
@@ -198,13 +194,6 @@ export interface Language {
   is_rtl: boolean;
 }
 
-
-export interface USState {
-  id: number;
-  country_id: number;
-  slug: string | null;
-  translations: Translation[];
-}
 
 export interface FaqTranslation {
   id: number;

@@ -85,7 +85,6 @@ function RoleCard({ tone, icon, title, description, onClick }: {
 export function IntroCard({ intro }: { intro: IntroModel }) {
   const { t } = intro.i18n;
   const trust: [string, string, string][] = [
-    ["ic_verified_empty", t("intro_verified_caregivers", "Verified Caregivers"), "var(--primary)"],
     ["ic_check_circle", t("intro_personalized_matching", "Personalized Matching"), "var(--success)"],
     ["ic_lock", t("intro_secure_private", "Secure & Private"), "#5b3fa0"],
   ];

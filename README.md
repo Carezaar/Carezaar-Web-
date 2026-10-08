@@ -14,7 +14,8 @@ Requires Node 20.19+ or 22.12+.
 npm ci
 npm run dev        # http://127.0.0.1:5173
 npm run lint       # ESLint (TypeScript and React hooks rules)
-npm run build      # type-check, then bundle into dist/
+npm run build      # type-check, then bundle the app into dist/
+npm run build:site # app and landing together in site-dist/
 npm run preview    # serve the production build locally
 ```
 
@@ -47,14 +48,14 @@ src/
   api/          API client (timeouts, single-flight token refresh), typed services, runtime response schemas, session storage
   app/          app-wide providers: i18n, lookup-table cache, notifications, feedback, recovery
   auth/         session state and route gating
-  screens/      feature screens (auth and its web cards, onboarding wizards, matches, pending, chat, partner profile, background check, settings)
+  screens/      feature screens (auth and its web cards, onboarding wizards, matches, pending, chat, partner profile, settings)
   components/   Figma scene renderer (DesignElement and its text, image, vector parts)
   figma/        scene loading and binding of live data and behaviour to Figma nodes
   ui/           UI kit (buttons, dialogs, cards, icons), app frames, photo cropper, HTML sanitiser
   navigation/   return-to-route after sign-in
   design/       design tokens and scene types
   styles/       app styles
-  validation/   form validation rules (including the Background Check rules)
+  validation/   form validation rules
 public/
   scenes/       Figma scene data for the pixel-matched screens (splash, intro, sign-in, create account, preferences intro)
   app-assets/   icons and illustrations
@@ -73,14 +74,18 @@ public/
   - otherwise → **Request a Match**. The confirmation has an optional **Introduction** (up to 1000 characters, sent as `introduction`), which the partner sees on the request and on the Pending screen. `POST users/matches` returns the existing request or match when there is one and accepts the partner's request, so the app opens Pending only when the answer has `is_active: false`; with `is_active: true` it stays on the profile, which now shows the match.
 
   `DELETE users/matches/{partner_id}/withdraw/partner` isn't used.
-- **Verification gate.** Messaging and match requests need a verified account; other users go to Background Check first. The server doesn't enforce this yet (see the backend issues).
+- **No Background Check.** Removed at the client's request (2026-10-07): there's no verification screen, gate, badge or status. Anyone can request a match; messaging needs a match.
 - **Runtime checks.** Responses for the session, user, profiles, matches and lookup tables are validated in `src/api/schema.ts`. A malformed response shows an error with Try Again, not a broken screen.
-- **Server-side failures.** Report an Issue still fails on the server for every client; the app sends the documented request and directs the user to support@carezaar.com. Password reset and change, profile edit and account deletion work from the web app since the server fixes of 2026-10-01/02. The same error handling stays in place should any of them fail again.
+- **Server-side failures.** Report an Issue succeeds in the latest live checks; API failures still direct the user to support@carezaar.com. Password reset and change, profile edit and account deletion work from the web app since the server fixes of 2026-10-01/02. The same error handling stays in place should any of them fail again.
 - **403 responses.** The server answers 403 both for a missing or expired token and for an action the user isn't allowed to take (for example withdrawing someone else's request). Only the first, which has no field errors, refreshes the session or signs the user out (`src/api/client.ts`); the second shows the server's message.
 - **Password recovery.** The server uses up an emailed code once `users/otp/verify` accepts it, so in password recovery the code screen passes the code straight to Set Up Password, and `users/password/reset` checks it. A wrong code returns the user to the code screen. Signup still verifies the code on the code screen.
 - **Profile photo.** The server removes the photo from any profile save that carries none. Edit Profile therefore reads the current photo through the app's own `/uploads/` path and sends it again with the save, so editing the name or bio keeps the photo; Remove Photo saves without one. See Deployment for the proxy this needs. JPEG, PNG and WebP are accepted.
 
 ## Further documentation
 
-- [`docs/WEB-VS-ANDROID.md`](docs/WEB-VS-ANDROID.md): intentional differences from the Android app, and the verification rule.
+- [`docs/WEB-VS-ANDROID.md`](docs/WEB-VS-ANDROID.md): intentional differences from the Android app, including the removed Background Check.
 - [`docs/FIGMA-SCENES.md`](docs/FIGMA-SCENES.md): how `public/scenes` is exported from Figma, and the Figma layer names the code relies on.
+
+## Combined website
+
+The corrected marketing page lives in `website/`. `npm run build:site` creates the landing at `/`, the app shell at `app.html`, and routing/security headers in `site-dist/vercel.json`. Deploy the contents of `site-dist/` to review the complete site. Private review credentials and deployment middleware stay outside this repository.

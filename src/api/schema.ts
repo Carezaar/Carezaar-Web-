@@ -1,6 +1,6 @@
 import { ApiError } from "./errors";
 import type {
-  BaseItem, CaregiverBrief, CaregiverFull, ClientBrief, ClientFull, Language, Match, Session, User, USState,
+  BaseItem, CaregiverBrief, CaregiverFull, ClientBrief, ClientFull, Language, Match, Session, User,
 } from "./types";
 
 /** Runtime checks for the API responses the app depends on most (session, current user,
@@ -63,7 +63,7 @@ const translations = arrayOf(shape({ id: num, language_id: num, name: str }));
 export const sessionSchema = shape({ access_token: str, refresh_token: str });
 
 const userFields = {
-  id: str, role: oneOf("client", "caregiver"), status: str,
+  id: str, role: oneOf("client", "caregiver"),
   first_name: nullable(str), last_name: nullable(str), photo: nullable(str),
   gender_id: nullable(num), date_of_birth: nullable(str), bio: nullable(str),
 };
@@ -94,7 +94,6 @@ export const matchSchema = shape({
 
 export const baseItemsSchema = arrayOf(shape({ id: num, code: nullable(str), icon: nullable(str), translations }));
 export const languagesSchema = arrayOf(shape({ id: num, code: str, name: str, is_rtl: bool }));
-export const statesSchema = arrayOf(shape({ id: num, translations }));
 
 /* Typed helpers for the service layer. */
 export const asSession = (v: unknown) => validated<Session>(sessionSchema, v, "auth/login");
@@ -107,4 +106,3 @@ export const asCaregiverFull = (v: unknown, endpoint: string) => validated<Careg
 export const asClientFull = (v: unknown, endpoint: string) => validated<ClientFull>(clientFullSchema, v, endpoint);
 export const asBaseItems = (v: unknown, endpoint: string) => validated<BaseItem[]>(baseItemsSchema, v, endpoint);
 export const asLanguages = (v: unknown) => validated<Language[]>(languagesSchema, v, "base/languages");
-export const asStates = (v: unknown) => validated<USState[]>(statesSchema, v, "base/states");

@@ -94,7 +94,7 @@ Renaming one of these in Figma, then regenerating the scene, **silently breaks**
 | `Back` | Sign In, Create Account, Preferences intro | Back arrow | Same binders; `DesignElement.tsx` | Back stops working | Yes |
 | `Header` | Sign In, Create Account, Preferences intro | Header group; clicking it goes back | Same binders | Back via the header stops working | Yes |
 | `Error` | Create Account | Error line under the password | `SignUpScene` (hidden until there's an error, then shows it) | Validation messages stop appearing | Yes |
-| `Credentials` | Create Account | Static "Country / Email" lines in the dialog, replaced by the live email (sign-up no longer asks for a country) | `SignUpScene` (hidden) | Static placeholder text shows in the dialog | Yes |
+| `Credentials` | Create Account | Static "Email" lines in the dialog, replaced by the live email (sign-up no longer asks for a country) | `SignUpScene` (hidden) | Static placeholder text shows in the dialog | Yes |
 | `Dialog`, `Rectangle 2931` | Create Account | The "Are you sure?" dialog and its scrim | `SignUpScene` (hidden until Continue) | The dialog shows permanently, or never | Yes |
 | `Lanuage` (sic) | Intro | The frame's own language pill, hidden and replaced by a working one | `IntroScene` | Two language pills appear | Yes |
 | `Group 1` | Intro | The frame's "Sign in" group, hidden and replaced by a real link | `IntroScene` | Duplicate Sign in link | Yes |
@@ -109,8 +109,10 @@ Renaming one of these in Figma, then regenerating the scene, **silently breaks**
 | Node ID | Scene | Purpose | If it changes |
 |---|---|---|---|
 | `56:84399` | Create Account | The frame's static password-rule chips, hidden and replaced by live chips | Static chips show under the live ones |
-| `56:84381` | Create Account | The frame's Country group, hidden: sign-up no longer asks for a country (client decision, 2026-10-07). Location is set later in the role's preferences. | The Country field reappears |
-| `56:84390`, `56:84391`, `56:84392`, `56:84405`, `56:84406` | Create Account | Top-level nodes below the Country group, moved up by its height (104) through the binder's `offsetY`, so no gap is left. The overlays in `auth.tsx` are shifted by the same amount. | A 104-point gap, or fields overlapping their live inputs |
+| `24:8367`, `24:8382` | Intro | The trust row's "Verified Caregivers" badge and the divider after it, removed from the exported scene: there's no Background Check (client decision, 2026-10-07) | The badge reappears |
+| `24:8370`, `39:8387`, `24:8375` | Intro | The remaining trust badges and divider, moved left by 58.5 points through the binder's `offsetX` so the row stays centred | The row sits off-centre |
+| `56:84381` | Create Account | The frame's Country group, removed from the exported scene: sign-up no longer asks for a country (client decision, 2026-10-07). Location is set later in the role's preferences. | The Country field reappears |
+| `56:84390`, `56:84391`, `56:84392`, `56:84405`, `56:84406` | Create Account | Top-level nodes below the Country group, moved up by its height (104) in the exported scene, so no gap is left. The overlays in `auth.tsx` are shifted by the same amount. | A 104-point gap, or fields overlapping their live inputs |
 | `101:11969`, `101:11970`, `101:11971` | Preferences intro | Client illustration, hidden for caregivers, who get their own image | Caregivers see the client illustration |
 
 ### Exact texts

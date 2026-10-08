@@ -26,11 +26,10 @@ import { RuleChips } from "../ui/RuleChips";
 /** The frame's password-rule chips (Frame 5) are drawn in fixed met/unmet states; the
  *  live `RuleChips` replace them. */
 const RULE_CHIP_ROW = "56:84399";
-/** Create Account frame (56:84378): the Country group, which sign-up no longer asks for,
- *  and the top-level nodes below it, which move up by its height (182 → 286 in the frame). */
-const COUNTRY_GROUP = "56:84381";
-const COUNTRY_HEIGHT = 104;
-const BELOW_COUNTRY = new Set(["56:84390", "56:84391", "56:84392", "56:84405", "56:84406"]);
+/** Intro frame (16:14997), trust row (24:8366): the two remaining
+ *  badges move left so the row stays centred (span 133–332 → 74.5–273.5 of 348). */
+const TRUST_REST = new Set(["24:8370", "39:8387", "24:8375"]);
+const TRUST_SHIFT = -58.5;
 
 /* ---------------------------------------------------------------- Splash */
 
@@ -132,6 +131,7 @@ function IntroScene({ intro }: { intro: IntroModel }) {
     // The language pill and the "Sign in" link are real controls placed over the
     // frame: the link's 59px group cannot hold longer translations.
     isHidden: (n) => n.name === "Lanuage" || n.name === "Group 1",
+    offsetX: (n) => (TRUST_REST.has(n.id) ? TRUST_SHIFT : undefined),
     // The server's English for this slug is empty, so the reverse lookup from the
     // scene copy can't find it; map it explicitly.
     text: (n) => (languageId !== 1 && n.text?.startsWith("For myself") ? t("intro_client_description", "") || undefined : undefined),
@@ -371,8 +371,6 @@ function SignUpScene({ form }: { form: SignUpForm }) {
 
   const binder = useMemo<SceneBinder>(() => {
     const isDialogNode = (n: DesignNode) => n.name === "Dialog" || n.name === "Rectangle 2931";
-    // Country isn't asked at sign-up (client decision, 2026-10-07): its group is hidden and
-    // the fields below it move up by its height.
     return {
       binding: (n) => n.inputType === "email" ? { value: email, onChange: setEmail }
         : n.inputType === "password" ? { value: password, onChange: setPassword } : undefined,
@@ -385,7 +383,6 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         return false;
       },
       isHidden: (n) => (isDialogNode(n) && !confirming)
-        || n.id === COUNTRY_GROUP
         || n.id === RULE_CHIP_ROW
         // Two lines with the values in blue, drawn as an overlay below.
         || n.name === "Credentials"
@@ -405,7 +402,6 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         }
         return undefined;
       },
-      offsetY: (n) => (BELOW_COUNTRY.has(n.id) ? -COUNTRY_HEIGHT : undefined),
       inputType: (n) => (n.inputType === "password" && revealPassword ? "text" : undefined),
     };
   }, [email, setEmail, password, setPassword, confirming, setConfirming, error, valid, t, goBack, proceed, confirm, languageId, revealPassword]);
@@ -419,20 +415,20 @@ function SignUpScene({ form }: { form: SignUpForm }) {
           <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{email}</b></span>
         </div>
       ) }] : [
-        { x: 20, y: 514 - COUNTRY_HEIGHT, width: 372, height: 32, content: <RuleChips rules={rules} /> },
-        { x: 348, y: 444 - COUNTRY_HEIGHT, width: 32, height: 32, content: (
+        { x: 20, y: 410, width: 372, height: 32, content: <RuleChips rules={rules} /> },
+        { x: 348, y: 340, width: 32, height: 32, content: (
           <PasswordToggle revealed={revealPassword} onToggle={() => setRevealPassword((r) => !r)} />
         ) },
-        { x: 68, y: 617 - COUNTRY_HEIGHT, width: 278, height: 56, content: (
+        { x: 68, y: 513, width: 278, height: 56, content: (
           <input className="scene-input" aria-label={t("signup_credentials_confirm_password", "Confirm Password")}
             type={revealConfirm ? "text" : "password"} value={confirmation}
             placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")}
             onChange={(e) => setConfirmation(e.target.value)} autoComplete="new-password" />
         ) },
-        { x: 348, y: 629 - COUNTRY_HEIGHT, width: 32, height: 32, content: (
+        { x: 348, y: 525, width: 32, height: 32, content: (
           <PasswordToggle revealed={revealConfirm} onToggle={() => setRevealConfirm((r) => !r)} />
         ) },
-        { x: 20, y: 676 - COUNTRY_HEIGHT, width: 372, height: 28, content: (
+        { x: 20, y: 572, width: 372, height: 28, content: (
           <Checkbox checked={accepted} onChange={setAccepted}>
             {t("signup_credentials_accept_label", "I accept the")}{" "}
             <button type="button" className="link" onClick={(e) => { e.preventDefault(); form.setLicenseOpen(true); }}>

@@ -1,5 +1,5 @@
 import { BASE_TABLES, baseService, type BaseTable } from "../api/services";
-import type { BaseItem, Language, USState } from "../api/types";
+import type { BaseItem, Language } from "../api/types";
 
 /** The lookup tables, cached the way Android caches them in Room: a table is only
  *  refetched when `base/info` reports a newer `ts_cache`. React-free so the landing
@@ -10,13 +10,25 @@ export interface BaseDataCache {
   tsCache: number;
   tables: Partial<Record<BaseTable, BaseItem[]>>;
   languages: Language[];
-  states: USState[];
 }
 
 export function readBaseCache(): BaseDataCache | null {
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as BaseDataCache) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BaseDataCache;
+    const tables: BaseDataCache["tables"] = {};
+    for (const name of BASE_TABLES) {
+      if (Array.isArray(parsed.tables?.[name])) tables[name] = parsed.tables[name];
+    }
+    const cache: BaseDataCache = {
+      tsCache: parsed.tsCache,
+      tables,
+      languages: Array.isArray(parsed.languages) ? parsed.languages : [],
+    };
+    // Migrate existing caches so only supported lookup data remains persisted.
+    if (JSON.stringify(cache) !== raw) writeBaseCache(cache);
+    return cache;
   } catch {
     return null;
   }
@@ -60,7 +72,7 @@ export async function loadBaseData(opts: {
       return { cache: current, upToDate: true, failed: false };
     }
   }
-  onStart?.([...BASE_TABLES, "languages", "states"]);
+  onStart?.([...BASE_TABLES, "languages"]);
 
   const tables: Partial<Record<BaseTable, BaseItem[]>> = {};
   let anyFailed = false;
@@ -80,16 +92,13 @@ export async function loadBaseData(opts: {
     table("contents"),
   ]);
   if (tables.contents) {
-    onEssentials?.({ tsCache: 0, tables: { ...tables }, languages, states: current?.states ?? [] });
+    onEssentials?.({ tsCache: 0, tables: { ...tables }, languages });
   }
-  const [states] = await Promise.all([
-    list("states", () => baseService.states(), current?.states ?? []),
-    ...BASE_TABLES.filter((name) => name !== "contents").map(table),
-  ]);
+  await Promise.all(BASE_TABLES.filter((name) => name !== "contents").map(table));
   const info = await infoRequest;
   const next: BaseDataCache = {
     tsCache: anyFailed ? (current?.tsCache ?? 0) : (info?.ts_cache ?? 0),
-    tables, languages: languages as Language[], states: states as USState[],
+    tables, languages: languages as Language[],
   };
   writeBaseCache(next);
   return { cache: next, upToDate: false, failed: anyFailed && Object.keys(tables).length === 0 };

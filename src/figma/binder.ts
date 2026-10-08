@@ -20,6 +20,9 @@ export interface SceneBinder {
   /** Moves a node vertically by this many frame points, e.g. to close the gap left by a
    *  field the product removed from a designed frame. */
   offsetY?: (node: DesignNode) => number | undefined;
+  /** Moves a node horizontally by this many frame points (towards the end in right-to-left
+   *  layouts), e.g. to re-centre a row after one of its items was removed. */
+  offsetX?: (node: DesignNode) => number | undefined;
   /** Mirror the frame's absolute layout for right-to-left languages, as iOS does. */
   rtl?: boolean;
 }

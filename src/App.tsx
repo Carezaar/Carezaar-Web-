@@ -23,7 +23,6 @@ import {
   ChangeLanguageScreen, ChangePasswordScreen, DeleteAccountScreen, FaqScreen, FavoritesScreen,
   HelpCenterScreen, NotificationsScreen, ReportIssueScreen,
 } from "./screens/account";
-import { VerificationScreen } from "./screens/verification";
 import { AppFrame, AuthFrame } from "./ui/frames";
 import { peekReturnTo, rememberReturnTo, takeReturnTo } from "./navigation/returnTo";
 
@@ -35,7 +34,7 @@ function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out
   const location = useLocation();
   if (state.status === "loading" || !ready) return <SplashScreen />;
   if (state.status === "unreachable") return <SplashScreen unreachable onRetry={() => void retry()} />;
-  const signedIn = state.status === "signedIn" || state.status === "pending";
+  const signedIn = state.status === "signedIn";
   if (auth === "in" && !signedIn) {
     // Only a link opened directly (a fresh page load) is worth returning to after
     // sign-in; being signed out mid-session starts again from My Matches.
@@ -55,7 +54,7 @@ function Frame() {
   const { state } = useSession();
   // The splash (session check, base-data warm-up) is full-bleed, not framed.
   if (state.status === "loading" || state.status === "unreachable") return <Outlet />;
-  const signedIn = state.status === "signedIn" || state.status === "pending";
+  const signedIn = state.status === "signedIn";
   return signedIn ? <AppFrame><Outlet /></AppFrame> : <AuthFrame><Outlet /></AuthFrame>;
 }
 
@@ -118,7 +117,6 @@ export function App() {
                     <Route path="/change-language" element={any(<ChangeLanguageScreen />)} />
                     <Route path="/change-password" element={inn(<ChangePasswordScreen />)} />
                     <Route path="/delete-account" element={inn(<DeleteAccountScreen />)} />
-                    <Route path="/verification" element={inn(<VerificationScreen />)} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                   </Routes>

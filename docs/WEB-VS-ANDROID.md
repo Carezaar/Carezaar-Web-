@@ -4,16 +4,16 @@ The Android app is the behavioural reference for this web app. The web matches i
 
 Android behaviour was taken from the shipped release build (`com.carezaar.app` 1.0.0, decompiled and inspected with `dexdump`) and from running it on an emulator. Backend references (BE-xx) point to `BACKEND-ISSUES-FOR-CLIENT.md` in the delivery documents.
 
-## Verification (Background Check) rule
+## Background Check (removed from the web)
 
 | | Behaviour |
 |---|---|
-| **Android** | On a partner's profile, both **Message** and **Request a Match** first check the viewer's status. If the viewer isn't `VERIFIED`, they go to the Verification (Background Check) screen. A verified viewer can message only a current match; otherwise they see "You can only send messages to your current matches." |
-| **Web** | The same. For an unverified viewer, **Message** and **Request a Match** open `/verification`, and nothing is sent. A verified viewer gets the request confirmation, and messaging still needs a match. **Unmatch** is not gated, so a user can always end a match. |
-| **Backend** | **Not enforced.** Unverified accounts can call `POST users/matches` and `POST users/chats` directly, and the server accepts them (**BE-14**). The rule is only as strong as the apps until the server checks it too. |
-| **Status** | **Product decision pending (client feedback, 2026-10-06).** The web matches Android 1.0.0, which gates both actions. The client reports that the *current* native build doesn't, and the backend developer said the server-side rule was "removed entirely" by decision. The web keeps the gate until the product team confirms which behaviour is official; removing it means dropping the two `verifiedViewer` checks in `src/screens/partner.tsx` (Message and Request a Match). |
+| **Android** | Has a Background Check screen (name, date of birth, Social Security Number, street, ZIP, state → `POST users/verify`). On a partner's profile, **Message** and **Request a Match** send a viewer who isn't `VERIFIED` there first. Verified badges appear on profiles and match cards, the profile shows the user's verification status, and Intro lists "Verified Caregivers". |
+| **Web** | **None of it.** The client asked on 2026-10-07 for Background Check to be removed completely, including every related field, option, button and reference. There's no `/verification` screen (old links fall back to My Matches), and no gate: anyone can request a match, and messaging still needs a match. There are no verified badges, no verification status on the profile and no "Verified Caregivers" on Intro. The app no longer calls `users/verify` or loads the US states list. |
+| **Backend** | The server never enforced the check (BE-14), so nothing server-side depends on it. |
+| **Status** | **Intentional (client decision, 2026-10-07).** The native implementation is outside this web-only task. |
 
-Tests: `CR-V01` (unverified: both actions go to Background Check, no request sent) and `CR-V02` (verified: request confirmation; messaging needs a match).
+Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the match rule; nothing goes to `/verification`), `MT-*-09`, `XR-A1`/`XR-C1` (both started from the UI by never-checked accounts), `PS-*-01`/`PS-*-12` (no verification on Profile; `/verification` falls back) and `GL-BGC-*` (landing page).
 
 ## Differences
 
@@ -44,12 +44,6 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
 - **Native:** choosing a Certification is optional.
 - **Web:** optional too (it used to be required in the client preferences); the server accepts an empty list.
 - **Status:** matches native.
-
-### Background Check messages
-- **Android:** the same rules (see `src/validation/backgroundCheck.ts`). Invalid fields are only highlighted.
-- **Web:** the same rules and field highlighting. A blank field says "This field is required.", and a wrong format says what's expected (for example "Enter the 9-digit Social Security Number, for example 123-45-6789."). The SSN is masked, with Show/Hide.
-- **Reason:** clearer error messages; the Figma frame draws the SSN masked.
-- **Status:** intentional (the rules are identical).
 
 ### New chat messages
 - **Android:** the conversation refreshes when a Firebase (FCM) push arrives.
@@ -125,7 +119,7 @@ Tests: `CR-V01` (unverified: both actions go to Background Check, no request sen
 - **Android:** Create Account asks for a country.
 - **Web:** it doesn't. Create Account takes the email, password, confirmation and licence agreement only, and `auth/register` is sent `role, email, password`. Location is still collected later, on the map in the role's preferences.
 - **Reason:** client decision (2026-10-07): the platform is global. The current API doesn't take a country at registration.
-- **Status:** intentional (product). iOS should do the same.
+- **Status:** intentional (product). The native implementation is outside this web-only task.
 
 ### Screen sizes
 - **Android:** phone only.

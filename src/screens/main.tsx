@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { caregiverService, clientService, userService } from "../api/services";
 import type { CaregiverBrief, ClientBrief, MatchSort, PartnerUser } from "../api/types";
-import { formatDistance, isVerified } from "../api/match";
+import { formatDistance } from "../api/match";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
@@ -143,7 +143,6 @@ function MatchesTab() {
                     <Icon name={c.user.is_favorite ? "ic_favorite_on" : "ic_favorite_off"} size={26}
                       tint={c.user.is_favorite ? "var(--error)" : "var(--primary-dark)"} />
                   </button>
-                  {isVerified(c.user) && <Icon name="ic_verified_full" size={22} tint="var(--success)" label="Verified" />}
                   <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                 </div>
               </article>
@@ -279,10 +278,6 @@ function ProfileTab() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   if (!user) return <Spinner />;
   const gender = find("genders", user.gender_id);
-  const status = user.status.toUpperCase();
-  const statusLabel = status === "VERIFIED" ? t("navigation_drawer_user_verified", "Verified User")
-    : status === "PENDING" ? t("navigation_drawer_user_pending", "Pending Verification")
-    : t("navigation_drawer_user_unverified", "Unverified User");
 
   const items: { icon: string; title: string; description: string; to?: string; action?: () => void; tone?: string }[] = [
     { icon: "ic_match_on", title: t("profile_matches_title", "Matches"), description: t("profile_matches_description", "Review your match history"), to: "/profile/matches", tone: "success" },
@@ -293,7 +288,6 @@ function ProfileTab() {
     { icon: "ic_favorite_off", title: t("profile_favorites_title", "Favorites"),
       description: role === "client" ? t("profile_favorites_client_description", "View your saved caregivers") : t("profile_favorites_caregiver_description", "View your saved clients"), to: "/favorites" },
     { icon: "ic_lock", title: t("navigation_drawer_password_title", "Change Password"), description: t("navigation_drawer_password_description", "Update your account password"), to: "/change-password" },
-    { icon: "ic_trash", title: t("profile_delete_account_title", "Delete Account"), description: t("profile_delete_account_description", "Permanently delete your account"), to: "/delete-account" },
     { icon: "ic_logout", title: t("profile_log_out_title", "Log Out"), description: t("profile_log_out_description", "Sign out from your account"), action: () => setConfirmLogout(true), tone: "danger" },
   ];
 
@@ -308,11 +302,6 @@ function ProfileTab() {
           {gender && <p><Icon name={gender.icon} size={20} tint="var(--text-secondary)" />{label(gender)}</p>}
           <p><Icon name="ic_email" size={20} tint="var(--text-secondary)" />{user.email}</p>
           {user.date_of_birth && <p><Icon name="ic_calendar" size={20} tint="var(--text-secondary)" />{user.date_of_birth}</p>}
-          <button type="button" className={`status-pill ${status.toLowerCase()}`}
-            onClick={() => status !== "VERIFIED" && navigate("/verification")}>
-            <Icon name={status === "VERIFIED" ? "ic_verified_full" : "ic_verified_empty"} size={16}
-              tint={status === "VERIFIED" ? "var(--success)" : "var(--warning)"} />{statusLabel}
-          </button>
         </div>
         <button type="button" className="round-btn" onClick={() => navigate("/profile/edit")} aria-label={t("profile_edit", "Edit")}>
           <Icon name="ic_edit" size={22} tint="var(--primary-dark)" />

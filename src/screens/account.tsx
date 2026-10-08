@@ -134,7 +134,10 @@ export function HelpCenterScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();
   return (
-    <Page header={<BackHeader title={t("contact_support_title", "Help Center")} />}>
+    <Page header={<BackHeader title={t("contact_support_title", "Help Center")} />}
+      footer={<Button variant="ghost" className="help-delete" onClick={() => navigate("/delete-account")}>
+        {t("profile_delete_account_title", "Delete Account")}
+      </Button>}>
       <div className="stack">
         <div className="center"><Icon name="ic_support" size={96} tint="var(--primary-dark)" />
           <h2 className="title">{t("contact_support_subtitle", "We are here to help")}</h2>
@@ -249,7 +252,7 @@ export function ReportIssueScreen() {
             {issues.map((i) => (
               <li key={i.id}><article className="issue-card">
                 <header><h3>{i.issuetype_id ? label(find("issuetypes", i.issuetype_id)) : i.title}</h3>
-                  <span className={`status-pill ${i.is_replied ? "verified" : "pending"}`}>
+                  <span className={`status-pill ${i.is_replied ? "replied" : "pending"}`}>
                     <Icon name={i.is_replied ? "ic_check_circle" : "ic_timer"} size={16} tint={i.is_replied ? "var(--success)" : "var(--primary)"} />
                     {i.is_replied ? t("report_an_issue_status_resolved", "Resolved") : t("report_an_issue_status_pending", "Pending")}
                   </span></header>
@@ -375,7 +378,7 @@ export function ChangePasswordScreen() {
 
 export function DeleteAccountScreen() {
   const navigate = useNavigate();
-  const goBack = useGoBack("/main/profile");
+  const goBack = useGoBack("/help");
   const { t, label } = useI18n();
   const { items } = useBaseData();
   const { act, toast, messageOf, unavailable } = useFeedback();
@@ -399,7 +402,7 @@ export function DeleteAccountScreen() {
     }
   };
   return (
-    <Page header={<BackHeader title={t("delete_account_title", "Delete Account")} />}
+    <Page header={<BackHeader title={t("delete_account_title", "Delete Account")} onBack={() => goBack()} />}
       footer={<div className="dialog-actions">
         <Button variant="outline" onClick={() => goBack()}>{t("delete_account_action_cancel", "Cancel")}</Button>
         <Button variant="danger" disabled={!aware || reason === ""} onClick={() => void submit()}>{t("delete_account_action_delete", "Delete Account")}</Button>

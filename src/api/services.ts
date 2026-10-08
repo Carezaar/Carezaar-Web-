@@ -2,7 +2,7 @@ import { api, type FormValue } from "./client";
 import { API_BASE_URL, DEFAULT_PAGE_SIZE } from "./config";
 import { loginDeviceFields, tokenStore } from "./session";
 import { awaitsResponse } from "./match";
-import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asStates, asUser } from "./schema";
+import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asUser } from "./schema";
 import type { AppNotification, BaseInfo, FaqCategory, CaregiverFull, ChatBrief, ChatFull, ClientFull, Faq, Issue, Match, MatchListType, MatchSort, Session, User, UserRole } from "./types";
 
 /* ------------------------------------------------------------------ auth/ */
@@ -73,12 +73,6 @@ export const baseService = {
       method: "GET", path: "base/languages", auth: false, query: { ts_cache: tsCache },
     }).then(asLanguages);
   },
-  /** The only public base endpoint the Android client actually uses. */
-  states(tsCache = 0) {
-    return api.send<unknown>({
-      method: "GET", path: "base/states", auth: false, query: { ts_cache: tsCache },
-    }).then(asStates);
-  },
   faqs(tsCache = 0) {
     return api.send<Faq[]>({ method: "GET", path: "base/faqs", auth: false, query: { ts_cache: tsCache } });
   },
@@ -130,8 +124,7 @@ export const userService = {
   /** The only multipart endpoint in the product.
    *
    *  `date_of_birth` goes over the wire as **unix epoch seconds at UTC midnight**,
-   *  not as a formatted date. (`users/verify` takes a *string* date for the same
-   *  concept — the inconsistency is the backend's, and both are reproduced as-is.) */
+   *  not as a formatted date. */
   setProfile(input: {
     email: string; genderId: number | null; firstName: string; lastName: string;
     bio?: string | null; dateOfBirth?: Date | null; photo?: File | null;
@@ -166,26 +159,6 @@ export const userService = {
     const blob = await res.blob();
     if (!res.ok || !blob.type.startsWith("image/")) throw new Error(`Photo unavailable (${res.status})`);
     return new File([blob], source.pathname.split("/").pop() ?? "photo", { type: blob.type });
-  },
-
-  verifyIdentity(input: {
-    firstName: string; middleName?: string | null; lastName: string;
-    dateOfBirth: string; socialSecurityNumber: string; streetAddress: string;
-    zipCode: string; stateId: number;
-  }) {
-    return api.send<User>({
-      method: "POST", path: "users/verify",
-      form: {
-        first_name: input.firstName,
-        middle_name: input.middleName ?? null,
-        last_name: input.lastName,
-        date_of_birth: input.dateOfBirth,
-        social_security_number: input.socialSecurityNumber,
-        street_address: input.streetAddress,
-        zip_code: input.zipCode,
-        state_id: input.stateId,
-      },
-    });
   },
 
   /** Android's delete call takes a non-optional reason id, so a reason is required

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { userService } from "../api/services";
 import type { Match, UserRole } from "../api/types";
-import { isVerified, matchStage } from "../api/match";
+import { matchStage } from "../api/match";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 
@@ -11,11 +11,10 @@ import { useI18n } from "../app/i18n";
  *  - `match_id` without `is_match` → the viewer's own request is pending; it opens the
  *    Pending screen, where it can be cancelled (`DELETE users/matches/{match_id}/withdraw`);
  *  - the partner's unanswered request (found in the request list) → Pending Review;
- *  - nothing → Request a Match.
- *  Messaging and requesting a match need a verified viewer (Background Check). */
+ *  - nothing → Request a Match. */
 export type PartnerAction = "unmatch" | "pending-sent" | "pending-received" | "request";
 
-export function usePartnerMatch(partnerId: string, viewer: { role: UserRole; status: string } | null,
+export function usePartnerMatch(partnerId: string, viewer: { role: UserRole } | null,
   detail: { is_match: boolean; match_id: number | null } | null, reloadDetail: () => void) {
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -41,7 +40,6 @@ export function usePartnerMatch(partnerId: string, viewer: { role: UserRole; sta
     : incoming ? "pending-received"
     : "request";
   const pendingId = action === "pending-sent" ? matchId : action === "pending-received" ? incoming?.id ?? null : null;
-  const verified = viewer ? isVerified(viewer) : false;
 
   /** `POST users/matches` returns the existing request or match when there is one, and
    *  accepts the partner's own request, so the answer is not always a new pending request:
@@ -64,5 +62,5 @@ export function usePartnerMatch(partnerId: string, viewer: { role: UserRole; sta
     reloadDetail();
   }, [act, t, isMatch, matchId, reloadDetail, toast, messageOf]);
 
-  return { action, pendingId, loaded: detail !== null && incoming !== undefined, verified, requestMatch, unmatch };
+  return { action, pendingId, loaded: detail !== null && incoming !== undefined, requestMatch, unmatch };
 }

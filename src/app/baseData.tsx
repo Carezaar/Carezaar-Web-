@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from "react";
 import type { BaseTable } from "../api/services";
-import type { BaseItem, Language, USState } from "../api/types";
+import type { BaseItem, Language } from "../api/types";
 import { loadBaseData, readBaseCache, type BaseDataCache } from "./baseDataLoader";
 
 /** English labels matching the Android splash sheet; translated via
@@ -11,7 +11,7 @@ export const TABLE_LABELS: Record<string, string> = {
   faq_categories: "Loading FAQ categories", media: "Loading media",
   experiences: "Loading experiences", faqs: "Loading FAQs", countries: "Loading countries",
   worktypes: "Loading work types", genders: "Loading genders", languages: "Loading languages",
-  commutes: "Loading commute distance options", states: "Loading states",
+  commutes: "Loading commute distance options",
   contents: "Loading contents", issuetypes: "Loading issue types", shifts: "Loading shifts",
   certifications: "Loading documents & certifications", languageskills: "Loading language skills",
   roles: "Loading roles", clienttypes: "Loading client types",
@@ -29,7 +29,6 @@ interface BaseDataValue {
   items: (table: BaseTable) => BaseItem[];
   find: (table: BaseTable, id: number | null | undefined) => BaseItem | undefined;
   languages: Language[];
-  states: USState[];
   reload: (force?: boolean) => Promise<void>;
 }
 
@@ -66,7 +65,6 @@ export function BaseDataProvider({ children }: { children: ReactNode }) {
     items: (table) => cache?.tables[table] ?? [],
     find: (table, id) => (id == null ? undefined : cache?.tables[table]?.find((x) => x.id === id)),
     languages: cache?.languages ?? [],
-    states: cache?.states ?? [],
     reload,
   }), [cache, failed, pending, total, reload]);
 

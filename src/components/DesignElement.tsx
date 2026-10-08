@@ -142,7 +142,7 @@ export function DesignElement({
   const insideLogo = noMirror || /logo/i.test(n.name);
   const style: CSSProperties = {
     position: "absolute",
-    left: mirrored ? parentWidth - n.x - n.width - widened : n.x,
+    left: mirrored ? parentWidth - n.x - n.width - widened - (binder?.offsetX?.(n) ?? 0) : n.x + (binder?.offsetX?.(n) ?? 0),
     top: n.y + (binder?.offsetY?.(n) ?? 0),
     width: n.width + widened,
     height: n.height,

@@ -6,21 +6,17 @@ import { SESSION_EXPIRED_EVENT } from "../api/client";
 import { ApiError } from "../api/errors";
 import { authService } from "../api/services";
 import { tokenStore } from "../api/session";
-import { isVerified } from "../api/match";
 import { prefetchFirstMatches, rememberRole } from "../app/matchesPrefetch";
 import type { User, UserRole } from "../api/types";
 
 /** Reproduces the Android Splash decision: a stored token means resolve the user and
- *  enter the app, otherwise show Intro. `pending` marks an identity that is not yet
- *  verified — shown as a badge; it does **not** gate the app (a freshly registered,
- *  unverified user lands straight on My Matches in the Android recording). */
+ *  enter the app, otherwise show Intro. */
 export type SessionState =
   | { status: "loading" }
   /** A stored session could not be checked (offline, server down). The token is kept
    *  and the splash offers a retry instead of silently signing the user out. */
   | { status: "unreachable" }
   | { status: "signedOut" }
-  | { status: "pending"; user: User }
   | { status: "signedIn"; user: User };
 
 interface SessionContextValue {
@@ -36,9 +32,7 @@ interface SessionContextValue {
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 function classify(user: User): SessionState {
-  return isVerified(user)
-    ? { status: "signedIn", user }
-    : { status: "pending", user };
+  return { status: "signedIn", user };
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -63,7 +57,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (state.status === "signedIn" || state.status === "pending") rememberRole(state.user.role);
+    if (state.status === "signedIn") rememberRole(state.user.role);
     else if (state.status === "signedOut") rememberRole(null);
   }, [state]);
 
@@ -86,9 +80,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SessionContextValue>(
     () => ({
       state,
-      user: state.status === "pending" || state.status === "signedIn" ? state.user : null,
+      user: state.status === "signedIn" ? state.user : null,
       role:
-        state.status === "pending" || state.status === "signedIn"
+        state.status === "signedIn"
           ? state.user.role
           : null,
       async signIn(email, password) {

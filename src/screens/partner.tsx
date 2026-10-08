@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { caregiverService, clientService, userService, type BaseTable } from "../api/services";
 import type { CaregiverFull, ClientFull } from "../api/types";
-import { formatDistance, isVerified } from "../api/match";
+import { formatDistance } from "../api/match";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
@@ -17,8 +17,7 @@ import { usePartnerMatch } from "./usePartnerMatch";
 /* ----------------------------------------------------------- Partner detail */
 
 /** `CaregiverDetails/{id}` (a client viewing) and `ClientDetails/{id}` (a caregiver
- *  viewing). Message and Request-a-Match are gated exactly as in Kotlin: an
- *  unverified viewer goes to Verification; messaging needs an existing match. */
+ *  viewing). Messaging needs an existing match. */
 export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -45,7 +44,6 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   if (!detail) return <Page header={<BackHeader />}><Spinner /></Page>;
 
   const partner = detail.user;
-  const verifiedViewer = user ? isVerified(user) : false;
   const labels = (table: BaseTable, ids: number[]) => ids.map((x) => find(table, x)).filter(Boolean);
 
   const toggleFavorite = async () => {
@@ -61,7 +59,6 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   };
 
   const message = async () => {
-    if (!verifiedViewer) { navigate("/verification"); return; }
     if (!detail.is_match) { toast(t("chat_screen_match_check", "You can only send messages to your current matches.")); return; }
     try {
       const chat = await act(t("loading_chat_create", "Creating a new chat"), () => userService.createChat(detail.id));
@@ -69,11 +66,9 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
     } catch (e) { toast(messageOf(e)); }
   };
 
-  // Messaging and match requests need a verified viewer; ending a match does not.
   const mainAction = () => {
     if (match.action === "unmatch") { setConfirm("unmatch"); return; }
     if (match.pendingId !== null) { navigate(`/pending/${match.pendingId}`); return; }
-    if (!verifiedViewer) { navigate("/verification"); return; }
     setIntroduction("");
     setConfirm("request");
   };
@@ -118,8 +113,6 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
       <section className="detail-top">
         <div className="detail-photo">
           <PhotoBox src={partner.photo} />
-          {isVerified(partner) && <span className="verified-tag"><Icon name="ic_verified_full" size={16} tint="var(--success)" />
-            {t("navigation_drawer_user_verified", "Verified User")}</span>}
         </div>
         <div className="detail-facts">
           <h1><Icon name={find("genders", partner.gender_id)?.icon} size={26} tint="var(--primary-dark)" />
@@ -150,10 +143,10 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
       {isCaregiver && <DetailTiles title={t("caregiver_details_supported_care_needer_types", "Supported Care Needer Types")} items={labels("clienttypes", cg.clienttype_ids)} coloured />}
 
       <Dialog open={confirm !== null} onClose={() => setConfirm(null)} labelledBy="match-title"
-        title={confirm === "unmatch" ? t("match_unmatch_title", "Unmatch") : t("match_match_title", "Match")}>
+        title={confirm === "unmatch" ? t("match_unmatch_title", "Unmatch") : t("match_match_button", "Request a Match")}>
         <p>{confirm === "unmatch"
           ? t("match_unmatch_message", "Are you sure you want to end your match with this user?")
-          : t("match_match_message", "Are you sure you want to match with this user?")}</p>
+          : t("match_match_message", "Are you sure you want to match with this user? They should accept your request.")}</p>
         {confirm === "request" && (
           <>
             {/* Optional introduction sent with the request, as in the native app. */}
@@ -165,7 +158,9 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
         )}
         <div className="dialog-actions">
           <Button variant="outline" onClick={() => setConfirm(null)}>{t("general_cancel", "Cancel")}</Button>
-          <Button variant={confirm === "unmatch" ? "danger" : "primary"} onClick={confirmed}>{t("general_confirm", "Confirm")}</Button>
+          <Button variant={confirm === "unmatch" ? "danger" : "primary"} onClick={confirmed}>
+            {confirm === "unmatch" ? t("general_confirm", "Confirm") : t("match_match_title", "Match")}
+          </Button>
         </div>
       </Dialog>
     </Page>

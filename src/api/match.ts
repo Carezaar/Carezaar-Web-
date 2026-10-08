@@ -29,12 +29,6 @@ export function reviewBy(match: Match, role: UserRole): Review | null {
   return role === "client" ? match.review_caregiver : match.review_client;
 }
 
-/** `status` arrives lowercase on the wire (`"unverified"`) while the Kotlin enum
- *  constants are uppercase (`PENDING | UNVERIFIED | VERIFIED`). Always normalise. */
-export function isVerified(user: { status: string }): boolean {
-  return user.status.toUpperCase() === "VERIFIED";
-}
-
 /** Android prints the API double as-is (Kotlin `toString`): "0.0", "537.86". */
 export function formatDistance(d: number | null | undefined): string {
   if (d === null || d === undefined) return "—";
