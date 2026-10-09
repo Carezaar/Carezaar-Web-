@@ -23,21 +23,16 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Reason:** requested by the client in the code review. Android's withdraw-by-partner endpoint (`DELETE users/matches/{partner_id}/withdraw/partner`) isn't used at all. Since the backend fix of 2026-10-02 it only cancels a pending request the caller sent, and answers 400 on an active match (verified live).
 - **Status:** intentional (client request).
 
-### Request a Match → Pending
-- **Android:** after a request, opens `Pending/{id}`, "Waiting for a Match", with Keep Exploring.
-- **Web:** the same screen, at `/pending/:id`, with Android's text. There are some additions:
-  - the profile reads `is_match` / `match_id`: reopening it shows **Pending Acceptance** (the user's own request) or **Pending Review** (the partner's request), never a second Request a Match;
-  - the sender's Pending screen has **Cancel Request**, which withdraws the request with `DELETE users/matches/{match_id}/withdraw` and returns to the profile;
-  - `POST users/matches` can answer with an active match (`is_active: true`), when the partner had already asked; the app then stays on the profile, which shows the match, instead of opening Pending;
-  - if the request was accepted meanwhile, Pending opens the partner's profile; if it was withdrawn, it says the request is no longer pending.
-
-  The web also corrects Android's text typo `{PARTER}` and "Tap the {name}'s picture card".
-- **Reason:** web users can refresh and deep-link, so the state has to come from the server; the backend now reports it (`match_id`, `is_active`).
-- **Status:** intentional.
+### Profile match lifecycle and accepted-match screen
+- **Older Android reference:** used Pending after a request. The client supplied a newer shared lifecycle specification on 2026-10-09; the available native source predates it.
+- **Web:** profile actions follow `match_status` exactly: none/request, sent/Withdraw with Pending Review, received/Accept and Reject, active/Unmatch. Every action asks for confirmation. `match_id` identifies the current connection in every pending or active state.
+- **Web success:** acceptance and `match_accept` notifications open the verified active It's a Match screen. Ordinary `match` notifications open profiles. Cards open profiles without match action buttons; requests remain a separate list. The old Pending component and route are removed.
+- **Design reference:** no exact updated native/Figma matched frame was available; the screen reuses the established avatar pair, information rows, buttons and page shell, with the eleven server `match_matched_*` strings.
+- **Status:** intentional, latest client specification.
 
 ### Introduction with a match request
 - **Native (current build):** the match request has an optional Introduction ("You can introduce yourself here (Optional)").
-- **Web:** the same, in the Request a Match confirmation (content keys `match_introduction_title` / `match_introduction_message`). It's sent as `introduction` with `POST users/matches`, up to 1000 characters (the server's limit, shown with a counter). The partner sees it on the request in Profile → Matches → Requests and on the Pending screen.
+- **Web:** the same, in the Request a Match confirmation (content keys `match_introduction_title` / `match_introduction_message`). It's sent as `introduction` with `POST users/matches`, up to 1000 characters (the server's limit, shown with a counter). The partner sees it on the request in Profile → Matches → Requests and on the receiving profile through `match_introduction`.
 - **Status:** matches native.
 
 ### Client Certifications

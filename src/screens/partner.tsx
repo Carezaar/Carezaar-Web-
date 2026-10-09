@@ -12,7 +12,7 @@ import { BackHeader, Page } from "../ui/layout";
 import { Button, Dialog, ErrorState, PhotoBox, Spinner, TextArea } from "../ui/kit";
 import { INTRODUCTION_MAX_LENGTH } from "../api/config";
 import { Icon } from "../ui/Icon";
-import { usePartnerMatch } from "./usePartnerMatch";
+import { usePartnerMatch, type MatchMutation } from "./usePartnerMatch";
 
 /* ----------------------------------------------------------- Partner detail */
 
@@ -20,6 +20,12 @@ import { usePartnerMatch } from "./usePartnerMatch";
  *  viewing). Messaging needs an existing match. */
 export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) {
   const { id = "" } = useParams();
+  // A new URL owns fresh detail/action state; a slow previous profile response
+  // must never supply the name or action metadata for the next partner.
+  return <PartnerDetailContent key={`${kind}/${id}`} kind={kind} id={id} />;
+}
+
+function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: string }) {
   const navigate = useNavigate();
   const goBack = useGoBack("/main/matches");
   const { user } = useSession();
@@ -28,16 +34,16 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   const { run, act, toast, messageOf } = useFeedback();
   const [detail, setDetail] = useState<CaregiverFull | ClientFull | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [confirm, setConfirm] = useState<"request" | "unmatch" | null>(null);
+  const [confirm, setConfirm] = useState<MatchMutation | null>(null);
   const [introduction, setIntroduction] = useState("");
 
   const load = useCallback(() => {
     setError(null);
-    run<CaregiverFull | ClientFull>(t("loading_profile_get", "Getting profile"),
+    return run<CaregiverFull | ClientFull>(t("loading_profile_get", "Getting profile"),
       () => (kind === "caregiver" ? clientService.caregiver(id) : caregiverService.client(id)))
       .then(setDetail).catch(setError);
   }, [kind, id, run, t]);
-  useEffect(load, [load]);
+  useEffect(() => { void load(); }, [load]);
   const match = usePartnerMatch(id, user, detail, load);
 
   if (error) return <Page header={<BackHeader />}><ErrorState message={messageOf(error)} error={error} onRetry={load} /></Page>;
@@ -59,24 +65,35 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   };
 
   const message = async () => {
-    if (!detail.is_match) { toast(t("chat_screen_match_check", "You can only send messages to your current matches.")); return; }
+    if (match.status !== "active") { toast(t("chat_screen_match_check", "You can only send messages to your current matches.")); return; }
     try {
       const chat = await act(t("loading_chat_create", "Creating a new chat"), () => userService.createChat(detail.id));
       navigate(`/chat/${chat.id}`);
     } catch (e) { toast(messageOf(e)); }
   };
 
-  const mainAction = () => {
-    if (match.action === "unmatch") { setConfirm("unmatch"); return; }
-    if (match.pendingId !== null) { navigate(`/pending/${match.pendingId}`); return; }
-    setIntroduction("");
-    setConfirm("request");
+  const mainAction = (which: MatchMutation) => {
+    if (which === "request") setIntroduction("");
+    setConfirm(which);
   };
   const confirmed = () => {
+    if (!confirm) return;
     const which = confirm;
     setConfirm(null);
-    void (which === "unmatch" ? match.unmatch() : match.requestMatch(introduction));
+    void match.perform(which, introduction);
   };
+  const titles = {
+    request: ["match_match_button", "Request a Match"], accept: ["match_accept_title", "Accept"],
+    reject: ["match_reject_title", "Reject"], withdraw: ["match_withdraw_button", "Withdraw"],
+    unmatch: ["match_unmatch_title", "Unmatch"],
+  } as const;
+  const messages = {
+    request: ["match_match_message", "Are you sure you want to match with this user? They should accept your request."],
+    accept: ["match_accept_message", "Are you sure you want to accept this match request?"],
+    reject: ["match_reject_message", "Are you sure you want to reject this match request?"],
+    withdraw: ["match_withdraw_message", "Are you sure you want to withdraw this match request?"],
+    unmatch: ["match_unmatch_message", "Are you sure you want to end your match with this user?"],
+  } as const;
 
   const isCaregiver = kind === "caregiver";
   const cg = detail as CaregiverFull;
@@ -101,15 +118,20 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
     } footer={
       <div className="detail-actions">
         <Button variant="outline" icon="ic_message" onClick={() => void message()}>{t(`${prefix}_message`, "Message")}</Button>
-        {match.action === "unmatch"
-          ? <Button variant="danger" icon="ic_match_off" onClick={mainAction}>{t("general_unmatch", "Unmatch")}</Button>
-          : match.action === "pending-sent"
-            ? <Button variant="outline" icon="ic_timer" onClick={mainAction}>{t("match_pending_acceptance", "Pending Acceptance")}</Button>
-            : match.action === "pending-received"
-              ? <Button variant="outline" icon="ic_timer" onClick={mainAction}>{t("match_pending_review", "Pending Review")}</Button>
-              : <Button icon="ic_match_on" disabled={!match.loaded} onClick={mainAction}>{t("match_match_button", "Request a Match")}</Button>}
+        {!match.loaded ? <div role="status"><p>{t("match_state_unavailable", "Match information is unavailable.")}</p><Button variant="outline" onClick={() => void load()}>{t("general_retry", "Try again")}</Button></div>
+          : match.action === "received" ? <>
+            <Button disabled={match.busy} onClick={() => mainAction("accept")}>{t("match_accept_title", "Accept")}</Button>
+            <Button disabled={match.busy} variant="danger" onClick={() => mainAction("reject")}>{t("match_reject_title", "Reject")}</Button>
+          </> : match.action === "withdraw" ? <>
+            <span className="pending-note">{t("match_pending_review", "Pending Review")}</span>
+            <Button disabled={match.busy} variant="outline" onClick={() => mainAction("withdraw")}>{t("match_withdraw_button", "Withdraw")}</Button>
+          </> : match.action === "unmatch" ? <Button disabled={match.busy} variant="danger" icon="ic_match_off" onClick={() => mainAction("unmatch")}>{t("match_unmatch_title", "Unmatch")}</Button>
+          : <Button disabled={match.busy} icon="ic_match_on" onClick={() => mainAction("request")}>{t("match_match_button", "Request a Match")}</Button>}
       </div>
     }>
+      {(match.status === "received" || match.status === "sent") && detail.match_introduction && (
+        <blockquote className="pending-intro"><b>{t("match_introduction_title", "Introduction")}</b><p dir="auto">{detail.match_introduction}</p></blockquote>
+      )}
       <section className="detail-top">
         <div className="detail-photo">
           <PhotoBox src={partner.photo} />
@@ -143,10 +165,8 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
       {isCaregiver && <DetailTiles title={t("caregiver_details_supported_care_needer_types", "Supported Care Needer Types")} items={labels("clienttypes", cg.clienttype_ids)} coloured />}
 
       <Dialog open={confirm !== null} onClose={() => setConfirm(null)} labelledBy="match-title"
-        title={confirm === "unmatch" ? t("match_unmatch_title", "Unmatch") : t("match_match_button", "Request a Match")}>
-        <p>{confirm === "unmatch"
-          ? t("match_unmatch_message", "Are you sure you want to end your match with this user?")
-          : t("match_match_message", "Are you sure you want to match with this user? They should accept your request.")}</p>
+        title={confirm ? t(titles[confirm][0], titles[confirm][1]) : ""}>
+        <p>{confirm ? t(messages[confirm][0], messages[confirm][1]) : ""}</p>
         {confirm === "request" && (
           <>
             {/* Optional introduction sent with the request, as in the native app. */}
@@ -158,8 +178,8 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
         )}
         <div className="dialog-actions">
           <Button variant="outline" onClick={() => setConfirm(null)}>{t("general_cancel", "Cancel")}</Button>
-          <Button variant={confirm === "unmatch" ? "danger" : "primary"} onClick={confirmed}>
-            {confirm === "unmatch" ? t("general_confirm", "Confirm") : t("match_match_title", "Match")}
+          <Button variant={confirm === "request" || confirm === "accept" ? "primary" : "danger"} onClick={confirmed}>
+            {confirm === "request" ? t("match_match_title", "Match") : t("general_confirm", "Confirm")}
           </Button>
         </div>
       </Dialog>

@@ -18,7 +18,7 @@ import { MainScreen } from "./screens/main";
 import { PartnerDetailScreen } from "./screens/partner";
 import { ChatScreen } from "./screens/chat";
 import { ManageMatchesScreen } from "./screens/matchesManage";
-import { PendingScreen } from "./screens/pending";
+import { MatchedScreen } from "./screens/matched";
 import {
   ChangeLanguageScreen, ChangePasswordScreen, DeleteAccountScreen, FaqScreen, FavoritesScreen,
   HelpCenterScreen, NotificationsScreen, ReportIssueScreen,
@@ -108,7 +108,7 @@ export function App() {
                     <Route path="/caregivers/:id" element={inn(<PartnerDetailScreen kind="caregiver" />, "client")} />
                     <Route path="/clients/:id" element={inn(<PartnerDetailScreen kind="client" />, "caregiver")} />
                     <Route path="/chat/:chatId" element={inn(<ChatScreen />)} />
-                    <Route path="/pending/:matchId" element={inn(<PendingScreen />)} />
+                    <Route path="/matched/:kind/:partnerId" element={inn(<MatchedScreen />)} />
                     <Route path="/notifications" element={inn(<NotificationsScreen />)} />
                     <Route path="/favorites" element={inn(<FavoritesScreen />)} />
                     <Route path="/help" element={inn(<HelpCenterScreen />)} />

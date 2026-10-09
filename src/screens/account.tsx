@@ -26,7 +26,7 @@ export function NotificationsScreen() {
   const navigate = useNavigate();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, messageOf } = useFeedback();
+  const { run, toast, messageOf } = useFeedback();
   const list = usePaged(async (page) => {
     const work = userService.notifications(page);
     return page === 1 ? run(`${t("loading_user_notifications_get", "Getting notifications - Page")} ${page}`, () => work) : work;
@@ -41,7 +41,10 @@ export function NotificationsScreen() {
     }
     const code = find("subjects", n.subject_id)?.code ?? "";
     if (code.startsWith("chat") && n.chat) navigate(`/chat/${n.chat.id}`);
-    else if (code.includes("match")) navigate("/profile/matches");
+    else if (code === "match_accept" && n.partner) navigate(`/matched/${n.partner.role === "caregiver" ? "caregivers" : "clients"}/${n.partner.id}`);
+    else if (code === "match" && n.partner) navigate(partnerPath(n.partner));
+    else if ((code === "match" || code === "match_accept") && !n.partner) toast(t("notification_target_unavailable", "This notification is no longer available."));
+    else if (code === "unmatch") navigate("/profile/matches");
     else if (n.partner) navigate(partnerPath(n.partner));
   };
 
@@ -147,12 +150,6 @@ export function HelpCenterScreen() {
           <span className="menu-text"><b>{t("contact_support_email_title", "Email Us")}</b>
             <small>support@carezaar.com · {t("contact_support_email_description", "We will respond within 24 hours.")}</small></span>
         </a>
-        <button type="button" className="menu-row card" onClick={() => navigate("/report-issue")}>
-          <span className="menu-icon"><Icon name="ic_issue" size={30} tint="var(--primary-dark)" /></span>
-          <span className="menu-text"><b>{t("contact_support_issue_title", "Report an Issue")}</b>
-            <small>{t("contact_support_issue_description", "")}</small></span>
-          <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
-        </button>
       </div>
     </Page>
   );

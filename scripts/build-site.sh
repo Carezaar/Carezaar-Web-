@@ -65,6 +65,7 @@ const csp = [
   `script-src 'self' ${[...hashes].join(" ")}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
+  "media-src 'self' blob:",
   "font-src 'self'",
   "connect-src 'self' blob: https://new.carezaar.com",
   "manifest-src 'self'",
@@ -78,7 +79,7 @@ const security = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "geolocation=(self), camera=(), microphone=(), payment=(), usb=()" },
+  { key: "Permissions-Policy", value: "geolocation=(self), camera=(self), microphone=(), payment=(), usb=()" },
 ];
 const immutable = [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }];
 const config = {

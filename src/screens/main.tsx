@@ -1,5 +1,5 @@
 import { localTime } from "../app/serverTime";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { caregiverService, clientService, userService } from "../api/services";
 import type { CaregiverBrief, ClientBrief, MatchSort, PartnerUser } from "../api/types";
@@ -44,10 +44,10 @@ function MatchesTab() {
   const { role } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, toast, messageOf } = useFeedback();
+  const { run, messageOf } = useFeedback();
   const [sort, setSort] = useState<MatchSort>("distance");
   const [sortOpen, setSortOpen] = useState(false);
-  const [headerType, setHeaderType] = useState<string | null>(null);
+  const [headerTypeId, setHeaderTypeId] = useState<number | null>(null);
   const isClient = role === "client";
 
   const list = usePaged<Card>(async (page) => {
@@ -64,29 +64,16 @@ function MatchesTab() {
 
   // The hero follows the care type: header_senior, header_child, …
   useEffect(() => {
+    let current = true;
+    setHeaderTypeId(null);
     const load = isClient
-      ? clientService.profile().then((p) => find("clienttypes", p.clienttype_id)?.icon)
-      : caregiverService.profile().then((p) => find("clienttypes", p.clienttype_ids[0])?.icon);
-    load.then((icon) => setHeaderType(icon ? icon.replace("client_", "header_") : null)).catch(() => undefined);
-  }, [isClient, find]);
-
-  const pendingFavorites = useRef(new Set<string>());
-  const toggleFavorite = useCallback(async (card: Card) => {
-    // Ignore further taps on this card until the server has answered.
-    if (pendingFavorites.current.has(card.user.id)) return;
-    pendingFavorites.current.add(card.user.id);
-    const on = card.user.is_favorite;
-    list.mutate((all) => all.map((c) => (c.id === card.id ? { ...c, user: { ...c.user, is_favorite: !on } } : c)));
-    try {
-      await run(on ? t("loading_favorite_delete", "Removing from favorite list") : t("loading_favorite_create", "Adding to favorite list"),
-        () => (on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id)), `favorite-${card.user.id}`);
-    } catch (e) {
-      list.mutate((all) => all.map((c) => (c.id === card.id ? { ...c, user: { ...c.user, is_favorite: on } } : c)));
-      toast(messageOf(e));
-    } finally {
-      pendingFavorites.current.delete(card.user.id);
-    }
-  }, [list, run, t, toast, messageOf]);
+      ? clientService.profile().then((p) => p.clienttype_id)
+      : caregiverService.profile().then((p) => p.clienttype_ids[0]);
+    load.then((id) => { if (current) setHeaderTypeId(id ?? null); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [isClient]);
+  const headerIcon = find("clienttypes", headerTypeId)?.icon;
+  const headerType = headerIcon ? headerIcon.replace("client_", "header_") : null;
 
   const prefix = isClient ? "client" : "caregiver";
   return (
@@ -137,12 +124,6 @@ function MatchesTab() {
                   )}
                 </div>
                 <div className="match-side">
-                  <button type="button" className="icon-btn" aria-pressed={c.user.is_favorite}
-                    aria-label={c.user.is_favorite ? "Remove from favorites" : "Add to favorites"}
-                    onClick={(e) => { e.stopPropagation(); void toggleFavorite(c); }}>
-                    <Icon name={c.user.is_favorite ? "ic_favorite_on" : "ic_favorite_off"} size={26}
-                      tint={c.user.is_favorite ? "var(--error)" : "var(--primary-dark)"} />
-                  </button>
                   <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                 </div>
               </article>

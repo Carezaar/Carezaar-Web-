@@ -1,7 +1,6 @@
 import { api, type FormValue } from "./client";
 import { API_BASE_URL, DEFAULT_PAGE_SIZE } from "./config";
 import { loginDeviceFields, tokenStore } from "./session";
-import { awaitsResponse } from "./match";
 import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asUser } from "./schema";
 import type { AppNotification, BaseInfo, FaqCategory, CaregiverFull, ChatBrief, ChatFull, ClientFull, Faq, Issue, Match, MatchListType, MatchSort, Session, User, UserRole } from "./types";
 
@@ -175,13 +174,6 @@ export const userService = {
     return api.sendPaged<unknown>({
       method: "GET", path: "users/matches", query: { type, page, perPage },
     }).then(({ result, meta }) => ({ result: asMatches(result, "users/matches"), meta }));
-  },
-  /** A request this partner sent the viewer and the viewer hasn't answered. The partner
-   *  profile's `match_id` covers only the viewer's own request and active match, so the
-   *  incoming case still comes from the request list. */
-  async incomingRequestFrom(partnerId: string, role: UserRole): Promise<Match | null> {
-    const requests = await userService.matches("requests", 1, 50);
-    return requests.result.find((m) => (m.client?.id === partnerId || m.caregiver?.id === partnerId) && awaitsResponse(m, role)) ?? null;
   },
   match(id: number) {
     return api.send<unknown>({ method: "GET", path: `users/matches/${id}` }).then((m) => asMatch(m, "users/matches/{id}"));

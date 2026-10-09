@@ -24,6 +24,15 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null);
 
+// The API still labels match_withdraw_title "Cancel". The new profile action is
+// Withdraw; use translated fallback copy until the CMS supplies its new key.
+const CLIENT_CONTENT: Record<string, Record<string, string>> = {
+  match_withdraw_button: {
+    en: "Withdraw", sp: "Retirar", fr: "Retirer", ru: "Отозвать",
+    ar: "سحب الطلب", fa: "پس گرفتن درخواست", in: "अनुरोध वापस लें", cn: "撤回请求",
+  },
+};
+
 function normalise(text: string): string {
   return text.replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[\u2028\u00a0\n]/g, " ").replace(/\s+/g, " ").trim()
     // Design copy and server copy differ only in closing punctuation in places.
@@ -78,8 +87,9 @@ export function I18nProvider({
     const item = bySlug.get(slug);
     return corrected(slug, languageId, item?.translations.find((x) => x.language_id === languageId)?.name)
       ?? item?.translations.find((x) => x.language_id === ENGLISH_ID)?.name
+      ?? CLIENT_CONTENT[slug]?.[languageCode]
       ?? fallback ?? slug;
-  }, [bySlug, languageId]);
+  }, [bySlug, languageId, languageCode]);
 
   const translateEnglish = useCallback((english: string) => {
     if (languageId === ENGLISH_ID) return null;

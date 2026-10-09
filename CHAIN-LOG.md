@@ -13,3 +13,19 @@
 | 8 | humanizer | Kept exact client-required dialog copy; removed screening claims from share metadata, updated current README behavior, prepared concise factual client message. | index.html, README.md, CLIENT-READY-MESSAGE.md |
 | 9 | iterate-until-verified | Independent review found stale cached states, metadata and inline scene colors; corrected and tested. Live browser/API, both roles, cross-browser, accessibility, responsive and regression checks recorded individually. | baseDataLoader.ts, public/scenes/*.json, web-qa/*, WEB_PRODUCTION_READINESS_REPORT.md |
 | 10 | optimize-web-animations — N/A | No animations were added or changed. Existing reduced-motion behavior retained and covered by landing/browser checks. | None |
+
+## 9 October — Camera, Help Center and new match lifecycle
+
+| ## | skill | what it changed | files touched |
+| --- | --- | --- | --- |
+| 1 | investigate | Traced desktop file-picker capture, duplicate Help reporting and legacy match inference; read seven references and both QA documents completely. | FINAL-LIFECYCLE-ACCEPTANCE.md |
+| 2 | diagnosing-bugs | Actual getUserMedia replaces Camera file picker; explicit profile status replaces inferred state. Fixed dead card-icon click and overlapping matched response race. | profileForm.tsx, CameraCapture.tsx, matchesManage.tsx, matched.tsx |
+| 3 | tdd | Profile-state helper tests failed before implementation then passed; retained seven preview assertions. Camera browser testing found StrictMode duplicate permission requests and verified fix. | tests/profileMatch.test.mjs, profileMatch.ts, CameraCapture.tsx |
+| 4 | graphify | Queried existing dependency graph for profile/photo/matching/notifications, then inspected changed source because graph predates this refinement. | test-evidence/match-contract-20261009.md |
+| 5 | no-ai-design-slop | Preserved established dialogs/cards/avatar pair; used existing information layout for matched screen. | matched.tsx, partner.tsx, account.tsx |
+| 6 | iterate-until-verified | Independent read-only review corrections applied; camera browser tests and live two-role lifecycle evidence collected. Regression completed; GitHub/deployed release gates pending. | web-qa/f21-lifecycle.mjs, FINAL-LIFECYCLE-ACCEPTANCE.md |
+| 7 | new visual direction/inspiration — NOT APPLICABLE | Existing design preservation required; supplied client references define refinements. | None |
+| 8 | audit-ai-design-slop | Inspected camera, received Introduction and matched renders; preserved established hierarchy. Removed the duplicate sidebar reporting shortcut found during responsive Help QA; no speculative redesign. | frames.tsx, matched.tsx, test-evidence/web |
+| 9 | humanizer | Updated README/native differences for current lifecycle and drafted concise factual handoff copy; server product copy retained. | README.md, docs/WEB-VS-ANDROID.md, WEB_PRODUCTION_READINESS_REPORT.md |
+| 10 | iterate-until-verified, continued | Live signup, report/photo persistence, both-role lifecycle, race/cancellation, responsive axe, eight matched translations, chat, disposable reset/deletion tests executed. Final aggregation:200 unique checks PASS; final lint/type/build/unit pass. Removed duplicate own-profile fetch caused by lookup refresh and verified performance/card-navigation retests. GitHub/deployed gates pending. | web-qa/*20261009*, test-evidence/web |
+| 11 | optimize-web-animations — NOT APPLICABLE | No motion was added or changed; existing reduced-motion behavior remains. | None |

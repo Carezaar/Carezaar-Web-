@@ -48,7 +48,6 @@ function DesktopShell({ children }: { children: ReactNode }) {
     { to: "/main/messages", icon: "ic_messages", label: t("bottom_navigation_messages", "Messages"), toggles: true, also: "/chat/" },
     { to: "/main/profile", icon: "ic_profile", label: t("bottom_navigation_profile", "Profile"), toggles: true },
     { to: "/help", icon: "ic_support", label: t("profile_help_center_title", "Help Center") },
-    { to: "/report-issue", icon: "ic_issue", label: t("profile_report_an_issue_title", "Report an Issue") },
     { to: "/faq", icon: "ic_faq", label: t("profile_faq_title", "FAQ") },
     { to: "/change-language", icon: "ic_language", label: t("profile_change_language_title", "Change Language") },
     { to: "/favorites", icon: "ic_favorite", label: t("profile_favorites_title", "Favorites"), toggles: true },

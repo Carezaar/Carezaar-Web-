@@ -9,7 +9,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "build:site": "bash scripts/build-site.sh",
-    "test": "node --experimental-strip-types --test tests/requestPreview.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "leaflet": "1.9",

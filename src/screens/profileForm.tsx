@@ -12,6 +12,7 @@ import { BackHeader, Page } from "../ui/layout";
 import { Avatar, Button, Dialog, Field, TextArea, TextField } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 import { PhotoCropper } from "../ui/PhotoCropper";
+import { CameraCapture } from "../ui/CameraCapture";
 
 /** "MM/DD/YYYY" (how the API returns date_of_birth) → yyyy-mm-dd for <input type=date>. */
 function toInputDate(value: string | null | undefined): string {
@@ -50,7 +51,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const [genderOpen, setGenderOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const cameraInput = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const galleryInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -76,7 +77,20 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const [cropping, setCropping] = useState<File | null>(null);
   const pick = (file: File | undefined) => {
     setSourceOpen(false);
-    if (file) setCropping(file);
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+      toast(t("profile_photo_format", "Choose a JPEG, PNG, WebP or GIF photo."));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast(t("profile_photo_size", "Choose a photo smaller than 10 MB."));
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => { URL.revokeObjectURL(url); setCropping(file); };
+    image.onerror = () => { URL.revokeObjectURL(url); toast(t("profile_photo_invalid", "This photo couldn't be opened. Choose another image.")); };
+    image.src = url;
   };
   const cropped = (file: File) => {
     setCropping(null);
@@ -172,10 +186,9 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
             </div>
           </div>
         </Field>
-        <input ref={cameraInput} type="file" accept="image/*" capture="user" hidden
+        <input ref={galleryInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden
           onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
-        <input ref={galleryInput} type="file" accept="image/*" hidden
-          onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+        {cameraOpen && <CameraCapture onDone={(file) => { setCameraOpen(false); pick(file); }} onCancel={() => setCameraOpen(false)} />}
         {cropping && <PhotoCropper file={cropping} onDone={cropped} onCancel={() => setCropping(null)} />}
         <div className="grid-2">
           <TextField label={t("profile_edit_first_name", "First name")} required autoComplete="given-name"
@@ -206,9 +219,9 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
           placeholder={t("profile_edit_bio_placeholder", "Tell us a little about yourself.")} />
       </div>
 
-      <Dialog open={sourceOpen} onClose={() => setSourceOpen(false)}>
+      <Dialog open={sourceOpen} onClose={() => setSourceOpen(false)} title={t("profile_edit_upload_photo", "Upload Photo")} labelledBy="photo-source-title">
         <div className="source-picker">
-          <button type="button" onClick={() => cameraInput.current?.click()}>
+          <button type="button" onClick={() => { setSourceOpen(false); setCameraOpen(true); }}>
             <Icon name="ic_camera" size={34} tint="#fff" /><span>{t("general_camera", "Camera")}</span>
           </button>
           <button type="button" onClick={() => galleryInput.current?.click()}>

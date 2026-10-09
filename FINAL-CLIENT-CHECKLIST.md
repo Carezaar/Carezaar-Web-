@@ -1,26 +1,21 @@
-# Final client feedback — 8 October 2026
+# Final refinement checklist — 9 October 2026
 
-Scope: existing React web app and landing only. Preserve existing work. The latest client brief supersedes older QA requirements for screening gates and country at registration. UI/API seams explicitly requested in the brief are the test boundaries.
+All seven references, both complete QA documents and the production plan were read. Latest client requirements supersede prior Country/screening/Pending expectations. Web only; no native source changes.
 
-| Requirement | Investigated | Implemented | Manual | Regression | Verified |
-| --- | --- | --- | --- | --- | --- |
-| 1 Global marketing; preserve legitimate location/legal data | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 2 No country at registration; retain later location | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 3 Complete screening feature removal | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 4 No screening in match flow | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 5 Remove Unverified User | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 6 Remove screening gates; preserve auth and active-match messaging | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 7 Match confirmation flow | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 8 Exact title/copy/actions; optional API introduction; cancel and duplicate protection | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 9 Native match dialog hierarchy adapted to web | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 10 Request icons reflect actual lifecycle | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 11 Short one-line preview; full introduction accessible | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 12 Delete entry at Help Center bottom | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 13 Deletion remains protected, reason required, session invalidated | yes | complete | browser clicks + screenshots | PASS | PASS |
-| 14 All 13 screenshots | yes | complete | browser clicks + screenshots | PASS | PASS |
+| Acceptance group | Current evidence/status |
+| --- | --- |
+| Camera investigated/corrected; Gallery; explicit permission; denial/retry; capture/retake/cancel; crop/upload/persistence | PASS — FIXED AND RETESTED:11 camera checks, Gallery multipart200 and synthetic-camera multipart200. No actual hardware camera or personal media; physical device NOT APPLICABLE under user instruction. |
+| Report present on Profile; absent Help/sidebar; API and responsive placement | PASS — FIXED AND RETESTED: HELP-* at1440/768/390, report POST200/list feedback, Email Us and Delete retained. |
+| none/request; sent/Withdraw/Pending Review; received/Accept/Reject/Introduction; active/Unmatch | PASS — VERIFIED: LC-01–10 both live roles and actual profile fields. |
+| Every confirmation; cancellation; correct endpoints; both-role refreshed state; stale/missing/error/retry/duplicates | PASS — VERIFIED: LC-*, RACE-*, EDGE-*; no new endpoints. |
+| It's a Match after acceptance and match_accept; normal match opens profile; active partner verified; stale/re-entry/back/mobile | PASS — VERIFIED: LC-03/06/07/10, EDGE-*, MS-*;11 match_matched keys and reject slug integrated. |
+| Pending component/routes removed; requests retain Pending Review | PASS — VERIFIED: source review and route regression both roles. |
+| Active cards zero buttons; icon/card/keyboard profile navigation; requests distinct; correct icons/short full Introduction | PASS — FIXED AND RETESTED: LC-08, MS-01/02 and discovery six browser/role contexts. |
+| Previous approvals and full application regression | PASS — VERIFIED: both signup/OTP/location/edit flows, auth/logout/reset/delete, chat/favorites/report, language/session/routes/network, global landing/no initial Country/no screening/no Unverified. |
+| Responsive/accessibility/cross browser | PASS — VERIFIED: six match/dialog sizes; keyboard/focus/Escape, axe, Chrome/Firefox/WebKit both roles,8 matched languages/RTL. |
+| Build/type/lint/unit/security/performance/diff review | PASS — VERIFIED: all checks pass; duplicate profile fetch fixed/retested; no secrets/native edits. |
+| Report/test counts/client message saved | Report current; client message awaiting live release claims. |
+| ApexStack main commit/push/remote/CI | Pending release gate. |
+| CLI-only private Vercel review build/latest assets/deployed browser QA | Pending release gate. |
 
-Delivery gates: read both supplied QA documents (done); read existing production plan (done); inspect Android APK; Figma access; current OpenAPI; lint/build; cross-role browser journeys; desktop/tablet/portrait/landscape; keyboard/axe; network/session/privacy; broader regression; review every diff; commit and push main with repository ApexStack identity; verify remote commit; verify deployed version if available; honest report and client-message draft.
-
-Figma browser inspection currently returns HTTP 403. Current OpenAPI HTML fetched successfully with curl; web retrieval failed. Continue using current spec and locally exported Figma evidence.
-
-Current QA: all latest executed functional checks PASS; client pagination N/A because this account has only one candidate. Newest provided screenshot requirements override old native screening gates. Native Help footer placement confirmed in APK e54.java (1110–1131). Figma live access remained HTTP 403; local exported scenes and supplied images used. Delivery verification is recorded in WEB_PRODUCTION_READINESS_REPORT.md.
+200 executed unique checks pass (25 after corrections/retests, including harness fixes); zero latest FAIL/BLOCKED. Physical-device capture N/A, not counted as pass. Final per-ID manifest and raw evidence remain in the delivery workspace.

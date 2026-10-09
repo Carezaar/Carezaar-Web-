@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { userService } from "../api/services";
 import type { Match, MatchListType } from "../api/types";
-import { awaitsPartner, awaitsResponse, matchStage, reviewBy } from "../api/match";
+import { awaitsPartner, matchStage, reviewBy } from "../api/match";
 import { useSession } from "../auth/SessionContext";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
@@ -17,9 +17,8 @@ export function ManageMatchesScreen() {
   const navigate = useNavigate();
   const { role } = useSession();
   const { t } = useI18n();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { run, messageOf } = useFeedback();
   const [tab, setTab] = useState<MatchListType>("matches");
-  const [confirm, setConfirm] = useState<{ match: Match; action: "accept" | "reject" | "withdraw" | "unmatch" } | null>(null);
   const [reviewing, setReviewing] = useState<Match | null>(null);
 
   const loadingLabel = { matches: "loading_matches", requests: "loading_requests", histories: "loading_histories" }[tab];
@@ -27,27 +26,6 @@ export function ManageMatchesScreen() {
     const work = userService.matches(tab, page);
     return page === 1 ? run(`${t(loadingLabel, "Loading")} ${page}`, () => work) : work;
   }, [tab]);
-
-  const perform = async () => {
-    if (!confirm) return;
-    const { match, action } = confirm;
-    setConfirm(null);
-    const labels = { accept: "loading_match_accept", reject: "loading_match_reject", withdraw: "loading_match_withdraw", unmatch: "loading_unmatch_submit" };
-    try {
-      await act(t(labels[action], "Please wait"), async () => {
-        if (action === "accept") await userService.acceptMatch(match.id);
-        else if (action === "reject") await userService.rejectMatch(match.id);
-        else if (action === "withdraw") await userService.withdrawMatch(match.id);
-        else await userService.breakMatch(match.id);
-      });
-      void list.reload();
-    } catch (e) { toast(messageOf(e)); }
-  };
-
-  const titles = {
-    accept: ["match_accept_title", "match_accept_message"], reject: ["match_reject_title", "match_reject_message"],
-    withdraw: ["match_withdraw_title", "match_withdraw_message"], unmatch: ["match_unmatch_title", "match_unmatch_message"],
-  } as const;
 
   return (
     <Page header={<BackHeader title={t("profile_matches_title", "Matches")} />}>
@@ -74,31 +52,21 @@ export function ManageMatchesScreen() {
                       <h3>{partner?.user.first_name} {partner?.user.last_name}</h3>
                       <p className="muted">{t("match_start", "Start")}: {m.created_at}</p>
                       {m.finished_at && <p className="muted">{t("match_end", "End")}: {m.finished_at}</p>}
-                      {stage === "pending" && role && awaitsPartner(m, role) && <p className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</p>}
+                      {stage === "pending" && role && awaitsPartner(m, role) && <p className="pending-note">{t("match_pending_review", "Pending Review")}</p>}
                     </div>
-                    <div className="match-row-side" onClick={(e) => e.stopPropagation()}>
+                    <div className="match-row-side">
                       {tab !== "requests" && stage !== "pending" && (
                         <Icon name={stage === "history" ? "ic_match_off" : "ic_match_on"} size={34}
                           tint={stage === "history" ? "var(--error)" : "var(--success)"} />
                       )}
-                      {stage === "active" && <button type="button" className="mini-danger" onClick={() => setConfirm({ match: m, action: "unmatch" })}>{t("general_unmatch", "Unmatch")}</button>}
-                      {stage === "pending" && role && awaitsResponse(m, role) && (
-                        <span className="mini-actions">
-                          <button type="button" className="mini-primary" onClick={() => setConfirm({ match: m, action: "accept" })}>{t("match_accept_title", "Accept")}</button>
-                          <button type="button" className="mini-danger" onClick={() => setConfirm({ match: m, action: "reject" })}>{t("match_reject_title", "Reject")}</button>
-                        </span>
-                      )}
-                      {stage === "pending" && role && awaitsPartner(m, role) && (
-                        <button type="button" className="mini-danger" onClick={() => setConfirm({ match: m, action: "withdraw" })}>{t("match_withdraw_title", "Cancel")}</button>
-                      )}
                       {stage === "history" && !myReview && (
-                        <button type="button" className="mini-primary" onClick={() => setReviewing(m)}>{t("match_review_button", "Review")}</button>
+                        <button type="button" className="mini-primary" onClick={(e) => { e.stopPropagation(); setReviewing(m); }}>{t("match_review_button", "Review")}</button>
                       )}
                     </div>
                     {stage === "pending" && preview && (
                       <button type="button" className="match-intro" dir="auto"
                         aria-label={`${t("match_introduction_title", "Introduction")}: ${preview}`}
-                        onClick={(e) => { e.stopPropagation(); navigate(`/pending/${m.id}`); }}>
+                        onClick={(e) => { e.stopPropagation(); if (partner) navigate(role === "client" ? `/caregivers/${partner.id}` : `/clients/${partner.id}`); }}>
                         <span aria-hidden="true">💬 </span>{preview}
                       </button>
                     )}
@@ -111,14 +79,6 @@ export function ManageMatchesScreen() {
       {list.loading && list.items.length > 0 && <Spinner />}
       <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
 
-      <Dialog open={confirm !== null} onClose={() => setConfirm(null)} labelledBy="mm-title"
-        title={confirm ? t(titles[confirm.action][0], "") : ""}>
-        <p>{confirm ? t(titles[confirm.action][1], "") : ""}</p>
-        <div className="dialog-actions">
-          <Button variant="outline" onClick={() => setConfirm(null)}>{t("general_cancel", "Cancel")}</Button>
-          <Button variant={confirm?.action === "accept" ? "primary" : "danger"} onClick={() => void perform()}>{t("general_confirm", "Confirm")}</Button>
-        </div>
-      </Dialog>
       <ReviewDialog match={reviewing} onClose={() => setReviewing(null)} onDone={() => { setReviewing(null); void list.reload(); }} />
     </Page>
   );

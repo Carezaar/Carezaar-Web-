@@ -38,7 +38,7 @@ Set in `.env`:
   - `X-Frame-Options: DENY`
   - `X-Content-Type-Options: nosniff`
   - `Referrer-Policy: strict-origin-when-cross-origin`
-  - `Permissions-Policy: geolocation=(self), camera=(), microphone=()`
+  - `Permissions-Policy: geolocation=(self), camera=(self), microphone=()`
 - **Caching.** Files under `assets/` with a content hash in their name can be cached as immutable, and `index.html` should revalidate on every load.
 
 ## Project structure
@@ -67,19 +67,15 @@ public/
 - **Lookup tables.** They're cached in `localStorage` and only refetched when `base/info` reports a change.
 - **Sessions.** Stored in `localStorage`, together with the signed-in role (only the role). On a returning visit, the first page of matches loads alongside `auth/info` instead of after it (`src/app/matchesPrefetch.ts`). An in-progress signup lives in the tab's `sessionStorage`.
 - **Chat.** An open chat checks for new messages every 10 seconds while it's visible, and whenever the window regains focus. Messages appear at once as "Sending" and go out in order; unsent text returns to the box on failure.
-- **Matching.** A partner's profile reads its state from the profile's own `is_match` and `match_id` (`src/screens/usePartnerMatch.ts`):
-  - `is_match` → **Unmatch**, which ends the match with `DELETE users/matches/{match_id}`;
-  - `match_id` without `is_match` → the user's own request is pending: **Pending Acceptance**, which opens the Pending screen (`/pending/:id`), where **Cancel Request** withdraws it with `DELETE users/matches/{match_id}/withdraw`;
-  - an unanswered request from the partner (found in the request list, because `match_id` doesn't report it) → **Pending Review**;
-  - otherwise → **Request a Match**. The confirmation has an optional **Introduction** (up to 1000 characters, sent as `introduction`), which the partner sees on the request and on the Pending screen. `POST users/matches` returns the existing request or match when there is one and accepts the partner's request, so the app opens Pending only when the answer has `is_active: false`; with `is_active: true` it stays on the profile, which now shows the match.
-
-  `DELETE users/matches/{partner_id}/withdraw/partner` isn't used.
+- **Matching.** Partner actions use the API's explicit `match_status`: `none` → Request a Match, `sent` → Withdraw with Pending Review, `received` → Accept/Reject with the full `match_introduction`, `active` → Unmatch. `match_id` identifies the current connection in every nonempty state. Every mutation requires confirmation, checks a fresh profile and prevents duplicate submissions. Requests retain the optional Introduction (up to 1000 characters).
+- **Matched screen and notifications.** Successful acceptance and exact `match_accept` notifications open `/matched/:kind/:partnerId`. The screen verifies the current active profile connection and partner before displaying success. Ordinary `match` notifications open the partner profile. The old Pending screen has been removed. Active Matches cards open profiles without action buttons; requests remain separate.
+- **Reporting.** Report an Issue is available from Profile only; Help Center and the desktop sidebar have no duplicate shortcut.
 - **No Background Check.** Removed at the client's request (2026-10-07): there's no verification screen, gate, badge or status. Anyone can request a match; messaging needs a match.
 - **Runtime checks.** Responses for the session, user, profiles, matches and lookup tables are validated in `src/api/schema.ts`. A malformed response shows an error with Try Again, not a broken screen.
 - **Server-side failures.** Report an Issue succeeds in the latest live checks; API failures still direct the user to support@carezaar.com. Password reset and change, profile edit and account deletion work from the web app since the server fixes of 2026-10-01/02. The same error handling stays in place should any of them fail again.
 - **403 responses.** The server answers 403 both for a missing or expired token and for an action the user isn't allowed to take (for example withdrawing someone else's request). Only the first, which has no field errors, refreshes the session or signs the user out (`src/api/client.ts`); the second shows the server's message.
 - **Password recovery.** The server uses up an emailed code once `users/otp/verify` accepts it, so in password recovery the code screen passes the code straight to Set Up Password, and `users/password/reset` checks it. A wrong code returns the user to the code screen. Signup still verifies the code on the code screen.
-- **Profile photo.** The server removes the photo from any profile save that carries none. Edit Profile therefore reads the current photo through the app's own `/uploads/` path and sends it again with the save, so editing the name or bio keeps the photo; Remove Photo saves without one. See Deployment for the proxy this needs. JPEG, PNG and WebP are accepted.
+- **Profile photo.** The server removes the photo from any profile save that carries none. Edit Profile therefore reads the current photo through the app's own `/uploads/` path and sends it again with the save, so editing the name or bio keeps the photo; Remove Photo saves without one. See Deployment for the proxy this needs. Camera explicitly requests browser camera access with capture, retake, confirmation and cancellation. Gallery uses the file picker. JPEG, PNG, WebP and GIF inputs up to 10 MB are decoded before cropping; captured/cropped uploads use the existing multipart profile endpoint.
 
 ## Further documentation
 

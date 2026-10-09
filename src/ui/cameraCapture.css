@@ -1,0 +1,4 @@
+.camera-capture-stage { width: 100%; aspect-ratio: 1; max-height: 50dvh; overflow: hidden; border-radius: 12px; background: #172433; }
+.camera-capture-stage video, .camera-capture-stage img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.camera-capture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.camera-capture-actions > button { flex: 1 1 auto; }

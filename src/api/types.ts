@@ -41,12 +41,11 @@ export interface CaregiverBrief {
   is_match: boolean;
 }
 
-/** Detail endpoints only (`clients/caregivers/{id}`, `caregivers/clients/{id}`): the
- *  viewer's match with this partner. `is_match` true → the active match's id;
- *  `is_match` false → the pending request the viewer sent; null → neither. A request
- *  the partner sent is not reported here (it is `null`), only in `users/matches`. */
+/** Current connection in every state, from the viewer's profile response. */
 interface PartnerMatchRef {
   match_id: number | null;
+  match_status?: "none" | "sent" | "received" | "active";
+  match_introduction?: string | null;
 }
 
 export interface CaregiverFull extends CaregiverBrief, PartnerMatchRef {
