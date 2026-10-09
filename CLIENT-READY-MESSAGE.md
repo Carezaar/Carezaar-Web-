@@ -1,9 +1,7 @@
-Hi Anahita, I reviewed all your latest feedback and completed the web updates.
+Hi Anahita, the latest web updates are complete. Camera now has a capture, retake and preview flow, with Gallery kept separate. Report an Issue is available only from Profile.
 
-The US-specific section is removed. Create Account now starts with email and password, with location still collected later during profile setup. Background Check screens, fields, badges and related restrictions are removed from the web app, including the Unverified User label.
+Match actions now follow the profile’s current status, with confirmation for each action. Acceptance and accepted-match notifications open the new It’s a Match! screen; request notifications open the profile. Match cards open profiles without action buttons, and the old Pending screen is replaced. Introduction and the earlier approved changes are preserved.
 
-Request a Match now follows your Android reference: the exact confirmation message, optional Introduction, and Cancel/Match buttons. Requests no longer show the green match icon, and introduction previews show one short line with the message icon and ellipsis. Opening the request shows the full introduction. Delete Account is now at the bottom of Help Center, and the deletion flow still works.
+I checked both roles in Chrome, Firefox and WebKit, completed regression checks, and pushed the changes to GitHub. The updated review build is verified: https://carezaar-web.vercel.app (existing review credentials).
 
-I manually checked the affected flows, compared them with the Android references and all supplied screenshots, and completed broader regression testing for both roles. The final changes are pushed to GitHub.
-
-You can retest the updated version here using the existing review credentials: https://carezaar-web.vercel.app
+Camera testing used simulated input; physical-device capture remains untested.

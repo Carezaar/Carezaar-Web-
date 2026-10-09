@@ -14,8 +14,8 @@ All seven references, both complete QA documents and the production plan were re
 | Previous approvals and full application regression | PASS — VERIFIED: both signup/OTP/location/edit flows, auth/logout/reset/delete, chat/favorites/report, language/session/routes/network, global landing/no initial Country/no screening/no Unverified. |
 | Responsive/accessibility/cross browser | PASS — VERIFIED: six match/dialog sizes; keyboard/focus/Escape, axe, Chrome/Firefox/WebKit both roles,8 matched languages/RTL. |
 | Build/type/lint/unit/security/performance/diff review | PASS — VERIFIED: all checks pass; duplicate profile fetch fixed/retested; no secrets/native edits. |
-| Report/test counts/client message saved | Report current; client message awaiting live release claims. |
-| ApexStack main commit/push/remote/CI | Pending release gate. |
-| CLI-only private Vercel review build/latest assets/deployed browser QA | Pending release gate. |
+| Report/test counts/client message saved | PASS — VERIFIED: final report, per-ID manifest and client message saved. |
+| ApexStack main commit/push/remote/CI | PASS — VERIFIED: code commit927b220 onmain as apexstackdev-del; GitHub confirms author/SHA; no Actions runs. Final docs committed separately.  |
+| CLI-only private Vercel review build/latest assets/deployed browser QA | PASS — VERIFIED: dpl_GrSbCM9DLfNW6ujEeEnnmvyRb2Np READY; asset digests identical; deployed lifecycle/camera/Help/report PASS.  |
 
 200 executed unique checks pass (25 after corrections/retests, including harness fixes); zero latest FAIL/BLOCKED. Physical-device capture N/A, not counted as pass. Final per-ID manifest and raw evidence remain in the delivery workspace.

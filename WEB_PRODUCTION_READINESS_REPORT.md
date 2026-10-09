@@ -4,7 +4,7 @@
 
 Date: 9 October 2026. Web only; the seven supplied images and both complete QA documents were reviewed. The latest brief controls superseded country, screening and matching expectations. Source started at `22ed13e` on main; existing approved functionality was preserved.
 
-**Local acceptance complete: 200 unique executed checks pass. GitHub push and deployed verification are the remaining release gates.** Historical readiness results below belong to the previous round.
+**PRODUCTION READY FOR CLIENT RETEST. Tested code is pushed to main; the updated private review deployment and deployed acceptance checks are verified.** Historical readiness results below belong to the previous round.
 
 | Client request / existing cause | Code changed and expected behavior | Executed manual/API evidence | Status |
 | --- | --- | --- | --- |
@@ -30,7 +30,11 @@ Actual browsers: Chromium/Chrome, Firefox and WebKit; Client and Caregiver in is
 
 Final quality gates: npm run lint (zero warnings/errors), npm run build / combined site build (TypeScript and Vite), npm test (3 runner tests; two match-state tests plus seven preview assertions), git diff --check and changed-source review passed. No native files or dependencies changed. Final asset index-DzTLGVh-.js. The last performance fix stores the own-profile care type independently from lookup-table function identity; final warm-load check sees no duplicate requests. Cold startup varied4.6–11.7s, lookup APIs4.5–11.6s; last throttled warm card5.0s, TBT9ms. Landing FCP708ms and59fps scroll. Backend response variability remains an operational characteristic, not an unresolved frontend defect.
 
-GitHub/CLI Vercel release and deployed smoke gates remain open. Existing private project verified: prj_V6MPWndiEgy4wbUdFHHMxQSxVG8x, team_eFfuwrSeXzlkXmi4WMtxbHBV, no Git integration. Deployment will use isolated nooneexist414 profile and a clean temporary copy; private Basic protection and noindex remain.
+Release verified: tested code commit `927b220cf47e8acd13e6aeca07347669d650ad39`, main, repository Carezaar/Carezaar-Web-, authored/pushed as apexstackdev-del. GitHub API confirms the commit and author. No GitHub Actions runs exist for that code commit; local quality checks and Vercel build passed. A following documentation-only commit records final release evidence; application assets remain identical to927b220.
+
+Private CLI deployment READY: `dpl_GrSbCM9DLfNW6ujEeEnnmvyRb2Np`, verified alias https://carezaar-web.vercel.app. Authenticated200/unauthenticated401, noindex and camera/CSP policy checked. Main JS/CSS SHA256 digests match final local site-dist (DEPLOYMENT-VERIFICATION-20261009.json). Deployed LC-01–10 verify both-role request/cancel/withdraw/reject/accept/notifications/action-free active card/unmatch/stale success. LC-05 first attempt hit a navigation timeout before executing; isolated deployed retest passed, raw failure retained. Deployed synthetic camera->crop->multipart200->reopen/reload, Help placement at3sizes, Profile report POST200/list feedback and no uncaught page errors all pass (deployed-camera-help-20261009.jsonl). Original QA photo restored200; final auth/info recheck confirms both owned accounts have no photo and both connection states are none. No personal camera media captured or uploaded.
+
+Review build reflects the tested application source; Git integration remains disconnected. Final client message, checklist and acceptance audit are saved. No unresolved frontend failure or external blocker remains in the latest applicable results. Physical camera/device remains N/A per privacy instruction. Existing private project verified: prj_V6MPWndiEgy4wbUdFHHMxQSxVG8x, team_eFfuwrSeXzlkXmi4WMtxbHBV, no Git integration. Deployment will use isolated nooneexist414 profile and a clean temporary copy; private Basic protection and noindex remain.
 
 ---
 
