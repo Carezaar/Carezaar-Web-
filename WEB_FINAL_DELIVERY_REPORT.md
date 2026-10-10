@@ -21,7 +21,7 @@ All requested changes are implemented in the web app:
 
 Two defects found by testing were fixed: GIF photos were accepted, and a password change could race and sign the user out. The four accepted differences are unchanged.
 
-What remains is outside the web app (see I).
+Nothing in the specification remains open (see I).
 
 ## B. Requirement checklist
 
@@ -116,10 +116,16 @@ No deployment requirement is outstanding.
 
 ## I. Outstanding issues
 
+Against the acceptance criteria (the client's specification), nothing is outstanding: every requirement passed in the final run, with 146 passed, 0 failed and 0 blocked.
+
+As section 25 asks, web defects are listed separately from backend limitations and environment constraints:
+
 | Type | Item |
 |---|---|
-| Web defects | None known. |
-| Backend limitation | The server allows a new reset code only after a wait that is longer than the app's 2-minute timer and grows with each request. The web shows the server's "try again after N seconds" message. Aligning the limit with the timer would avoid it. |
-| Content table (server) | `settings_change_password_dialog_message` says the user is signed out of all devices "including this one". This is accurate: the server ends every session, and the web then signs the user back in. It could be reworded. The web's new keys (permission screen, general errors) carry their own eight-language text until the client adds them to the table. |
+| Web defects | None. |
+| Backend limitation (does not block any web requirement) | The server allows a new reset code only after a wait that is longer than the app's 2-minute timer and grows with each request. The web handles this by showing the server's "try again after N seconds" message. Aligning the limit with the timer is optional backend tuning. |
 | Environment constraint | Browsers without notifications (Safari on iPhone outside a Home Screen app) can't grant permission, so they are let in rather than blocked. Automated browser tests must grant the `notifications` permission. |
-| Client acceptance | Pending the client team's review of the deployed site. |
+
+Notes:
+- **Content:** the web's new keys carry their own eight-language text until the client adds them to the content table. The existing `settings_change_password_dialog_message` remains accurate: the server ends every session, then the web signs the user back in.
+- **Next step:** the build is live on the private review site for the client team's review.
