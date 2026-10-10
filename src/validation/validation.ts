@@ -10,6 +10,18 @@ export interface PasswordRule {
 
 export const PASSWORD_MIN_LENGTH = 8;
 
+/** The only symbols that count as "special", exactly as on Android:
+ *  ! @ # $ % ^ & * ( ) _ + [ ] { } | - ; : , . < > ?
+ *  Anything else (`~`, `=`, `/`, `\`, quotes, spaces, accented letters, emoji…) is
+ *  allowed in a password but does not satisfy this rule. Matched character by character
+ *  against this list rather than through a regex class, so no symbol can be read as
+ *  regex syntax. */
+export const PASSWORD_SPECIAL_CHARACTERS = "!@#$%^&*()_+[]{}|-;:,.<>?";
+
+export function hasSpecialCharacter(password: string): boolean {
+  return [...password].some((c) => PASSWORD_SPECIAL_CHARACTERS.includes(c));
+}
+
 export function passwordRules(password: string): PasswordRule[] {
   return [
     { id: "8_letters", label: "At least 8 characters", satisfied: password.length >= PASSWORD_MIN_LENGTH },
@@ -19,7 +31,7 @@ export function passwordRules(password: string): PasswordRule[] {
     {
       id: "1_special_symbol",
       label: "At least 1 special symbol",
-      satisfied: /[^A-Za-z0-9\s]/.test(password),
+      satisfied: hasSpecialCharacter(password),
     },
   ];
 }

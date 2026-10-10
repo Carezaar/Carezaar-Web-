@@ -9,7 +9,6 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { useSignUp } from "../app/signup";
 import { lazyWithReload } from "../app/recovery";
-import { requestNotificationPermission } from "../app/notifications";
 import { Spinner } from "../ui/kit";
 import type { LatLng } from "./LocationPicker";
 import { type StepDef, Section, MultiSelect, SingleSelect, CareTypeCards, SalaryRange, LocationField, ReviewRow, WizardIntro, Wizard, ReviewCard } from "./wizardParts";
@@ -126,8 +125,9 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         ?? need(days, t("signup_form_client_care_days", "Care Days"))
         ?? need(worktypes, t("signup_form_client_work_type", "Work Type"))
         ?? need(genders, t("signup_form_client_gender_preference", "What is your preferred caregiver gender?"))
-        ?? (salaryMin !== null && salaryMax !== null && salaryMin > salaryMax
-          ? `${t("signup_form_client_minimum", "Minimum")} > ${t("signup_form_client_maximum", "Maximum")}` : null),
+        // The minimum must be strictly lower than the maximum (equal is refused too).
+        ?? (salaryMin !== null && salaryMax !== null && salaryMin >= salaryMax
+          ? t("general_salary_min_max", "The minimum pay rate must be lower than the maximum.") : null),
     },
   ];
 
@@ -155,7 +155,6 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
 
   const save = async () => {
     // Inside the Save click, where browsers allow the permission prompt.
-    if (mode === "signup") requestNotificationPermission();
     const prefs = {
       clienttypeId: clienttype[0], lat: location!.lat, lng: location!.lng, salaryMin, salaryMax,
       careconditionIds: conditions, caredayIds: days, carespecialIds: specials, certificationIds: certifications,
@@ -298,7 +297,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         ?? need(worktype !== null, t("signup_form_caregiver_worktype", "Work Types"))
         // The caregiver endpoint requires both bounds as non-null integers.
         ?? (salaryMin === null || salaryMax === null ? t("general_required", "This field is required.")
-          : salaryMin > salaryMax ? `${t("signup_form_caregiver_salary_min", "Minimum")} > ${t("signup_form_caregiver_salary_max", "Maximum")}` : null),
+          : salaryMin >= salaryMax ? t("general_salary_min_max", "The minimum pay rate must be lower than the maximum.") : null),
     },
   ];
 
@@ -326,7 +325,6 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
 
   const save = async () => {
     // Inside the Save click, where browsers allow the permission prompt.
-    if (mode === "signup") requestNotificationPermission();
     const skills = {
       commuteId: commute!, experienceId: experience!, roleId: role!, worktypeId: worktype!,
       lat: location!.lat, lng: location!.lng, salaryMin: salaryMin!, salaryMax: salaryMax!,

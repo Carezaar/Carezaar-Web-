@@ -1,9 +1,9 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from "react";
-import type { BaseTable } from "../api/services";
+import type { BaseTable, ExtraTable } from "../api/services";
 import type { BaseItem, Language } from "../api/types";
-import { loadBaseData, readBaseCache, type BaseDataCache } from "./baseDataLoader";
+import { isComplete, loadBaseData, readBaseCache, type BaseDataCache } from "./baseDataLoader";
 
 /** English labels matching the Android splash sheet; translated via
  *  `loading_base_*` slugs once contents are available. */
@@ -17,7 +17,7 @@ export const TABLE_LABELS: Record<string, string> = {
   roles: "Loading roles", clienttypes: "Loading client types",
   subjects: "Loading notification subjects", reasons: "Loading reasons",
   careconditions: "Loading care conditions", caredays: "Loading care days",
-  carespecials: "Loading special qualities",
+  carespecials: "Loading special qualities", states: "Loading states",
 };
 
 interface BaseDataValue {
@@ -27,6 +27,8 @@ interface BaseDataValue {
   pending: string[];
   progress: number;
   items: (table: BaseTable) => BaseItem[];
+  /** States, media, FAQs and FAQ categories, in their own shapes. */
+  extra: <T = unknown>(table: ExtraTable) => T[];
   find: (table: BaseTable, id: number | null | undefined) => BaseItem | undefined;
   languages: Language[];
   reload: (force?: boolean) => Promise<void>;
@@ -37,6 +39,9 @@ const BaseDataContext = createContext<BaseDataValue | null>(null);
 export function BaseDataProvider({ children }: { children: ReactNode }) {
   const initial = useRef(readBaseCache());
   const [cache, setCache] = useState<BaseDataCache | null>(initial.current);
+  // The app opens only once every list is confirmed current (or freshly loaded), as
+  // Android's splash waits for all of them.
+  const [loaded, setLoaded] = useState(false);
   const [pending, setPending] = useState<string[]>([]);
   const [total, setTotal] = useState(1);
   const [failed, setFailed] = useState(false);
@@ -47,26 +52,26 @@ export function BaseDataProvider({ children }: { children: ReactNode }) {
       force,
       onStart: (names) => { setTotal(names.length); setPending(names); },
       onDone: (name) => setPending((p) => p.filter((n) => n !== name)),
-      // First visit: open the app once the copy and languages are in; the other tables
-      // fill in behind it. A stored copy is already showing, so it is kept until the end.
-      onEssentials: (partial) => setCache((shown) => shown ?? partial),
     });
+    setPending([]);
     setCache(result.cache);
     setFailed(result.failed);
+    setLoaded(!result.failed);
   }, []);
 
   useEffect(() => { void reload(); }, [reload]);
 
   const value = useMemo<BaseDataValue>(() => ({
-    ready: cache !== null && Object.keys(cache.tables).length > 0,
+    ready: loaded && isComplete(cache),
     failed,
     pending,
     progress: total === 0 ? 1 : 1 - pending.length / total,
     items: (table) => cache?.tables[table] ?? [],
+    extra: <T,>(table: ExtraTable) => (cache?.extras[table] ?? []) as T[],
     find: (table, id) => (id == null ? undefined : cache?.tables[table]?.find((x) => x.id === id)),
     languages: cache?.languages ?? [],
     reload,
-  }), [cache, failed, pending, total, reload]);
+  }), [cache, loaded, failed, pending, total, reload]);
 
   return <BaseDataContext.Provider value={value}>{children}</BaseDataContext.Provider>;
 }

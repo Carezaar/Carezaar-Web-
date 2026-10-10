@@ -6,7 +6,6 @@ import { SESSION_EXPIRED_EVENT } from "../api/client";
 import { ApiError } from "../api/errors";
 import { authService } from "../api/services";
 import { tokenStore } from "../api/session";
-import { prefetchFirstMatches, rememberRole } from "../app/matchesPrefetch";
 import type { User, UserRole } from "../api/types";
 
 /** Reproduces the Android Splash decision: a stored token means resolve the user and
@@ -38,12 +37,13 @@ function classify(user: User): SessionState {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
 
-  const restore = useCallback(async (appStart = false) => {
+  // Nothing that needs the session (My Matches first of all) starts until this check
+  // has resolved: the signed-in screens only mount once the state is "signedIn".
+  const restore = useCallback(async () => {
     if (!tokenStore.hasSession) {
       setState({ status: "signedOut" });
       return;
     }
-    if (appStart) prefetchFirstMatches();
     try {
       setState(classify(await authService.currentUser()));
     } catch (error) {
@@ -57,12 +57,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (state.status === "signedIn") rememberRole(state.user.role);
-    else if (state.status === "signedOut") rememberRole(null);
-  }, [state]);
-
-  useEffect(() => {
-    void restore(true);
+    void restore();
     const onExpired = () => setState({ status: "signedOut" });
     // Signing in or out in another tab changes the stored token; follow it so two
     // tabs never disagree about who is signed in.

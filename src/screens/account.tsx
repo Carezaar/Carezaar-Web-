@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
-import { baseService, userService } from "../api/services";
+import { authService, userService } from "../api/services";
+import { replaceSession } from "../api/client";
 import type { AppNotification, Faq, FaqCategory, Issue, User } from "../api/types";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
@@ -26,7 +27,8 @@ export function NotificationsScreen() {
   const navigate = useNavigate();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, toast, messageOf } = useFeedback();
+  const { run, messageOf } = useFeedback();
+  const [selected, setSelected] = useState<AppNotification | null>(null);
   const list = usePaged(async (page) => {
     const work = userService.notifications(page);
     return page === 1 ? run(`${t("loading_user_notifications_get", "Getting notifications - Page")} ${page}`, () => work) : work;
@@ -34,19 +36,28 @@ export function NotificationsScreen() {
   const { markChecked } = useNotifications();
   useEffect(() => markChecked, [markChecked]);
 
-  const open = async (n: AppNotification) => {
+  // Tapping a notification opens its details; the related page opens only on Show.
+  const open = (n: AppNotification) => {
     if (!n.seen_at) {
       list.mutate((all) => all.map((x) => (x.id === n.id ? { ...x, seen_at: "now" } : x)));
       void userService.markNotificationSeen(n.id).catch(() => undefined);
     }
-    const code = find("subjects", n.subject_id)?.code ?? "";
-    if (code.startsWith("chat") && n.chat) navigate(`/chat/${n.chat.id}`);
-    else if (code === "match_accept" && n.partner) navigate(`/matched/${n.partner.role === "caregiver" ? "caregivers" : "clients"}/${n.partner.id}`);
-    else if (code === "match" && n.partner) navigate(partnerPath(n.partner));
-    else if ((code === "match" || code === "match_accept") && !n.partner) toast(t("notification_target_unavailable", "This notification is no longer available."));
-    else if (code === "unmatch") navigate("/profile/matches");
-    else if (n.partner) navigate(partnerPath(n.partner));
+    setSelected(n);
   };
+
+  /** Where Show leads, or null when the related person or chat no longer exists (then
+   *  the details window simply has no Show button). */
+  const target = (n: AppNotification): { path: string; state?: unknown } | null => {
+    const code = find("subjects", n.subject_id)?.code ?? "";
+    if (code.startsWith("chat")) return n.chat ? { path: `/chat/${n.chat.id}` } : null;
+    if (!n.partner) return null;
+    if (code === "match_accept") {
+      return { path: `/matched/${n.partner.role === "caregiver" ? "caregivers" : "clients"}/${n.partner.id}`, state: { from: "notification" } };
+    }
+    // A request, a match that ended ("unmatch") and anything else about a person: their profile.
+    return { path: partnerPath(n.partner) };
+  };
+  const shown = selected ? target(selected) : null;
 
   return (
     <Page header={<BackHeader title={t("general_notifications", "Notifications")} />}>
@@ -57,7 +68,7 @@ export function NotificationsScreen() {
             {list.items.map((n) => (
               <li key={n.id}>
                 {/* Figma v2 frame 738:11732: dot, subject icon, name + event, date, chevron. */}
-                <button type="button" className="notif-row" onClick={() => void open(n)}>
+                <button type="button" className="notif-row" onClick={() => open(n)} aria-haspopup="dialog">
                   <span className={`notif-dot ${n.seen_at ? "" : "on"}`} aria-label={n.seen_at ? undefined : "Unread"} />
                   {(() => {
                     const isChat = find("subjects", n.subject_id)?.code === "chat_new";
@@ -82,6 +93,24 @@ export function NotificationsScreen() {
           </ul>
         )}
       <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
+      <Dialog open={selected !== null} onClose={() => setSelected(null)} labelledBy="notification-title"
+        title={selected ? label(find("subjects", selected.subject_id)) || t("general_notifications", "Notifications") : ""}>
+        {selected && (
+          <>
+            {selected.partner && (
+              <div className="request-context-who">
+                <Avatar src={selected.partner.photo} size={48} />
+                <b dir="auto">{selected.partner.first_name} {selected.partner.last_name}</b>
+              </div>
+            )}
+            <p className="muted small"><Icon name="ic_clock" size={12} tint="var(--text-secondary)" /> {localTime(selected.created_at)}</p>
+            <div className="dialog-actions">
+              <Button variant="outline" onClick={() => setSelected(null)}>{t("general_cancel", "Cancel")}</Button>
+              {shown && <Button onClick={() => { setSelected(null); navigate(shown.path, { state: shown.state }); }}>{t("general_show", "Show")}</Button>}
+            </div>
+          </>
+        )}
+      </Dialog>
     </Page>
   );
 }
@@ -157,32 +186,20 @@ export function HelpCenterScreen() {
 
 /* ---------------------------------------------------------------------- FAQ */
 
-/** Android hardcodes "All"; the content table has no slug for it. */
-const ALL_LABEL: Record<string, string> = {
-  en: "All", fr: "Tous", sp: "Todos", ar: "الكل", fa: "همه", ru: "Все", cn: "全部", in: "सभी",
-};
-
 export function FaqScreen() {
-  const { t, languageId, languageCode } = useI18n();
-  const { messageOf } = useFeedback();
-  const [faqs, setFaqs] = useState<Faq[] | null>(null);
-  const [categories, setCategories] = useState<FaqCategory[]>([]);
+  const { t, languageId } = useI18n();
+  const { extra } = useBaseData();
+  // Loaded and cached with the other reference lists at start-up.
+  const faqs = extra<Faq>("faqs");
+  const categories = extra<FaqCategory>("faq_categories");
   const [active, setActive] = useState<number | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const load = () => {
-    setError(null);
-    Promise.all([baseService.faqs(), baseService.faqCategories()])
-      .then(([f, c]) => { setFaqs(f); setCategories(c); }).catch(setError);
-  };
-  useEffect(load, []);
-  const pick = <T extends { language_id: number }>(ts: T[]) => ts.find((x) => x.language_id === languageId) ?? ts.find((x) => x.language_id === 1) ?? ts[0];
-  const shown = useMemo(() => (faqs ?? []).filter((f) => active === null || f.faq_category_id === active), [faqs, active]);
+  const pick = <T extends { language_id: number }>(list?: T[]) => { const ts = list ?? []; return ts.find((x) => x.language_id === languageId) ?? ts.find((x) => x.language_id === 1) ?? ts[0]; };
+  const shown = useMemo(() => faqs.filter((f) => active === null || f.faq_category_id === active), [faqs, active]);
   return (
     <Page header={<BackHeader title={t("profile_faq_title", "FAQ")} />}>
-      {error ? <ErrorState message={messageOf(error)} error={error} onRetry={load} /> : !faqs ? <Spinner /> : (
         <div className="stack">
           <div className="chip-scroll">
-            <button type="button" className={`check-chip ${active === null ? "on" : ""}`} onClick={() => setActive(null)}>{ALL_LABEL[languageCode] ?? "All"}</button>
+            <button type="button" className={`check-chip ${active === null ? "on" : ""}`} onClick={() => setActive(null)}>{t("general_all", "All")}</button>
             {categories.map((c) => (
               <button key={c.id} type="button" className={`check-chip ${active === c.id ? "on" : ""}`} onClick={() => setActive(c.id)}>{pick(c.translations)?.title}</button>
             ))}
@@ -198,7 +215,6 @@ export function FaqScreen() {
             );
           })}
         </div>
-      )}
     </Page>
   );
 }
@@ -322,12 +338,13 @@ export function ChangeLanguageScreen() {
 
 /* ---------------------------------------------------------- Change password */
 
-/** Calls `users/password/change` as Android does; the server's answer is shown. */
+/** Calls `users/password/change` as Android does. The user stays signed in afterwards. */
 export function ChangePasswordScreen() {
   const navigate = useNavigate();
+  const goBack = useGoBack("/main/profile");
   const { t } = useI18n();
   const { act, toast, messageOf, unavailable } = useFeedback();
-  const { signOut } = useSession();
+  const { user, refreshUser, signOut } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -335,14 +352,33 @@ export function ChangePasswordScreen() {
   const valid = current !== "" && isPasswordValid(next) && next === confirmation;
   const submit = async () => {
     setConfirming(false);
+    const email = user?.email;
+    if (!email) return;
+    // The server ends every session of the account when its password changes (verified:
+    // the old tokens are refused with 401). To keep the user signed in, a new session is
+    // opened with the new password straight away, and requests refused in between wait
+    // for it (replaceSession). If signing in again fails, the user is signed out cleanly
+    // rather than left with a session that no longer works.
+    let changed = false;
     try {
-      await act(t("loading_user_password_change", "Changing password"), () => userService.changePassword(current, next));
-      // Android restarts at its splash screen after a password change; the web signs out and opens Intro.
-      await signOut();
-      navigate("/intro", { replace: true });
+      await act(t("loading_user_password_change", "Changing password"), () => replaceSession(async () => {
+        await userService.changePassword(current, next);
+        changed = true;
+        await authService.login(email, next);
+      }));
     } catch (e) {
-      toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("settings_change_password_title", "Change Password")) : messageOf(e));
+      if (!changed) {
+        toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("settings_change_password_title", "Change Password")) : messageOf(e));
+        return;
+      }
+      toast(messageOf(e));
+      await signOut();
+      navigate("/sign-in", { replace: true });
+      return;
     }
+    await refreshUser();
+    setCurrent(""); setNext(""); setConfirmation("");
+    goBack();
   };
   return (
     <Page header={<BackHeader title={t("settings_change_password_title", "Change Password")} />}

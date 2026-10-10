@@ -1,4 +1,4 @@
-import type { Match, MatchStage, Review, UserRole } from "./types";
+import type { Match, MatchStage, UserRole } from "./types";
 
 /** There is no status enum on the wire; the lifecycle is derived from the two
  *  acceptance flags and `finished_at`. Note that an open request arrives with
@@ -20,13 +20,6 @@ export function awaitsPartner(match: Match, role: UserRole): boolean {
   return role === "client"
     ? match.is_client_accepted && !match.is_caregiver_accepted
     : match.is_caregiver_accepted && !match.is_client_accepted;
-}
-
-/** The review this role has written. The wire fields name the party being
- *  reviewed: a client's review of the caregiver lives in `review_caregiver`
- *  (verified live: reviewer = the client). */
-export function reviewBy(match: Match, role: UserRole): Review | null {
-  return role === "client" ? match.review_caregiver : match.review_client;
 }
 
 /** Android prints the API double as-is (Kotlin `toString`): "0.0", "537.86". */

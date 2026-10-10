@@ -1,4 +1,3 @@
-import { localTime } from "../app/serverTime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/errors";
 import { useParams } from "react-router-dom";
@@ -35,10 +34,14 @@ export function ChatScreen() {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
-  // Queued messages show at once, in order, until the server confirms each one.
-  const [queued, setQueued] = useState<{ key: number; text: string; parent: string | null }[]>([]);
-  const queueKey = useRef(0);
+  // One message at a time, as on Android: the next can be sent once the server has
+  // answered for this one.
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const end = useRef<HTMLDivElement>(null);
+  // Whether the reader is at the newest message. New messages scroll into view only
+  // then; someone reading older messages keeps their place.
+  const stick = useRef(true);
   const desktop = useIsDesktop();
 
   const load = useCallback(() => {
@@ -47,7 +50,24 @@ export function ChatScreen() {
       .then((c) => setChat(chronological(c))).catch(setError);
   }, [chatId, run, t]);
   useEffect(load, [load]);
-  useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [chat?.messages.length, queued.length]);
+  const hasChat = chat !== null;
+  useEffect(() => {
+    // The transcript scrolls in its pane on desktop and with the page on phones.
+    const pane = () => end.current?.closest(".chat-pane-scroll") as HTMLElement | null;
+    const onScroll = () => {
+      const box = pane();
+      const gap = box ? box.scrollHeight - box.scrollTop - box.clientHeight
+        : document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+      stick.current = gap < 80;
+    };
+    const box = pane();
+    const target: HTMLElement | Window = box ?? window;
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
+  }, [desktop, hasChat]);
+  useEffect(() => { if (stick.current) end.current?.scrollIntoView({ block: "end" }); }, [chat?.messages.length]);
+  // A different conversation starts at its newest message.
+  useEffect(() => { stick.current = true; }, [chatId]);
 
   // There is no push channel on the web (Android refreshes on an FCM message), so an
   // open conversation checks for new messages and read receipts while it is visible.
@@ -87,13 +107,13 @@ export function ChatScreen() {
     ? t("chat_screen_match_check", "You can only send messages to your current matches.") : messageOf(e));
   const mine = (m: ChatMessage) => (role === "caregiver" ? m.is_from_caregiver : !m.is_from_caregiver);
 
-  // Messages go out one after another in the order they were written. The field
-  // clears as soon as a message is queued, so a double click finds it empty and sends
-  // once; if sending fails the text is put back rather than lost.
-  const outbox = useRef<Promise<void>>(Promise.resolve());
-  const send = () => {
+  // One send at a time: the text stays in the box (read-only) until the server confirms
+  // it, so a double click, Enter held down or a slow connection can't send it twice, and
+  // a failed send leaves the text there to try again. A send is never repeated
+  // automatically: it may have reached the server.
+  const send = async () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || sendingRef.current) return;
     // Android checks the partner's is_match before sending; the server itself accepts
     // messages to an ended match.
     const partnerEntity = role === "client" ? chat?.caregiver : chat?.client;
@@ -101,23 +121,20 @@ export function ChatScreen() {
       toast(t("chat_screen_match_check", "You can only send messages to your current matches."));
       return;
     }
-    const parentId = replyTo?.id ?? null;
-    const key = ++queueKey.current;
-    setQueued((q) => [...q, { key, text, parent: replyTo?.message ?? null }]);
-    setDraft(""); setReplyTo(null);
-    outbox.current = outbox.current.then(async () => {
-      try {
-        const updated = await userService.sendMessage(Number(chatId), text, parentId);
-        setChat(chronological(updated));
-        window.dispatchEvent(new Event(CHATS_CHANGED));
-      } catch (e) {
-        toast(chatMessage(e));
-        // Every unsent message goes back to the box, in the order it was written.
-        setDraft((current) => (current ? `${current}\n${text}` : text));
-      } finally {
-        setQueued((q) => q.filter((m) => m.key !== key));
-      }
-    });
+    sendingRef.current = true;
+    setSending(true);
+    try {
+      const updated = await userService.sendMessage(Number(chatId), text, replyTo?.id ?? null);
+      stick.current = true;
+      setChat(chronological(updated));
+      setDraft(""); setReplyTo(null);
+      window.dispatchEvent(new Event(CHATS_CHANGED));
+    } catch (e) {
+      toast(chatMessage(e));
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   };
 
   const composer = (
@@ -132,11 +149,12 @@ export function ChatScreen() {
         </div>
       )}
       <div className="composer-row">
-        <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)}
+        <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={sending} aria-busy={sending}
           placeholder={t("chat_screen_message_placeholder", "Type a message...")} aria-label={t("chat_screen_message_placeholder", "Type a message...")}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-        <button type="button" className="send-btn" onClick={send} disabled={!draft.trim()} aria-label="Send">
-          <Icon name="ic_send" size={22} tint="#fff" className="flip-rtl" />
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} />
+        <button type="button" className="send-btn" onClick={() => void send()} disabled={!draft.trim() || sending}
+          aria-label={sending ? t("loading_chat_send", "Sending a new message") : "Send"}>
+          {sending ? <span className="spinner small" aria-hidden="true" /> : <Icon name="ic_send" size={22} tint="#fff" className="flip-rtl" />}
         </button>
       </div>
     </div>
@@ -155,7 +173,7 @@ export function ChatScreen() {
           // Not the user's chat (or the match has ended): retrying cannot help.
           onRetry={chatMessage(error) === messageOf(error) ? load : undefined} />
         : !chat ? <Spinner />
-        : chat.messages.length === 0 && queued.length === 0 ? <EmptyState title={t("chat_screen_no_messages_yet", "No Messages Yet")} />
+        : chat.messages.length === 0 ? <EmptyState title={t("chat_screen_no_messages_yet", "No Messages Yet")} />
         : (
           <ol className="transcript">
             {chat.messages.map((m) => (
@@ -163,10 +181,10 @@ export function ChatScreen() {
                 <div className="bubble">
                   {m.parent && <p className="quote" dir="auto">{m.parent.message}</p>}
                   <p dir="auto">{m.message}</p>
-                  <span className="bubble-meta">{localTime(m.created_at)}
+                  <span className="bubble-meta">{/* As stored on the server, not converted. */}{m.created_at}
                     {mine(m) && <Icon name={m.seen_at ? "ic_check_double" : "ic_check"} size={16}
                       tint={mine(m) ? "rgba(255,255,255,.85)" : "var(--text-secondary)"}
-                      label={m.seen_at ? `${t("chat_screen_seen_at", "Seen at")} ${localTime(m.seen_at)}` : undefined} />}
+                      label={m.seen_at ? `${t("chat_screen_seen_at", "Seen at")} ${m.seen_at}` : undefined} />}
                   </span>
                 </div>
                 <button type="button" className="icon-btn bubble-more" aria-label="Message options"
@@ -181,18 +199,6 @@ export function ChatScreen() {
                       <Icon name="ic_edit" size={18} tint="var(--text)" />{t("chat_screen_copy", "Copy")}</button>
                   </div>
                 )}
-              </li>
-            ))}
-            {queued.map((m) => (
-              <li key={`queued-${m.key}`} className="bubble-row mine queued" aria-busy="true">
-                <div className="bubble">
-                  {m.parent && <p className="quote" dir="auto">{m.parent}</p>}
-                  <p dir="auto">{m.text}</p>
-                  <span className="bubble-meta" role="status">
-                    <Icon name="ic_clock" size={14} tint="rgba(255,255,255,.9)" />
-                    {t("loading_chat_send", "Sending a new message")}
-                  </span>
-                </div>
               </li>
             ))}
           </ol>

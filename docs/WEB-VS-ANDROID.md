@@ -24,15 +24,12 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Status:** intentional (client request).
 
 ### Profile match lifecycle and accepted-match screen
-- **Older Android reference:** used Pending after a request. The client supplied a newer shared lifecycle specification on 2026-10-09; the available native source predates it.
-- **Web:** profile actions follow `match_status` exactly: none/request, sent/Withdraw with Pending Review, received/Accept and Reject, active/Unmatch. Every action asks for confirmation. `match_id` identifies the current connection in every pending or active state.
-- **Web success:** acceptance and `match_accept` notifications open the verified active It's a Match screen. Ordinary `match` notifications open profiles. Cards open profiles without match action buttons; requests remain a separate list. The old Pending component and route are removed.
-- **Design reference:** no exact updated native/Figma matched frame was available; the screen reuses the established avatar pair, information rows, buttons and page shell, with the eleven server `match_matched_*` strings.
-- **Status:** intentional, latest client specification.
-
+- **Web:** follows the Android behaviour described by the client on 2026-10-09 and 2026-10-10. Profile actions follow `match_status`: none → Request a Match; sent → "Pending Acceptance" with Cancel (managed text `match_withdraw_title`); received → Reject, then Accept, with the introduction inside both confirmations; active → Unmatch, and Message (shown only for an active match). Confirmation buttons are named after the action (Match, Cancel, Accept, Reject, Unmatch). "This match has changed" and "Couldn't check this match" (with Try Again) use the server's texts.
+- **It's a Match:** decided from the partner's profile alone; a request that crosses the other person's request opens it too; a match that is no longer active opens the profile instead. View Profile returns to the profile it was opened from. Two photo cards ("You" and the partner's full name, with roles) and a heart.
+- **Status:** matches Android.
 ### Introduction with a match request
 - **Native (current build):** the match request has an optional Introduction ("You can introduce yourself here (Optional)").
-- **Web:** the same, in the Request a Match confirmation (content keys `match_introduction_title` / `match_introduction_message`). It's sent as `introduction` with `POST users/matches`, up to 1000 characters (the server's limit, shown with a counter). The partner sees it on the request in Profile → Matches → Requests and on the receiving profile through `match_introduction`.
+- **Web:** the same, in the Request a Match confirmation (content keys `match_introduction_title` / `match_introduction_message`). It's sent as `introduction` with `POST users/matches`, up to 1000 characters (the server's limit, shown with a counter). The partner sees its first line on the request card in Profile → Matches → Requests (tapping it opens the whole introduction with the sender's photo and name), and the whole text inside the Accept and Reject confirmations on the sender's profile (`match_introduction`).
 - **Status:** matches native.
 
 ### Client Certifications
@@ -47,11 +44,8 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Status:** intentional (platform).
 
 ### Sending several messages quickly
-- **Android:** one send at a time; the screen waits for each.
-- **Web:** messages appear at once as "Sending", then go out in order. If sending fails, every unsent text is put back in the message box.
-- **Reason:** each send takes about 1.3 s on the server (**BE-12**), and the web mustn't lose or reorder text.
-- **Status:** intentional.
-
+- **Web and Android:** one send at a time; the next can be sent once the server has answered. The text stays in the box until then, and stays there if the send fails.
+- **Status:** matches Android (since 2026-10-10).
 ### Chat bubble side
 - **Android:** chooses the side by `is_from_caregiver` only, so a client sees their own messages on the left.
 - **Web:** your own messages are always on the right.
@@ -59,23 +53,14 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Status:** intentional.
 
 ### Times
-- **Android:** shows the server's UTC timestamps unchanged.
-- **Web:** converts them to the user's local time.
-- **Reason:** Android shows the wrong local time.
-- **Status:** intentional.
-
+- **Web and Android:** message times are shown exactly as the server stores them (UTC), not converted.
+- **Status:** matches Android (client request, 2026-10-10). Notification and issue dates are still shown in local time on the web.
 ### Session refresh
-- **Android:** refreshes the token with no request body; the server answers 422 and the user is signed out.
-- **Web:** sends the login device fields, and the session renews silently.
-- **Reason:** the backend requires the fields (**BE-06**).
-- **Status:** intentional.
-
-### Review comment
-- **Android:** the comment is optional.
-- **Web:** the comment is required.
-- **Reason:** the server fails without one (**BE-07**). Make it optional again when that's fixed.
-- **Status:** intentional (temporary).
-
+- **Web and Android:** when the server refuses a request, for any reason, the session is renewed with `auth/refresh`, sending only `version_app`, and the request is sent once more. The second answer is final.
+- **Status:** matches Android (client request, 2026-10-10).
+### Reviews
+- **Web:** finished matches show no reviews: no stars, comments or Review button (client request, 2026-10-10). Review data on the server is untouched.
+- **Status:** client decision.
 ### Delete Account reason
 - **Android:** the reason is required; the delete call takes a non-optional reason ID, although the screen text says "Optional".
 - **Web:** the reason is required, and Delete stays disabled until one is chosen.
@@ -84,17 +69,12 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Status:** the reason matches Android. The checkbox is a **product decision pending** (client feedback, 2026-10-06). It's kept until confirmed, because it guards an irreversible action.
 
 ### Forgot Password
-- **Android:** after the emailed code is entered, it calls `users/otp/verify` and then opens the signup profile screen. Nothing in the release build opens its Set Up Password screen, so the new password is never set.
-- **Web:** Forgot Password → code → Set Up Password → `users/password/reset` with the code, then Sign In. The code screen doesn't call `otp/verify` in this flow, because the server uses a code up once verified and the reset would then refuse it. The reset checks the code, and a wrong or expired code returns the user to the code screen with the server's message.
-- **Reason:** Android bug, not copied; server behaviour (BE-01 caveat).
-- **Status:** intentional.
-
+- **Web and Android:** after the email is confirmed, one Set Up Password screen asks for the emailed code, the new password and its confirmation, with the re-send timer. `users/password/reset` checks the code; a wrong or expired code keeps the user on that screen to correct it or ask for a new one.
+- **Note:** the server limits new codes (about one every 3 minutes, growing with repeated requests); its "Please try again after N second(s)!" message is shown when the 2-minute timer allows a re-send sooner.
+- **Status:** matches Android.
 ### After changing the password
-- **Android:** restarts at the splash screen.
-- **Web:** signs the user out and opens the start screen (Intro), where they sign in with the new password.
-- **Reason:** the web equivalent of Android's restart. The web signs out explicitly, so the old session can't outlive the password change.
-- **Status:** intentional.
-
+- **Web:** the user stays signed in. The server ends every session of the account when the password changes, so the web signs in again with the new password at once.
+- **Status:** client request (2026-10-10). The server's confirmation text (`settings_change_password_dialog_message`) still says the user will be signed out of this device too; it should be updated in the content table.
 ### Editing the profile keeps the photo
 - **Android (1.0.0):** sends the photo only when a new one is picked.
 - **Web:** sends the current photo again with every save unless the user removed it (read through the app's own `/uploads/` path, proxied to the API host).
@@ -126,31 +106,36 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Status:** intentional.
 
 ### First launch
-- **Android:** waits on a loading sheet until every lookup table has loaded.
-- **Web:** opens as soon as the text and language tables arrive; the other tables load in the background.
-- **Reason:** the backend is slow on these tables (**BE-12**).
-- **Status:** intentional.
-
+- **Web and Android:** every reference list (copy, languages, lookup tables, US states, media, FAQs, FAQ categories) loads before the user can continue, and is downloaded again only when `base/info` reports a change. `base/cities` is asked per state and language, so it isn't a start-up list.
+- **Status:** matches Android (client request, 2026-10-10).
 ### Notifications
 - **Android:** a system notification from a 30-second poll.
-- **Web:** the same poll, with a browser notification when the tab isn't visible.
-- **Reason:** web platform.
-- **Status:** intentional.
-
+- **Web:** the same poll, on the 30-second timer only, with a browser notification when the tab isn't visible. Tapping a notification opens its details; Show opens the related page.
+- **Permission:** required on both. The web asks on the first click (browsers only allow the prompt after a user action) and blocks the app until notifications are allowed. Browsers that have no notifications at all, such as Safari on an iPhone outside a Home Screen app, cannot grant it and are let in.
+- **Status:** matches Android, within what browsers allow.
 ### Map picker
 - **Android:** the Android map screen (crosshair, my-location, Confirm).
 - **Web:** Leaflet with OpenStreetMap tiles, with the same controls.
 - **Reason:** web platform.
 - **Status:** intentional.
 
-### Runtime response checks
-- **Android:** Kotlin serialization fails on malformed JSON.
-- **Web:** `src/api/schema.ts` checks the session, the user, profiles, matches and lookup tables. A malformed response shows an error with Try Again, rather than a broken screen.
-- **Reason:** TypeScript types don't exist at runtime.
-- **Status:** intentional.
-
+### Response checks
+- **Web and Android:** no separate "unexpected response" screen. The web keeps only the checks that protect the user (both tokens on sign-in, the user's id and role, a profile's user) and otherwise reads what the server sends, with missing lists treated as empty.
+- **Status:** matches Android (client request, 2026-10-10).
 ### Security headers
 - **Android:** not applicable.
 - **Web:** Content-Security-Policy, X-Frame-Options, nosniff, Referrer-Policy and Permissions-Policy (see the README), plus sanitised FAQ HTML.
 - **Reason:** web platform.
 - **Status:** intentional.
+
+### Pull-to-refresh
+- **Web:** My Matches refreshes with a downward pull on touch screens; mouse and keyboard users reload the page or change the sort.
+- **Status:** platform.
+
+## Accepted differences (client, 2026-10-10)
+
+These four stay as they are:
+- **Sign-up progress** is kept for the current browser session only and cleared on a new visit.
+- **Profile photos** are JPEG, PNG or WebP up to 10 MB; GIF is not accepted.
+- **Location** must be picked on the map before continuing.
+- **The current profile photo** is read through the website's own address (`/uploads/`, proxied to the API host).

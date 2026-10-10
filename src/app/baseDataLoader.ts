@@ -1,35 +1,48 @@
-import { BASE_TABLES, baseService, type BaseTable } from "../api/services";
+import { BASE_TABLES, EXTRA_TABLES, baseService, type BaseTable, type ExtraTable } from "../api/services";
 import type { BaseItem, Language } from "../api/types";
 
-/** The lookup tables, cached the way Android caches them in Room: a table is only
- *  refetched when `base/info` reports a newer `ts_cache`. React-free so the landing
- *  page can warm the same cache (src/warm.ts) before the visitor opens the app. */
-const CACHE_KEY = "carezaar.baseData.v2";
+/** Every reference list, cached the way Android caches them in Room: stored in the
+ *  browser and downloaded again only when `base/info` reports a newer `ts_cache` (the
+ *  server's change marker; it moves whenever any list changes). React-free so the
+ *  landing page can warm the same cache (src/warm.ts) before the visitor opens the app. */
+const CACHE_KEY = "carezaar.baseData.v3";
+const LEGACY_KEYS = ["carezaar.baseData.v2"];
 
 export interface BaseDataCache {
   tsCache: number;
   tables: Partial<Record<BaseTable, BaseItem[]>>;
+  /** Lists with their own shapes (states, media, FAQs, FAQ categories). */
+  extras: Partial<Record<ExtraTable, unknown[]>>;
   languages: Language[];
+}
+
+const ALL_NAMES: string[] = [...BASE_TABLES, ...EXTRA_TABLES, "languages"];
+
+/** True when every list is present (an empty list counts as present). */
+export function isComplete(cache: BaseDataCache | null): cache is BaseDataCache {
+  return cache !== null
+    && BASE_TABLES.every((name) => Array.isArray(cache.tables[name]))
+    && EXTRA_TABLES.every((name) => Array.isArray(cache.extras[name]))
+    && cache.languages.length > 0;
 }
 
 export function readBaseCache(): BaseDataCache | null {
   try {
+    for (const key of LEGACY_KEYS) window.localStorage.removeItem(key);
     const raw = window.localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as BaseDataCache;
+    const parsed = JSON.parse(raw) as Partial<BaseDataCache>;
     const tables: BaseDataCache["tables"] = {};
-    for (const name of BASE_TABLES) {
-      if (Array.isArray(parsed.tables?.[name])) tables[name] = parsed.tables[name];
-    }
-    const cache: BaseDataCache = {
-      tsCache: parsed.tsCache,
-      tables,
+    for (const name of BASE_TABLES) if (Array.isArray(parsed.tables?.[name])) tables[name] = parsed.tables[name];
+    const extras: BaseDataCache["extras"] = {};
+    for (const name of EXTRA_TABLES) if (Array.isArray(parsed.extras?.[name])) extras[name] = parsed.extras[name];
+    return {
+      tsCache: typeof parsed.tsCache === "number" ? parsed.tsCache : 0,
+      tables, extras,
       languages: Array.isArray(parsed.languages) ? parsed.languages : [],
     };
-    // Migrate existing caches so only supported lookup data remains persisted.
-    if (JSON.stringify(cache) !== raw) writeBaseCache(cache);
-    return cache;
   } catch {
+    // Storage blocked or the stored copy is unreadable: start from the server.
     return null;
   }
 }
@@ -46,60 +59,56 @@ export interface LoadResult {
   cache: BaseDataCache;
   /** True when nothing had to be fetched: the stored copy matches `base/info`. */
   upToDate: boolean;
-  /** Every table failed and nothing was cached before. */
+  /** Some list is missing entirely (failed and never stored), so the app can't continue. */
   failed: boolean;
 }
 
-/** Loads every lookup table unless the stored copy is current, then stores the result.
- *
- *  The server answers these requests a few at a time, and every screen needs the content
- *  table (all copy is server-driven) and the language list before anything else. So those
- *  two are fetched first and reported through `onEssentials`, which lets the app open
- *  while the other tables finish. Without a stored copy nothing can be skipped, so the
- *  tables start at once instead of waiting for `base/info`. */
-export async function loadBaseData(opts: {
-  force?: boolean;
-  onStart?: (names: string[]) => void;
-  onDone?: (name: string) => void;
-  onEssentials?: (partial: BaseDataCache) => void;
-} = {}): Promise<LoadResult> {
-  const { force = false, onStart, onDone = () => {}, onEssentials } = opts;
+type Options = { force?: boolean; onStart?: (names: string[]) => void; onDone?: (name: string) => void };
+
+let inFlight: Promise<LoadResult> | null = null;
+
+/** Loads the reference lists unless the stored copy is current. Calls made while a load
+ *  is running (the landing page's warm-up, the app, a Try Again) share it. */
+export function loadBaseData(opts: Options = {}): Promise<LoadResult> {
+  if (!inFlight) {
+    inFlight = load(opts).finally(() => { inFlight = null; });
+  } else {
+    // Joining a running load: report its lists as still pending until it settles.
+    opts.onStart?.(ALL_NAMES);
+    void inFlight.then(() => ALL_NAMES.forEach((n) => opts.onDone?.(n)), () => undefined);
+  }
+  return inFlight;
+}
+
+async function load({ force = false, onStart, onDone = () => {} }: Options): Promise<LoadResult> {
   const current = readBaseCache();
-  const infoRequest = baseService.info().catch(() => null);
-  if (!force && current) {
-    const info = await infoRequest;
-    if (info && info.ts_cache === current.tsCache && Object.keys(current.tables).length >= BASE_TABLES.length) {
-      return { cache: current, upToDate: true, failed: false };
-    }
+  const info = await baseService.info().catch(() => null);
+  if (!force && isComplete(current)) {
+    // Unchanged on the server (or the server can't be reached): keep the stored copy.
+    if (!info || info.ts_cache === current.tsCache) return { cache: current, upToDate: true, failed: false };
   }
-  onStart?.([...BASE_TABLES, "languages"]);
+  onStart?.(ALL_NAMES);
 
-  const tables: Partial<Record<BaseTable, BaseItem[]>> = {};
+  const tables: BaseDataCache["tables"] = {};
+  const extras: BaseDataCache["extras"] = {};
   let anyFailed = false;
-  const table = (name: BaseTable) => baseService.items(name)
-    .then((items) => { tables[name] = items; onDone(name); })
-    .catch(() => {
-      anyFailed = true;
-      if (current?.tables[name]) tables[name] = current.tables[name];
-      onDone(name);
-    });
-  const list = <T,>(name: string, request: () => Promise<T>, fallback: T) => request()
-    .then((v) => { onDone(name); return v; })
-    .catch(() => { anyFailed = true; onDone(name); return fallback; });
-
-  const [languages] = await Promise.all([
-    list("languages", () => baseService.languages(), current?.languages ?? []),
-    table("contents"),
+  const failed = (name: string) => { anyFailed = true; onDone(name); };
+  const languages = baseService.languages()
+    .then((v) => { onDone("languages"); return v; })
+    .catch(() => { failed("languages"); return current?.languages ?? []; });
+  await Promise.all([
+    ...BASE_TABLES.map((name) => baseService.items(name)
+      .then((items) => { tables[name] = items; onDone(name); })
+      .catch(() => { if (current?.tables[name]) tables[name] = current.tables[name]; failed(name); })),
+    ...EXTRA_TABLES.map((name) => baseService.list(name)
+      .then((items) => { extras[name] = items; onDone(name); })
+      .catch(() => { if (current?.extras[name]) extras[name] = current.extras[name]; failed(name); })),
   ]);
-  if (tables.contents) {
-    onEssentials?.({ tsCache: 0, tables: { ...tables }, languages });
-  }
-  await Promise.all(BASE_TABLES.filter((name) => name !== "contents").map(table));
-  const info = await infoRequest;
   const next: BaseDataCache = {
+    // A partial refresh keeps the old marker, so the next start downloads again.
     tsCache: anyFailed ? (current?.tsCache ?? 0) : (info?.ts_cache ?? 0),
-    tables, languages: languages as Language[],
+    tables, extras, languages: await languages,
   };
-  writeBaseCache(next);
-  return { cache: next, upToDate: false, failed: anyFailed && Object.keys(tables).length === 0 };
+  if (isComplete(next)) writeBaseCache(next);
+  return { cache: next, upToDate: false, failed: !isComplete(next) };
 }

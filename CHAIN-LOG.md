@@ -29,3 +29,23 @@
 | 9 | humanizer | Updated README/native differences for current lifecycle and drafted concise factual handoff copy; server product copy retained. | README.md, docs/WEB-VS-ANDROID.md, WEB_PRODUCTION_READINESS_REPORT.md |
 | 10 | iterate-until-verified, continued | Live signup, report/photo persistence, both-role lifecycle, race/cancellation, responsive axe, eight matched translations, chat, disposable reset/deletion tests executed. Final aggregation:200 unique checks PASS; final lint/type/build/unit pass. Removed duplicate own-profile fetch caused by lookup refresh and verified performance/card-navigation retests. GitHub main push927b220 and private deployment/asset digests/live LC-01–10 plus camera/Help/report verified. Final reports and client message saved. | web-qa/*20261009*, test-evidence/web |
 | 11 | optimize-web-animations — NOT APPLICABLE | No motion was added or changed; existing reduced-motion behavior remains. | None |
+
+## 9 October — Yahoo OTP and physical-camera follow-up
+
+| ## | skill | what it changed | files touched |
+| --- | --- | --- | --- |
+|1| investigate | Traced Yahoo signup symptom separately from earlier profile-save error; API mail-dispatch boundary verified. | YAHOO-OTP-FOLLOWUP-20261009.md |
+|2| diagnosing-bugs | Actual email validator accepts3 Yahoo inputs; exact client address/time/provider logs missing, so no definitive delivery-cause claim. After explicit user permission, actual MacBook Air camera preview/capture/retake/crop/removal verified;0uploads/no files/pixels exported. | validation/validation.ts (read only), auth.tsx/services.ts (read only), follow-up report |
+|3| tdd — NOT APPLICABLE | No reproduced frontend defect or code fix; no speculative regression test added. Executed validator check remains diagnostic evidence. | None |
+|4| humanizer | Client wording identifies backend mail-delivery investigation without claiming a proven Yahoo-specific failure; camera wording updated after actual physical-camera test passed. Metadata evidence saved; task tab/server closed. | CLIENT-READY-MESSAGE.md |
+
+## 10 October — Android-parity specification (web)
+
+Routed as engineering work on the existing app (client specification of 9–10 October); no design or copy pass applies. No kit skill was invoked in this round; the rows record the work done.
+
+| ## | skill | what it changed | files touched |
+| --- | --- | --- | --- |
+| 1 | investigate (no skill invoked) | Read the API layer, screens and both QA documents; probed the live API for refresh payload, crossing requests, unread fields, timestamps, password-change session effect, certification field, reset-code errors and resend limits. | none |
+| 2 | implementation (no skill invoked) | Implemented the 9 October list and the networking follow-up (see WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md). | src/**, tests/* |
+| 3 | tdd — partial (no skill invoked) | Unit tests for the password symbol set, the first-line preview and paging merge; browser checks against the live API in Chrome, WebKit and Firefox. Two defects found by testing and fixed: GIF accepted (approved difference) and a session-replacement race after a password change. | tests/*, src/screens/profileForm.tsx, src/api/client.ts |
+| 4 | humanizer — NOT RUN | Not installed on this machine; report and docs written plainly. | README.md, docs/WEB-VS-ANDROID.md, WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md |

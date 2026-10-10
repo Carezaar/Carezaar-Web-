@@ -78,8 +78,9 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const pick = (file: File | undefined) => {
     setSourceOpen(false);
     if (!file) return;
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
-      toast(t("profile_photo_format", "Choose a JPEG, PNG, WebP or GIF photo."));
+    // JPEG, PNG or WebP up to 10 MB; not GIF (agreed with the client, October 2026).
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      toast(t("profile_photo_format", "Choose a JPEG, PNG or WebP photo."));
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -186,7 +187,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
             </div>
           </div>
         </Field>
-        <input ref={galleryInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden
+        <input ref={galleryInput} type="file" accept="image/jpeg,image/png,image/webp" hidden
           onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
         {cameraOpen && <CameraCapture onDone={(file) => { setCameraOpen(false); pick(file); }} onCancel={() => setCameraOpen(false)} />}
         {cropping && <PhotoCropper file={cropping} onDone={cropped} onCancel={() => setCropping(null)} />}

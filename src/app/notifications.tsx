@@ -25,14 +25,6 @@ interface NotificationsValue {
 
 const NotificationsContext = createContext<NotificationsValue>({ unread: 0, markChecked: () => undefined });
 
-/** Browsers only reliably show the permission prompt inside a user gesture, so this
- *  is called from the Sign In button and the final signup Save. */
-export function requestNotificationPermission() {
-  try {
-    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
-  } catch { /* unsupported */ }
-}
-
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const { t } = useI18n();
@@ -66,11 +58,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!signedIn) { setUnread(0); return; }
+    // On the 30-second timer only (no extra check when the window comes back into view).
+    // Signing out clears the timer, so nothing polls without a session.
     void poll();
     const timer = window.setInterval(() => void poll(), POLL_MS);
-    const onFocus = () => void poll();
-    window.addEventListener("focus", onFocus);
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+    return () => window.clearInterval(timer);
   }, [signedIn, poll]);
 
   const markChecked = useCallback(() => {

@@ -5,14 +5,13 @@ import { ApiError } from "../api/errors";
 import { authService, userService } from "../api/services";
 import type { UserRole } from "../api/types";
 import {
-  OTP_LENGTH, isPasswordValid, passwordRules, validateConfirmation, validateEmail, required,
+  OTP_LENGTH, isPasswordValid, passwordRules, validateConfirmation, validateEmail,
 } from "../validation/validation";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData, TABLE_LABELS } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { useSignUp } from "../app/signup";
-import { requestNotificationPermission } from "../app/notifications";
 import { FigmaScreen, type SceneOverlay } from "../figma/FigmaScreen";
 import { semanticLabel, type SceneBinder } from "../figma/binder";
 import type { DesignNode } from "../design/types";
@@ -200,9 +199,9 @@ function useSignInForm() {
   const canSubmit = email.trim() !== "" && password !== "" && !busy;
 
   const submit = useCallback(async () => {
-    const problem = validateEmail(email) ?? required(password, t("signin_password", "Password"));
-    if (problem) { toast(problem); return; }
-    requestNotificationPermission();
+    // No email-format check here, as on Android: both fields filled is enough, and the
+    // server answers a malformed address itself.
+    if (email.trim() === "" || password === "") return;
     setBusy(true);
     try {
       // The signed-out route guard moves the user into the app once the session exists.
@@ -489,8 +488,8 @@ function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
-/** `OTP` — shared by signup and password recovery. Verifying in signup goes straight
- *  to the profile step without signing in, as Android does. */
+/** `OTP` — signup's email check. Verifying goes straight to the profile step without
+ *  signing in, as Android does. (Password recovery asks for its code on Set Up Password.) */
 export function OtpScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -502,13 +501,6 @@ export function OtpScreen() {
   useEffect(() => { if (!signUp.email) navigate("/intro", { replace: true }); }, [signUp.email, navigate]);
 
   const submit = async () => {
-    // Password recovery: the server uses up a code once `otp/verify` accepts it, and
-    // `password/reset` then refuses it, so the code goes to the last step unverified and
-    // is checked there. A wrong code brings the user back here (see SetupPasswordScreen).
-    if (signUp.isPasswordRecovery) {
-      navigate("/setup-password", { state: { otp: code } });
-      return;
-    }
     try {
       await act(t("loading_user_otp_verify", "Verifying OTP code"), () => userService.verifyOTP(signUp.email, code));
       navigate("/sign-up/profile", { state: { otp: code } });
@@ -553,7 +545,7 @@ export function ForgotPasswordScreen() {
     try {
       await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(email.trim()));
       update({ email: email.trim(), isPasswordRecovery: true });
-      navigate("/otp");
+      navigate("/setup-password");
     } catch (e) { toast(messageOf(e)); }
   };
 
@@ -582,47 +574,73 @@ export function ForgotPasswordScreen() {
   );
 }
 
-/** `SetupPassword` — final step of recovery. Calls `users/password/reset` with the
- *  emailed code, the same request as Android's; the server's answer is shown as-is. */
+/** `SetupPassword` — password recovery on one screen, as on Android: the emailed code,
+ *  the new password and its confirmation, with the re-send timer. `users/password/reset`
+ *  checks the code; a wrong or expired one keeps the user here with everything they
+ *  typed, to correct the code or ask for a new one. */
 export function SetupPasswordScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const { act, toast, messageOf, unavailable } = useFeedback();
   const { state: signUp, reset } = useSignUp();
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const otp = (window.history.state?.usr?.otp as string | undefined) ?? "";
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const { left, mmss, restart } = useCountdown(120);
 
-  // Reached without the recovery steps (direct link, or the code was lost): start again
-  // from the step that is missing instead of offering a reset that can only fail.
+  // Reached without an email to recover (a direct link, or a reload after the session
+  // ended): start again from Forgot Password instead of offering a reset that can only fail.
   const finished = useRef(false);
   useEffect(() => {
     if (finished.current) return;
     if (!signUp.email || !signUp.isPasswordRecovery) navigate("/forgot-password", { replace: true });
-    else if (!otp) navigate("/otp", { replace: true });
-  }, [signUp.email, signUp.isPasswordRecovery, otp, navigate]);
+  }, [signUp.email, signUp.isPasswordRecovery, navigate]);
 
   const rules = passwordRules(password);
-  const valid = isPasswordValid(password) && password === confirmation;
+  const valid = code.length === OTP_LENGTH && isPasswordValid(password) && password === confirmation;
 
   const submit = async () => {
+    setCodeError(null);
     try {
       await act(t("loading_user_password_reset", "Resetting password"),
-        () => userService.resetPassword(signUp.email, otp, password));
+        () => userService.resetPassword(signUp.email, code, password));
       // Clearing the recovery state must not trigger the "no recovery in progress" redirect.
       finished.current = true;
       reset();
       navigate("/sign-in", { replace: true });
     } catch (e) {
-      toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("signup_forgot_password_title", "Forgot Password")) : messageOf(e));
-      // The code is first checked here: if it was wrong or expired, re-enter or resend it.
-      if (e instanceof ApiError && (e.fieldError("otp") || /\botp\b/i.test(e.message))) navigate("/otp", { replace: true });
+      const aboutCode = e instanceof ApiError && (Boolean(e.fieldError("otp")) || /\botp\b/i.test(e.message));
+      if (aboutCode) {
+        // Stay here: the code is corrected in place, or a new one requested.
+        setCodeError(messageOf(e));
+      } else {
+        toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("signup_forgot_password_title", "Forgot Password")) : messageOf(e));
+      }
     }
+  };
+  const resend = async () => {
+    try {
+      await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(signUp.email));
+      setCodeError(null);
+      setCode("");
+      restart();
+    } catch (e) { toast(messageOf(e)); }
   };
 
   return (
     <Page header={<BackHeader title={t("signup_setup_password_title", "Set Up Password")} />}>
       <div className="stack">
+        <p className="lead">{t("signup_setup_password_message", "Kindly enter the 5-digit OTP that we sent to your email.")}</p>
+        <p className="strong-blue" dir="ltr">{signUp.email}</p>
+        <OtpBoxes value={code} onChange={(v) => { setCode(v); setCodeError(null); }} />
+        {codeError && <p className="field-message" role="alert">{codeError}</p>}
+        <p className="center">
+          {t("signup_setup_password_didnot_receive_otp", "Didn't receive the OTP?")}{" "}
+          {left > 0
+            ? <span className="link-muted" aria-live="polite">{t("signup_setup_password_wait_to_resend", "Wait for mm:ss to re-send").replace("mm:ss", mmss)}</span>
+            : <button type="button" className="link" onClick={() => void resend()}>{t("signup_setup_password_resend", "Re-send")}</button>}
+        </p>
         <TextField label={t("signup_setup_password_password", "Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)}
           placeholder={t("signup_setup_password_password_placeholder", "Enter your password...")} />

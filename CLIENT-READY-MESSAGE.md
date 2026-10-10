@@ -1,7 +1,7 @@
-Hi Anahita, the latest web updates are complete. Camera now has a capture, retake and preview flow, with Gallery kept separate. Report an Issue is available only from Profile.
+Hi Anahita, the latest web updates are complete. I also tested physical camera capture, retake and the crop preview in desktop Chrome. Report an Issue is now available only from Profile.
 
-Match actions now follow the profile’s current status, with confirmation for each action. Acceptance and accepted-match notifications open the new It’s a Match! screen; request notifications open the profile. Match cards open profiles without action buttons, and the old Pending screen is replaced. Introduction and the earlier approved changes are preserved.
+Match actions follow the current profile status, with confirmation for each action. Acceptance and accepted-match notifications open the new It’s a Match! screen; request notifications open the profile. Match cards open profiles without action buttons, and Introduction and the earlier approved changes are preserved.
 
-I checked both roles in Chrome, Firefox and WebKit, completed regression checks, and pushed the changes to GitHub. The updated review build is verified: https://carezaar-web.vercel.app (existing review credentials).
+The changes are pushed to GitHub and verified here: https://carezaar-web.vercel.app (existing review credentials).
 
-Camera testing used simulated input; physical-device capture remains untested.
+Regarding the Yahoo OTP, email sending is handled by the backend. Please ask your backend developer to check the OTP delivery logs for your Yahoo address; we need those logs to confirm why it did not arrive.

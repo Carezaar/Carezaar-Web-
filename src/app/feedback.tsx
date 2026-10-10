@@ -35,28 +35,37 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const counter = useRef(0);
 
-  // Server copy is shown when it is written for people (validation, "Invalid
-  // Credentials!"); anything technical or connection-level gets a plain message.
+  // Common failures get the app's standard wording, never the server's text: no
+  // connection, a timeout, a refused or missing record, a server fault, an unreadable
+  // answer. Only a rejection of what the user entered (400/422, e.g. "Invalid
+  // Credentials!" or a field rule) keeps the server's message, because it says what to
+  // fix; technical text there (a PHP notice, a route name) is replaced too.
   const messageOf = useCallback((error: unknown) => {
-    const serverTrouble = t("general_network_title", "Cannot communicate with server.");
+    const general = t("error_general", "Something went wrong. Please try again.");
     if (error instanceof ApiError) {
+      if (import.meta.env?.DEV) console.info(`API error (${error.kind}, ${error.status})`);
       switch (error.kind) {
-        case "network": return `${serverTrouble} ${t("error_check_connection", "Check your internet connection and try again.")}`;
-        case "timeout": return `${serverTrouble} ${t("error_timeout", "Please try again.")}`;
+        case "network":
+        case "timeout":
+          return t("general_network_title", "Cannot communicate with server.");
         case "unauthenticated":
-          // Still holding a session after the refresh attempt means the server refused
+          // Still holding a session after the renewal attempt means the server refused
           // this action for this user, which is not an expired session.
-          if (tokenStore.hasSession && !error.isTechnical && error.message) return error.message;
-          return t("error_session_expired", "Your session has expired. Please sign in again.");
-        case "decoding": return t("error_unexpected", "Something went wrong. Please try again.");
+          return tokenStore.hasSession
+            ? t("error_forbidden", "You can't do this right now.")
+            : t("error_session_expired", "Your session has expired. Please sign in again.");
+        case "forbidden": return t("error_forbidden", "You can't do this right now.");
+        case "notFound": return t("error_not_found", "This item is no longer available.");
+        case "validation":
+          if (error.isTechnical) return general;
+          return Object.values(error.fields).flat()[0] ?? (error.message || general);
+        case "unknown":
+          return error.status === 400 && error.message && !error.isTechnical ? error.message : general;
         default:
-          if (error.kind === "server" || error.isTechnical) {
-            return t("error_unavailable", "This isn't working right now. Please try again later.");
-          }
-          return error.message;
+          return general;
       }
     }
-    return t("error_unexpected", "Something went wrong. Please try again.");
+    return general;
   }, [t]);
 
   const toast = useCallback((message: string) => {

@@ -228,3 +228,11 @@ Review URL: https://carezaar-web.vercel.app (existing review credentials). CLI d
 Local evidence: `../test-evidence/web/`, including final manual desktop/mobile dialog, centered Help footer, Requests preview and full-introduction screenshots. Local execution log: `../web-qa/results-final-client.jsonl`. Both are deliberately untracked. The accompanying checklist and chain log document the implementation and independent review.
 
 Deployed verification: the tested landing/app HTML and landing JS/CSS were byte-identical to the final local build. Anonymous requests remain HTTP 401/noindex, authenticated manifest requests succeed, both signup forms omit Country, and the deployed live request/introduction/accept/chat flow passes. The deployed dialog and Help entry were also checked manually.
+
+## Physical-camera follow-up — 9 October 2026
+
+After Aariz explicitly authorized physical testing and granted Chrome permission, the MacBook Air hardware camera passed1280x1280 preview, capture, retake and800x800 crop-preview tests. Both tracks ended, local photo removed;0POST/PUT/PATCH upload requests, no actual photo/video file saved and no actual camera pixels exported to tools. No profile save/upload was performed. This supersedes the earlier physical-camera N/A for desktop Chrome only; physical mobile testing remains unperformed. PHYSICAL-CAMERA-VERIFICATION-20261009.json records metadata-only evidence. Yahoo OTP-specific cause remains unconfirmed; backend delivery logs are required. No application source or deployment changed.
+
+## Android-parity round — 10 October 2026
+
+The client's specification of 9 October (Android as the reference) and the networking follow-up are implemented and tested in the browser against the live API (Chrome, WebKit, Firefox; production build for request counts). Details, results per requirement and what remains: `WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md`. Intentional differences updated in `docs/WEB-VS-ANDROID.md`.

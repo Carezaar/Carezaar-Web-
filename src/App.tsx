@@ -8,6 +8,7 @@ import { FeedbackProvider } from "./app/feedback";
 import { NotificationsProvider } from "./app/notifications";
 import { SignUpProvider } from "./app/signup";
 import { RecoveryBoundary } from "./app/recovery";
+import { NotificationGate } from "./app/NotificationGate";
 import {
   ForgotPasswordScreen, IntroScreen, OtpScreen, SetupPasswordScreen, SignInScreen,
   SignUpCredentialsScreen, SplashScreen,
@@ -80,6 +81,7 @@ export function App() {
     <BrowserRouter>
       <BaseDataProvider>
         <Localised>
+          <NotificationGate>
           <RecoveryBoundary>
           <SessionProvider>
             <NotificationsProvider>
@@ -126,6 +128,7 @@ export function App() {
             </NotificationsProvider>
           </SessionProvider>
           </RecoveryBoundary>
+          </NotificationGate>
         </Localised>
       </BaseDataProvider>
     </BrowserRouter>

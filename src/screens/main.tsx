@@ -1,5 +1,4 @@
-import { localTime } from "../app/serverTime";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { caregiverService, clientService, userService } from "../api/services";
 import type { CaregiverBrief, ClientBrief, MatchSort, PartnerUser } from "../api/types";
@@ -9,12 +8,12 @@ import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { usePaged } from "../app/usePaged";
-import { takeFirstMatches } from "../app/matchesPrefetch";
 import { AppHeader, BottomNav, Hero } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, PhotoBox, Spinner } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 import { useIsDesktop } from "../ui/frames";
 import { useNotifications } from "../app/notifications";
+import { usePullToRefresh } from "../ui/usePullToRefresh";
 
 /** `Main` — the three-tab shell. */
 export function MainScreen() {
@@ -37,47 +36,90 @@ export function MainScreen() {
 /* ----------------------------------------------------------------- Matches */
 
 type Card = { id: string; user: PartnerUser; min: number | null; max: number | null; distance: number;
-  clienttypeId?: number };
+  clienttypeId?: number; isMatch: boolean };
+
+/** How long each of a caregiver's care types stays in the banner. */
+const BANNER_ROTATE_MS = 5_000;
 
 function MatchesTab() {
   const navigate = useNavigate();
   const { role } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, messageOf } = useFeedback();
+  const { run, toast, messageOf } = useFeedback();
   const [sort, setSort] = useState<MatchSort>("distance");
   const [sortOpen, setSortOpen] = useState(false);
-  const [headerTypeId, setHeaderTypeId] = useState<number | null>(null);
+  const [headerTypeIds, setHeaderTypeIds] = useState<number[]>([]);
+  const [bannerIndex, setBannerIndex] = useState(0);
   const isClient = role === "client";
 
   const list = usePaged<Card>(async (page) => {
     const label = `${t("loading_matches", "Getting list of matches - Page")} ${page}`;
-    // Page 1 in the default sort may already be in flight (started alongside auth/info).
-    const first = page === 1 && sort === "distance";
     const work: Promise<{ result: Card[]; meta: import("../api/types").ApiMeta | null }> = isClient
-      ? ((first && takeFirstMatches<Awaited<ReturnType<typeof clientService.matches>>>("client")) || clientService.matches(sort, page)).then(({ result, meta }) => ({
-          meta, result: result.map((c: CaregiverBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance })) }))
-      : ((first && takeFirstMatches<Awaited<ReturnType<typeof caregiverService.matches>>>("caregiver")) || caregiverService.matches(sort, page)).then(({ result, meta }) => ({
-          meta, result: result.map((c: ClientBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, clienttypeId: c.clienttype_id })) }));
+      ? clientService.matches(sort, page).then(({ result, meta }) => ({
+          meta, result: result.map((c: CaregiverBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, isMatch: c.is_match === true })) }))
+      : caregiverService.matches(sort, page).then(({ result, meta }) => ({
+          meta, result: result.map((c: ClientBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, clienttypeId: c.clienttype_id, isMatch: c.is_match === true })) }));
     return page === 1 ? run(label, () => work) : work;
   }, [sort, isClient]);
 
-  // The hero follows the care type: header_senior, header_child, …
+  // The banner follows the care type: header_senior, header_child, … A caregiver who
+  // supports several client types sees each in turn, from their saved skills.
   useEffect(() => {
     let current = true;
-    setHeaderTypeId(null);
+    setHeaderTypeIds([]);
+    setBannerIndex(0);
     const load = isClient
-      ? clientService.profile().then((p) => p.clienttype_id)
-      : caregiverService.profile().then((p) => p.clienttype_ids[0]);
-    load.then((id) => { if (current) setHeaderTypeId(id ?? null); }).catch(() => undefined);
+      ? clientService.profile().then((p) => (p.clienttype_id ? [p.clienttype_id] : []))
+      : caregiverService.profile().then((p) => p.clienttype_ids);
+    load.then((ids) => { if (current) setHeaderTypeIds(ids); }).catch(() => undefined);
     return () => { current = false; };
   }, [isClient]);
-  const headerIcon = find("clienttypes", headerTypeId)?.icon;
+  const bannerTypes = headerTypeIds.filter((id) => find("clienttypes", id)?.icon);
+  const rotating = bannerTypes.length > 1;
+  useEffect(() => {
+    if (!rotating) return;
+    const timer = window.setInterval(() => setBannerIndex((i) => i + 1), BANNER_ROTATE_MS);
+    return () => window.clearInterval(timer);
+  }, [rotating]);
+  const headerIcon = bannerTypes.length ? find("clienttypes", bannerTypes[bannerIndex % bannerTypes.length])?.icon : undefined;
   const headerType = headerIcon ? headerIcon.replace("client_", "header_") : null;
+
+  const ptr = usePullToRefresh(async () => {
+    try { await list.refresh(); } catch (e) { toast(messageOf(e)); }
+  });
+
+  // Favourites straight from the card. One request per person at a time; the heart
+  // shows the server's answer (put back if the request fails).
+  const favoriteBusy = useRef(new Set<string>());
+  const toggleFavorite = async (card: Card) => {
+    if (favoriteBusy.current.has(card.id)) return;
+    favoriteBusy.current.add(card.id);
+    const on = card.user.is_favorite;
+    const setFavorite = (value: boolean) => list.mutate((all) => all.map((c) => (c.id === card.id ? { ...c, user: { ...c.user, is_favorite: value } } : c)));
+    setFavorite(!on);
+    try {
+      await (on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id));
+    } catch (e) {
+      setFavorite(on);
+      toast(messageOf(e));
+    } finally {
+      favoriteBusy.current.delete(card.id);
+    }
+  };
 
   const prefix = isClient ? "client" : "caregiver";
   return (
     <>
+      <div className={`ptr ${ptr.refreshing || list.refreshing ? "on" : ""}`} style={{ height: ptr.refreshing || list.refreshing ? 48 : ptr.pull }}
+        aria-hidden={!(ptr.refreshing || list.refreshing)}>
+        {(ptr.pull > 0 || ptr.refreshing || list.refreshing) && (
+          <span className={`ptr-icon ${ptr.armed ? "armed" : ""} ${ptr.refreshing || list.refreshing ? "spin" : ""}`} role="status"
+            aria-label={ptr.refreshing || list.refreshing ? t("general_loading", "Loading...") : undefined}>
+            <Icon name="ic_refresh" size={22} tint="var(--primary)" />
+          </span>
+        )}
+      </div>
       <Hero image={headerType ?? "bg_matches"} icon="ic_matches_off"
         title={t(`${prefix}_matches_page_title`, "My Matches")}
         subtitle={t(`${prefix}_matches_page_description`, "")} />
@@ -124,6 +166,15 @@ function MatchesTab() {
                   )}
                 </div>
                 <div className="match-side">
+                  {/* Only for a current match (the server's is_match), not for requests. */}
+                  {c.isMatch && <Icon name="ic_match_on" size={26} tint="var(--success)" label={t("general_match", "Match")} />}
+                  <button type="button" className="icon-btn card-heart" aria-pressed={c.user.is_favorite}
+                    aria-label={`${c.user.is_favorite ? "Remove from favorites" : "Add to favorites"}: ${c.user.first_name ?? ""} ${c.user.last_name ?? ""}`}
+                    onClick={(e) => { e.stopPropagation(); void toggleFavorite(c); }}
+                    onKeyDown={(e) => e.stopPropagation()}>
+                    <Icon name={c.user.is_favorite ? "ic_favorite_on" : "ic_favorite_off"} size={26}
+                      tint={c.user.is_favorite ? "var(--error)" : "var(--primary-dark)"} />
+                  </button>
                   <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                 </div>
               </article>
@@ -222,7 +273,8 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
         <ul className="row-list">
           {list.items.map((chat) => {
             const partner = role === "client" ? chat.caregiver?.user : chat.client?.user;
-            const unread = chat.id !== selectedId && (!chat.is_seen || chat.new_message_count > 0);
+            // Only new messages make a conversation unread; one never opened isn't.
+            const unread = chat.id !== selectedId && chat.new_message_count > 0;
             return (
               <li key={chat.id}>
                 <button type="button" className={`chat-row ${chat.id === selectedId ? "selected" : ""}`}
@@ -231,7 +283,7 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
                   <Avatar src={partner?.photo} size={60} />
                   <span className="chat-row-text">
                     <span className="chat-row-top"><b>{partner?.first_name} {partner?.last_name}</b>
-                      <small>{localTime(chat.updated_at)}</small></span>
+                      <small>{chat.updated_at}</small></span>
                     <span className="muted ellipsis" dir="auto">{chat.last_message}</span>
                   </span>
                   {unread && <span className="dot" aria-label="Unread" />}

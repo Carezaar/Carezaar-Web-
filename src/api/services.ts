@@ -2,7 +2,7 @@ import { api, type FormValue } from "./client";
 import { API_BASE_URL, DEFAULT_PAGE_SIZE } from "./config";
 import { loginDeviceFields, tokenStore } from "./session";
 import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asUser } from "./schema";
-import type { AppNotification, BaseInfo, FaqCategory, CaregiverFull, ChatBrief, ChatFull, ClientFull, Faq, Issue, Match, MatchListType, MatchSort, Session, User, UserRole } from "./types";
+import type { AppNotification, BaseInfo, CaregiverFull, ChatBrief, ChatFull, ClientFull, Issue, Match, MatchListType, MatchSort, Session, User, UserRole } from "./types";
 
 /* ------------------------------------------------------------------ auth/ */
 
@@ -12,6 +12,7 @@ export const authService = {
       method: "POST",
       path: "auth/login",
       auth: false,
+      idempotent: true,
       form: { email, password, ...loginDeviceFields() },
     }));
     tokenStore.save(session);
@@ -54,6 +55,12 @@ export const BASE_TABLES = [
 
 export type BaseTable = (typeof BASE_TABLES)[number];
 
+/** Reference lists with their own shapes, loaded and cached with the others at start-up
+ *  as on Android (Room caches them all). `base/cities` is not one of them: it is asked
+ *  per state and language (422 without `state_id` and `language_id`). */
+export const EXTRA_TABLES = ["states", "media", "faqs", "faq_categories"] as const;
+export type ExtraTable = (typeof EXTRA_TABLES)[number];
+
 /** The OpenAPI spec marks most of this group as requiring a bearer token, but the
  *  deployed backend serves every `base/` table unauthenticated (verified against all
  *  23 endpoints). They are therefore requested without auth so the form pickers can
@@ -65,20 +72,16 @@ export const baseService = {
   items(table: BaseTable, tsCache = 0) {
     return api.send<unknown>({
       method: "GET", path: `base/${table}`, auth: false, query: { ts_cache: tsCache },
-    }).then((items) => asBaseItems(items, `base/${table}`));
+    }).then(asBaseItems);
   },
   languages(tsCache = 0) {
     return api.send<unknown>({
       method: "GET", path: "base/languages", auth: false, query: { ts_cache: tsCache },
     }).then(asLanguages);
   },
-  faqs(tsCache = 0) {
-    return api.send<Faq[]>({ method: "GET", path: "base/faqs", auth: false, query: { ts_cache: tsCache } });
-  },
-  faqCategories(tsCache = 0) {
-    return api.send<FaqCategory[]>({
-      method: "GET", path: "base/faq_categories", auth: false, query: { ts_cache: tsCache },
-    });
+  list(table: ExtraTable, tsCache = 0) {
+    return api.send<unknown>({ method: "GET", path: `base/${table}`, auth: false, query: { ts_cache: tsCache } })
+      .then((items) => (Array.isArray(items) ? items.filter((x) => typeof x === "object" && x !== null) : []));
   },
 };
 
@@ -113,9 +116,11 @@ export const userService = {
     });
   },
   /** Served by the backend since 2026-10-01 (404 before). See `resetPassword`. */
+  /** The server ends every session of the account once this succeeds, this one too.
+   *  A refusal here is final (no renewal): the session is being replaced. */
   changePassword(oldPassword: string, newPassword: string) {
     return api.sendIgnoringResult({
-      method: "PATCH", path: "users/password/change",
+      method: "PATCH", path: "users/password/change", renew: false,
       form: { old_password: oldPassword, new_password: newPassword },
     });
   },
@@ -140,7 +145,7 @@ export const userService = {
     if (input.dateOfBirth) body.append("date_of_birth", String(epochDay(input.dateOfBirth)));
     if (input.photo) body.append("photo", input.photo, input.photo.name);
     return api.send<User>({
-      method: "POST", path: "users/profile", multipart: body, auth: !input.anonymous,
+      method: "POST", path: "users/profile", multipart: body, auth: !input.anonymous, idempotent: true,
     });
   },
 
@@ -173,7 +178,7 @@ export const userService = {
   matches(type: MatchListType, page = 1, perPage = DEFAULT_PAGE_SIZE) {
     return api.sendPaged<unknown>({
       method: "GET", path: "users/matches", query: { type, page, perPage },
-    }).then(({ result, meta }) => ({ result: asMatches(result, "users/matches"), meta }));
+    }).then(({ result, meta }) => ({ result: asMatches(result), meta }));
   },
   match(id: number) {
     return api.send<unknown>({ method: "GET", path: `users/matches/${id}` }).then((m) => asMatch(m, "users/matches/{id}"));
@@ -187,7 +192,7 @@ export const userService = {
     }).then((m) => asMatch(m, "users/matches (request)"));
   },
   acceptMatch(id: number) {
-    return api.send<Match>({ method: "PATCH", path: `users/matches/${id}/accept` });
+    return api.sendOptional<Match>({ method: "PATCH", path: `users/matches/${id}/accept` });
   },
   rejectMatch(id: number) {
     return api.sendIgnoringResult({ method: "DELETE", path: `users/matches/${id}/reject` });
@@ -197,12 +202,6 @@ export const userService = {
   },
   breakMatch(id: number) {
     return api.send<Match>({ method: "DELETE", path: `users/matches/${id}` });
-  },
-  submitReview(matchId: number, score: number, comment?: string | null) {
-    return api.send<Match>({
-      method: "POST", path: `users/matches/${matchId}`,
-      form: { score, comment: comment ?? null },
-    });
   },
 
   /* chats */
@@ -216,7 +215,7 @@ export const userService = {
   },
   createChat(partnerId: string) {
     return api.send<ChatFull>({
-      method: "POST", path: "users/chats", form: { partner_id: partnerId },
+      method: "POST", path: "users/chats", form: { partner_id: partnerId }, idempotent: true,
     });
   },
   sendMessage(chatId: number, message: string, parentId?: number | null) {
@@ -234,7 +233,7 @@ export const userService = {
   },
   addBookmark(partnerId: string) {
     return api.sendIgnoringResult({
-      method: "POST", path: "users/bookmarks", form: { partner_id: partnerId },
+      method: "POST", path: "users/bookmarks", form: { partner_id: partnerId }, idempotent: true,
     });
   },
   removeBookmark(partnerId: string) {
@@ -333,21 +332,13 @@ export const clientService = {
     });
   },
 
-  /** The backend expects **`certificationIds`** in camelCase on this endpoint while
-   *  `create` expects `certification_ids` — an asymmetry carried over from the
-   *  Android client, where sending only snake_case silently drops the field.
-   *
-   *  Both spellings are sent. Today the camelCase one is read and the other ignored;
-   *  if the backend ever corrects the typo this keeps working instead of breaking
-   *  silently. Flagged to Carezaar either way. */
+  /** Certifications go only as `certification_ids`, like every other list (client
+   *  request, October 2026). The backend reads that name on update too: verified live,
+   *  a save with only `certification_ids` stores and returns the chosen ids. */
   updateProfile(p: ClientPreferences) {
     return api.send<ClientFull>({
       method: "PUT", path: "clients/profile",
-      form: {
-        ...clientSharedFields(p),
-        certificationIds: p.certificationIds,
-        certification_ids: p.certificationIds,
-      },
+      form: { ...clientSharedFields(p), certification_ids: p.certificationIds },
     });
   },
 
