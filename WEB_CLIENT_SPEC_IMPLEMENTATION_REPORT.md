@@ -2,11 +2,13 @@
 
 This covers the client's specification of 9 October 2026 (the Android developer's list of web changes), the follow-up message on session handling and networking, and the four accepted differences. The Android app is the reference for behaviour. The server's managed texts provide every label they already contain.
 
-**Result:** every requirement is implemented and passed in a real browser against the live API. A few content and backend follow-ups need the client's action (see "Remaining").
+**Result:** every requirement is implemented and passed in a real browser against the live API. Notes for the client about content and the backend are at the end; none of them blocks a web requirement.
 
-**Final run:** 136 browser checks passed, 1 failed and 3 were blocked, plus 14 unit tests passed.
-- **The failure** is the start-up request count in development mode. React's development StrictMode runs effects twice; the same check passes on the production build.
-- **The 3 blocked checks** found no matching notification in that run's data. Each of those behaviours passed in another run (the match-ended notification on the caregiver side; the `match` and `match_accept` notifications in the dedicated test).
+**Final evidence:** 140 browser checks passed, 0 failed, 0 blocked, plus 14 unit tests.
+- The full final run passed 136 checks.
+- A re-check passed the remaining 4 on the production build:
+  - The start-up request count: development mode doubles every request by design, so this check is only valid on the production build.
+  - The `match`, `match_accept` and match-ended notification links: that run's data had none of these notifications, so they were created first.
 
 ## How it was tested
 
@@ -189,7 +191,7 @@ The changed code was reviewed for:
 
 No secrets, tokens or personal data are in the changes. The test accounts and their credentials live only outside the repository.
 
-## Remaining
+## Notes for the client (outside the web app)
 
 - **Backend, code limit:** the server's limit on new codes is longer than the app's 2-minute timer, and grows with each request ("Please try again after 475 second(s)!"). The app shows that message, but aligning the limit with the timer would avoid it.
 - **Content (client action):**
