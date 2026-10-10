@@ -3,6 +3,7 @@ import {
 } from "react";
 import { appLanguage } from "../api/language";
 import type { BaseItem, Language } from "../api/types";
+import { webContent } from "./webContent";
 
 /** All UI copy is server-driven: `base/contents` returns ~500 slugs translated per
  *  language. There is no bundled string catalogue, exactly as on Android. */
@@ -78,8 +79,9 @@ export function I18nProvider({
     const item = bySlug.get(slug);
     return corrected(slug, languageId, item?.translations.find((x) => x.language_id === languageId)?.name)
       ?? item?.translations.find((x) => x.language_id === ENGLISH_ID)?.name
+      ?? (item ? undefined : webContent(slug, languages.find((l) => l.id === languageId)?.code))
       ?? fallback ?? slug;
-  }, [bySlug, languageId]);
+  }, [bySlug, languageId, languages]);
 
   const translateEnglish = useCallback((english: string) => {
     if (languageId === ENGLISH_ID) return null;

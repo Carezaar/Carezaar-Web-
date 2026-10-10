@@ -4,11 +4,7 @@ This covers the client's specification of 9 October 2026 (the Android developer'
 
 **Result:** every requirement is implemented and passed in a real browser against the live API. Notes for the client about content and the backend are at the end; none of them blocks a web requirement.
 
-**Final evidence:** 140 browser checks passed, 0 failed, 0 blocked, plus 14 unit tests.
-- The full final run passed 136 checks.
-- A re-check passed the remaining 4 on the production build:
-  - The start-up request count: development mode doubles every request by design, so this check is only valid on the production build.
-  - The `match`, `match_accept` and match-ended notification links: that run's data had none of these notifications, so they were created first.
+**Final evidence:** one uninterrupted run of every suite against the production build, with fresh accounts: 146 browser checks passed, 0 failed, 0 blocked. Plus 14 unit tests, lint, type check and build. Each suite creates the data it needs (matches, notifications, chats) before checking it.
 
 ## How it was tested
 
@@ -194,9 +190,6 @@ No secrets, tokens or personal data are in the changes. The test accounts and th
 ## Notes for the client (outside the web app)
 
 - **Backend, code limit:** the server's limit on new codes is longer than the app's 2-minute timer, and grows with each request ("Please try again after 475 second(s)!"). The app shows that message, but aligning the limit with the timer would avoid it.
-- **Content (client action):**
-  - `settings_change_password_dialog_message` still says the user will be signed out of this device; the web now keeps them signed in.
-  - The permission screen uses new keys with English fallbacks: `notification_permission_title`, `notification_permission_message`, `notification_permission_settings`, `notification_permission_allow`.
-  - The general error keys `error_general`, `error_forbidden`, `error_not_found`, `error_session_expired` and `error_profile_unavailable` likewise show English until added to the content table.
+- **Content.** The web now ships its own translations, in all eight languages, for the keys it added: `notification_permission_*`, `error_general`, `error_forbidden`, `error_not_found`, `error_session_expired` and `error_profile_unavailable` (`src/app/webContent.ts`). They're used only until the server's content table has those keys. One existing server text, `settings_change_password_dialog_message`, says the user is signed out of all devices "including this one". The server does end every session, and the web then signs the user in again, so the text is accurate but could be reworded.
 - **Browser limit:** a browser without notifications (Safari on iPhone outside a Home Screen app) can't grant permission and is let in, because blocking it would lock those users out entirely.
 - **Automated testing (client team):** browser automation must grant the `notifications` permission, or the gate covers the app.
