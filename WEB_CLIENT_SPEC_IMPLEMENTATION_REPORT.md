@@ -193,3 +193,11 @@ No secrets, tokens or personal data are in the changes. The test accounts and th
 - **Content.** The web now ships its own translations, in all eight languages, for the keys it added: `notification_permission_*`, `error_general`, `error_forbidden`, `error_not_found`, `error_session_expired` and `error_profile_unavailable` (`src/app/webContent.ts`). They're used only until the server's content table has those keys. One existing server text, `settings_change_password_dialog_message`, says the user is signed out of all devices "including this one". The server does end every session, and the web then signs the user in again, so the text is accurate but could be reworded.
 - **Browser limit:** a browser without notifications (Safari on iPhone outside a Home Screen app) can't grant permission and is let in, because blocking it would lock those users out entirely.
 - **Automated testing (client team):** browser automation must grant the `notifications` permission, or the gate covers the app.
+
+## Deployment
+
+The private review site https://carezaar-web.vercel.app was redeployed from this code, from a clean copy outside Git, using the isolated `nooneexist414` Vercel CLI profile and the `carezaar-web` project. Checks on the live site:
+- the served app and stylesheet are byte-identical to the local build (`index-Cs_YEU48.js`, `index-BAl37tor.css`);
+- signed-out requests get 401;
+- the noindex, Permissions-Policy and CSP headers are present;
+- with an account: sign-in, Matches with hearts, the profile's match actions, the FAQ "All" chip and notification details all work, with no page errors.
