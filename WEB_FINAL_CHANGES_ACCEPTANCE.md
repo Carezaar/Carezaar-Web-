@@ -220,3 +220,21 @@ After pushing, `main` was cloned fresh from GitHub into a clean folder and check
 | 8 | None. A browser offline from the start (with no refusal from the server) shows the normal connection message, not this window, because no renewal is attempted. |
 | 9 | None. Profile and preference saves aren't retried automatically; the user can save again safely. |
 | 10 | None. The permission screen's texts aren't error messages and keep the web's own eight-language copy until the client adds them to the content table. |
+
+## Full regression on the exact pushed revision
+
+`main` was cloned fresh from GitHub at `7241aa7`. Its code is identical to `30fbbf3`; the commits after it change only reports. It was installed with `npm ci`, built for production and served locally. The full regression then ran against it with three new disposable accounts:
+
+| Suite | Passed | Failed | Blocked |
+|---|---|---|---|
+| r1: start-up, permission, reference data, sign-in, password rules, password reset with a real emailed code, preferences | 21 | 0 | 0 |
+| r2: Matches list, pagination, profile lifecycle in both roles, It's a Match, Matches & Requests, notification links | 30 | 0 | 0 |
+| r3: chat, polling, FAQ, password change, session, read retries, accepted differences, earlier requirements, layouts, Arabic, accessibility, WebKit and Firefox | 29 | 0 | 0 |
+
+With the ten-change suite on the same code (54 of 54), that makes **134 passed, 0 failed, 0 blocked**.
+
+In r2's first run, the unmatch check read the screen too early, and the run then stopped. Unmatch itself worked: run three times, it gave check → `DELETE users/matches/{id}` 200 → re-read, ending at "Request a Match" with the server showing no match. The test now waits for the button, and r2 was rerun on the same build: 30 of 30.
+
+## Test data left in the client's system
+
+The ten-change suite files a Report an Issue entry to test how issue dates are shown. It ran six times, so up to six identical issues titled "QA date display check" ("Automated web check of how dates are shown. Please ignore.") may be in the admin panel. They come from disposable accounts that have since been deleted. The API has no endpoint to delete an issue (`users/issues` offers only GET and POST), so they can only be removed from the admin side.
