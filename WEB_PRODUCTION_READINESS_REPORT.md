@@ -269,3 +269,8 @@ Also clean: unit tests (16), lint, type check and the production build.
 In the final pass, r2 was cut short by a connection timeout from the test script itself to the live API. It was rerun on the same build and passed 30 of 30.
 
 One frontend defect was found and fixed this round: a pull-to-refresh made while the next page was still loading was ignored.
+
+**Deployment.** The private review site https://carezaar-web.vercel.app was redeployed from commit `30fbbf3`. It was built from a clean copy outside Git, using the `nooneexist414` CLI profile and the `carezaar-web` project. Checks on the live site:
+- the served `index-RTQfQxTh.js` and `index-BYZCdJSs.css` are byte-identical to the build;
+- signed-out requests get 401, and the noindex header is present;
+- the authenticated smoke test passed 5 of 5: sign-in with Matches and hearts, profile actions, the notification window without a date or Cancel, the managed short error on an unavailable profile, and no page errors.
