@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
+import { ApiError } from "../api/errors";
 import { caregiverService, clientService, userService, type BaseTable } from "../api/services";
 import type { CaregiverFull, ClientFull } from "../api/types";
 import { formatDistance } from "../api/match";
@@ -9,7 +10,7 @@ import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { BackHeader, Page } from "../ui/layout";
-import { Avatar, Button, Dialog, PhotoBox, Spinner, TextArea } from "../ui/kit";
+import { Button, Dialog, PhotoBox, Spinner, TextArea } from "../ui/kit";
 import { INTRODUCTION_MAX_LENGTH } from "../api/config";
 import { Icon } from "../ui/Icon";
 import { usePartnerMatch, type MatchMutation } from "./usePartnerMatch";
@@ -58,7 +59,8 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
   const unreadable = detail !== null && !match.loaded;
   const [checkDismissed, setCheckDismissed] = useState(false);
 
-  if (failed) return <Page header={<BackHeader />}><p className="state muted" role="status">{t("error_profile_unavailable", "This profile isn't available.")}</p></Page>;
+  // Only the short error message (shown as it failed); the page itself stays empty until it closes.
+  if (failed) return <Page header={<BackHeader />}><span /></Page>;
   if (!detail) return <Page header={<BackHeader />}><Spinner /></Page>;
 
   const partner = detail.user;
@@ -71,7 +73,14 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
       await act(on ? t("loading_favorite_delete", "Removing from favorite list") : t("loading_favorite_create", "Adding to favorite list"),
         () => (on ? userService.removeBookmark(partner.id) : userService.addBookmark(partner.id)));
     } catch (e) {
-      setDetail({ ...detail, user: { ...partner, is_favorite: on } } as typeof detail);
+      // No answer: not sent again; the profile is read to show what the server has.
+      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
+        try {
+          const p = kind === "caregiver" ? await clientService.caregiver(id) : await caregiverService.client(id);
+          setDetail(p);
+          if (p.user.is_favorite !== on) return;
+        } catch { setDetail({ ...detail, user: { ...partner, is_favorite: on } } as typeof detail); }
+      } else setDetail({ ...detail, user: { ...partner, is_favorite: on } } as typeof detail);
       toast(messageOf(e));
     }
   };
@@ -113,7 +122,6 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
     withdraw: ["match_withdraw_message", "Are you sure you want to cancel your match request with this user?"],
     unmatch: ["match_unmatch_message", "Are you sure you want to end your match with this user?"],
   } as const;
-  const fullName = `${partner.first_name ?? ""} ${partner.last_name ?? ""}`.trim();
 
   const isCaregiver = kind === "caregiver";
   const cg = detail as CaregiverFull;
@@ -190,15 +198,11 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
 
       <Dialog open={confirm !== null} onClose={() => setConfirm(null)} labelledBy="match-title"
         title={confirm ? t(titles[confirm][0], titles[confirm][1]) : ""}>
-        <p>{confirm ? t(messages[confirm][0], messages[confirm][1]) : ""}</p>
-        {/* A received request: who is asking, and the introduction they wrote. */}
-        {(confirm === "accept" || confirm === "reject") && (
-          <div className="request-context">
-            <div className="request-context-who"><Avatar src={partner.photo} size={44} name={fullName} /><b dir="auto">{fullName}</b></div>
-            {detail.match_introduction?.trim() && (
-              <blockquote className="request-intro"><b>{t("match_introduction_title", "Introduction")}</b><p dir="auto">{detail.match_introduction}</p></blockquote>
-            )}
-          </div>
+        <p id="match-message">{confirm ? t(messages[confirm][0], messages[confirm][1]) : ""}</p>
+        {/* A received request: the question and the introduction only (the profile is
+            already on screen behind the window). */}
+        {(confirm === "accept" || confirm === "reject") && detail.match_introduction?.trim() && (
+          <blockquote className="request-intro"><b>{t("match_introduction_title", "Introduction")}</b><p dir="auto">{detail.match_introduction}</p></blockquote>
         )}
         {confirm === "request" && (
           <>
@@ -210,18 +214,20 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
           </>
         )}
         <div className="dialog-actions">
-          {/* Cancelling a request is itself labelled "Cancel", so that dialog closes with ✕. */}
-          {confirm === "withdraw"
-            ? <button type="button" className="icon-btn dialog-close" onClick={() => setConfirm(null)} aria-label="Close">
-                <Icon name="ic_clear" size={18} tint="var(--text-secondary)" /></button>
-            : <Button variant="outline" onClick={() => setConfirm(null)}>{t("general_cancel", "Cancel")}</Button>}
-          <Button variant={confirm === "request" || confirm === "accept" ? "primary" : "danger"} onClick={confirmed}>
+          {/* Two visible buttons in every confirmation. In the cancel-request window both
+              read "Cancel": the outlined one closes the window, the red one cancels the
+              request; screen readers hear the difference from their descriptions. */}
+          <Button variant="outline" onClick={() => setConfirm(null)}
+            aria-describedby={confirm === "withdraw" ? "dismiss-hint" : undefined}>{t("general_cancel", "Cancel")}</Button>
+          <Button variant={confirm === "request" || confirm === "accept" ? "primary" : "danger"} onClick={confirmed}
+            aria-describedby={confirm === "withdraw" ? "match-message" : undefined}>
             {confirm ? t(actions[confirm][0], actions[confirm][1]) : ""}
           </Button>
+          {confirm === "withdraw" && <span id="dismiss-hint" className="sr-only">{t("general_close", "Close")}</span>}
         </div>
       </Dialog>
 
-      <Dialog open={match.checkFailed || (unreadable && !checkDismissed)} onClose={() => { match.setCheckFailed(false); setCheckDismissed(true); }} labelledBy="match-check-title"
+      <Dialog open={match.checkFailed || (unreadable && !checkDismissed)} onClose={() => { match.dismissCheck(); setCheckDismissed(true); }} labelledBy="match-check-title"
         title={t("match_check_failed_title", "Couldn't check this match")}>
         <p>{t("match_check_failed_message", "Please check your connection and try again.")}</p>
         <div className="dialog-actions">

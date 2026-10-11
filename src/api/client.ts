@@ -3,6 +3,7 @@ import { ApiError } from "./errors";
 import { appLanguage } from "./language";
 import { tokenStore } from "./session";
 import { APP_VERSION } from "./config";
+import { CONNECTION_RETRIES, RETRY_DELAYS_MS, isRetryableMethod } from "./retryPolicy";
 import type { ApiEnvelope, ApiMeta, Session } from "./types";
 
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -22,10 +23,6 @@ export interface RequestOptions {
   multipart?: FormData;
   /** Defaults to true. */
   auth?: boolean;
-  /** POST requests are not repeated after a dropped connection unless they are safe to
-   *  send twice (signing in, re-saving the same profile). GET, PUT, PATCH and DELETE
-   *  are. Sending a message or reporting an issue is not. */
-  idempotent?: boolean;
   /** Defaults to true. False makes a refusal final, without renewing the sign-in: used
    *  for the request that replaces the session itself (a password change). */
   renew?: boolean;
@@ -59,9 +56,6 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
 /** Android's OkHttp timeouts are all 120 s. A fast answer still returns at once; this
  *  only bounds how long a silent server is waited for. */
 export const REQUEST_TIMEOUT_MS = 120_000;
-/** Attempts after the first when the connection drops (no response at all). */
-export const CONNECTION_RETRIES = 3;
-const RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -82,10 +76,10 @@ async function timedFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-/** Repeats a request up to CONNECTION_RETRIES times, 1 s, 2 s then 4 s apart, but only
- *  when the connection dropped and only for requests safe to send twice. A timeout is
- *  not repeated (the server may still be working on it), and neither is any HTTP
- *  answer: a refusal or a validation error would only come back again. */
+/** Repeats a read up to CONNECTION_RETRIES times, 1 s, 2 s then 4 s apart, when the
+ *  connection dropped. A timeout is not repeated (the server may still be working on
+ *  it), and neither is any HTTP answer: a refusal or a validation error would only come
+ *  back again. */
 async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -122,7 +116,7 @@ async function refreshSession(): Promise<RefreshOutcome> {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         },
         body: encodeForm({ version_app: APP_VERSION }),
-      }, true);
+      }, false); // no automatic retry: a renewal that can't reach the server opens Connection Problem
       // A new sign-in replaced these tokens meanwhile: use it rather than give up.
       if (!response.ok) return replaced() ? "renewed" : response.status >= 500 ? "unreachable" : "refused";
       const envelope = (await response.json()) as ApiEnvelope<Session>;
@@ -162,7 +156,7 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
     body = encodeForm(options.form);
   }
 
-  const retryable = options.method !== "POST" || options.idempotent === true;
+  const retryable = isRetryableMethod(options.method);
   const response = await fetchWithRetry(buildUrl(options.path, options.query), {
     method: options.method,
     headers,
@@ -247,6 +241,49 @@ export async function replaceSession(work: () => Promise<void>): Promise<void> {
   if (failure) throw failure;
 }
 
+/* ------------------------------------------------- Connection Problem window */
+
+/** Dispatched with `detail: boolean` when the app must block on (or is released from)
+ *  a sign-in renewal that couldn't reach the server. */
+export const CONNECTION_PROBLEM_EVENT = "carezaar:connection-problem";
+
+let blocked: { promise: Promise<"renewed" | "refused">; settle: (outcome: "renewed" | "refused") => void } | null = null;
+
+/** Every request whose renewal couldn't reach the server waits here, behind one
+ *  Connection Problem window, until a Retry renews the sign-in or the server refuses it. */
+function waitForRenewal(): Promise<"renewed" | "refused"> {
+  if (!blocked) {
+    let settle!: (outcome: "renewed" | "refused") => void;
+    const promise = new Promise<"renewed" | "refused">((resolve) => { settle = resolve; });
+    blocked = { promise, settle };
+    window.dispatchEvent(new CustomEvent(CONNECTION_PROBLEM_EVENT, { detail: true }));
+  }
+  return blocked.promise;
+}
+
+function release(outcome: "renewed" | "refused") {
+  const current = blocked;
+  blocked = null;
+  current?.settle(outcome);
+  window.dispatchEvent(new CustomEvent(CONNECTION_PROBLEM_EVENT, { detail: false }));
+}
+
+/** The Connection Problem window's Retry: one renewal attempt. Returns false while the
+ *  server still can't be reached (the window stays); on success the waiting reads go
+ *  on; if the server refuses the sign-in, the user is signed out. */
+export async function retryRenewal(): Promise<boolean> {
+  const outcome = await refreshSession();
+  if (outcome === "unreachable") return false;
+  if (outcome === "refused") expireSession();
+  release(outcome);
+  return true;
+}
+
+/** Signing out while blocked: nothing is waiting for a renewal any more. */
+export function clearConnectionProblem() {
+  if (blocked) release("refused");
+}
+
 async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
   const used = tokenStore.accessToken;
   try {
@@ -259,7 +296,19 @@ async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>>
     if (isRefusal(error) && options.auth !== false && options.renew !== false && used) {
       // Signed in again while this was on its way: just use the new sign-in.
       if (tokenStore.accessToken && tokenStore.accessToken !== used) return perform<T>(options);
-      const outcome = await refreshSession();
+      let outcome = await refreshSession();
+      if (outcome === "unreachable") {
+        // The server can't be reached to renew the sign-in: one blocking Connection
+        // Problem window instead of an error for every action. Reads go on after the
+        // user's Retry succeeds; an action is not sent again, its caller is told it
+        // didn't go through and the user repeats it.
+        outcome = await waitForRenewal();
+        if (outcome === "renewed") {
+          if (isRetryableMethod(options.method)) return perform<T>(options);
+          throw new ApiError("unknown", "");
+        }
+        throw error;
+      }
       if (outcome === "renewed") return perform<T>(options);
       // The sign-in itself can't be renewed: drop to the signed-out routes rather than
       // leave a shell that looks signed in while every call fails. When the server

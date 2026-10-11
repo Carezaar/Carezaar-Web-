@@ -2,7 +2,6 @@ import {
   createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode,
 } from "react";
 import { ApiError } from "../api/errors";
-import { tokenStore } from "../api/session";
 import { Icon } from "../ui/Icon";
 import { useI18n } from "./i18n";
 
@@ -20,12 +19,7 @@ interface FeedbackValue {
   toast: (message: string) => void;
   /** Turns any thrown value into the user-facing message. */
   messageOf: (error: unknown) => string;
-  /** For actions the live server currently cannot complete: says so plainly and
-   *  gives the support address instead of a misleading server message. */
-  unavailable: (feature: string) => string;
 }
-
-export const SUPPORT_EMAIL = "support@carezaar.com";
 
 const FeedbackContext = createContext<FeedbackValue | null>(null);
 
@@ -35,13 +29,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const counter = useRef(0);
 
-  // Common failures get the app's standard wording, never the server's text: no
-  // connection, a timeout, a refused or missing record, a server fault, an unreadable
-  // answer. Only a rejection of what the user entered (400/422, e.g. "Invalid
-  // Credentials!" or a field rule) keeps the server's message, because it says what to
-  // fix; technical text there (a PHP notice, a route name) is replaced too.
+  // Every common failure is shown with the app's managed texts, never the server's
+  // text or a web-only string: refused → general_error_forbidden, missing →
+  // general_error_not_found, no connection or timeout → general_network_title,
+  // anything else → general_error_general. Only a rejection of what the user entered
+  // (400/422, e.g. "Invalid Credentials!" or a field rule) keeps the server's message,
+  // because it says what to fix; technical text there gets the general message too.
   const messageOf = useCallback((error: unknown) => {
-    const general = t("error_general", "Something went wrong. Please try again.");
+    const general = t("general_error_general", "Something went wrong. Please try again.");
     if (error instanceof ApiError) {
       if (import.meta.env?.DEV) console.info(`API error (${error.kind}, ${error.status})`);
       switch (error.kind) {
@@ -49,13 +44,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         case "timeout":
           return t("general_network_title", "Cannot communicate with server.");
         case "unauthenticated":
-          // Still holding a session after the renewal attempt means the server refused
-          // this action for this user, which is not an expired session.
-          return tokenStore.hasSession
-            ? t("error_forbidden", "You can't do this right now.")
-            : t("error_session_expired", "Your session has expired. Please sign in again.");
-        case "forbidden": return t("error_forbidden", "You can't do this right now.");
-        case "notFound": return t("error_not_found", "This item is no longer available.");
+        case "forbidden":
+          return t("general_error_forbidden", "You can't do this right now.");
+        case "notFound":
+          return t("general_error_not_found", "This item is no longer available.");
         case "validation":
           if (error.isTechnical) return general;
           return Object.values(error.fields).flat()[0] ?? (error.message || general);
@@ -94,10 +86,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
   const act = useCallback(<T,>(label: string, work: () => Promise<T>) => run(label, work, `act:${label}`), [run]);
 
-  const unavailable = useCallback((feature: string) =>
-    `${feature}: ${t("error_feature_unavailable", "this isn't available right now. Please contact")} ${SUPPORT_EMAIL}.`, [t]);
 
-  const value = useMemo(() => ({ run, act, toast, messageOf, unavailable }), [run, act, toast, messageOf, unavailable]);
+  const value = useMemo(() => ({ run, act, toast, messageOf }), [run, act, toast, messageOf]);
 
   return (
     <FeedbackContext.Provider value={value}>

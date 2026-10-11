@@ -59,7 +59,8 @@ export function MatchedScreen() {
   }, [failed]);
 
   const header = <BackHeader title={t('match_matched_title',"It's a Match!")} />;
-  if (failed) return <Page header={header}><p className="state muted" role="status">{t('error_profile_unavailable', "This profile isn't available.")}</p></Page>;
+  // Only the short error message (shown as it failed); the page stays empty until it closes.
+  if (failed) return <Page header={header}><span /></Page>;
   if (!detail || !user) return <Page header={header}><Spinner /></Page>;
   const partner = detail.user;
   const fullName = (u: {first_name: string | null; last_name: string | null}) => `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
@@ -77,8 +78,10 @@ export function MatchedScreen() {
     ['ic_calendar',t('match_matched_plan_title','Plan Next Steps'),t('match_matched_plan_message','Discuss care needs and availability.')],
     ['ic_match_on',t('match_matched_fit_title','A Better Care Experience'),t('match_matched_fit_message','Find the right care together.')],
   ];
-  const card = (photo: string | null | undefined, name: string, sub: string) => (
-    <figure className="matched-card">
+  // The two cards slide in from opposite sides and settle at an angle, as in the app.
+  // The animation runs when the cards first appear, not on later re-renders.
+  const card = (photo: string | null | undefined, name: string, sub: string, side: 'left' | 'right') => (
+    <figure className={`matched-card from-${side}`}>
       <PhotoBox className="matched-photo" src={photo} alt="" />
       <figcaption><b dir="auto">{name}</b><span className="muted">{sub}</span></figcaption>
     </figure>
@@ -86,9 +89,9 @@ export function MatchedScreen() {
   return <Page header={header} footer={<div className="pending-actions"><Button onClick={() => void chat()} icon="ic_message">{t('match_matched_chat_button','Send a Message')}</Button><Button variant="outline" onClick={viewProfile}>{t('match_matched_profile_button','View Profile')}</Button></div>}>
     <div className="pending matched" data-testid="matched-screen">
       <div className="matched-pair">
-        {card(user.photo, t('chat_screen_you','You'), roleLabel(user.role))}
+        {card(user.photo, t('chat_screen_you','You'), roleLabel(user.role), 'left')}
         <span className="matched-heart" aria-hidden="true"><Icon name="ic_favorite_on" size={26} tint="#fff"/></span>
-        {card(partner.photo, fullName(partner), roleLabel(partner.role))}
+        {card(partner.photo, fullName(partner), roleLabel(partner.role), 'right')}
       </div>
       <h2 dir="auto">{t('match_matched_prompt','You and {PARTNER} have matched!').replace(/\{PARTNER\}/g, fullName(partner))}</h2>
       <p className="muted">{t('match_matched_message','You can now start messaging each other, discuss care needs, and next steps.')}</p>

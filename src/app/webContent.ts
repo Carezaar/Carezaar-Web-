@@ -30,31 +30,11 @@ export const WEB_CONTENT: Record<string, Record<string, string>> = {
     en: "Allow notifications", sp: "Permitir notificaciones", fr: "Autoriser les notifications", ru: "Разрешить уведомления",
     ar: "السماح بالإشعارات", fa: "اجازه دادن به اعلان‌ها", in: "सूचनाओं की अनुमति दें", cn: "允许通知",
   },
-  error_general: {
-    en: "Something went wrong. Please try again.", sp: "Algo salió mal. Inténtalo de nuevo.", fr: "Un problème est survenu. Veuillez réessayer.",
-    ru: "Что-то пошло не так. Попробуйте ещё раз.", ar: "حدث خطأ ما. يرجى المحاولة مرة أخرى.", fa: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.",
-    in: "कुछ गलत हो गया। कृपया फिर से प्रयास करें।", cn: "出了点问题，请重试。",
-  },
-  error_forbidden: {
-    en: "You can't do this right now.", sp: "No puedes hacer esto ahora.", fr: "Vous ne pouvez pas faire cela pour le moment.",
-    ru: "Сейчас это действие недоступно.", ar: "لا يمكنك القيام بذلك الآن.", fa: "اکنون نمی‌توانید این کار را انجام دهید.",
-    in: "आप अभी यह नहीं कर सकते।", cn: "您现在无法执行此操作。",
-  },
-  error_not_found: {
-    en: "This item is no longer available.", sp: "Este elemento ya no está disponible.", fr: "Cet élément n'est plus disponible.",
-    ru: "Этот элемент больше недоступен.", ar: "هذا العنصر لم يعد متاحًا.", fa: "این مورد دیگر در دسترس نیست.",
-    in: "यह आइटम अब उपलब्ध नहीं है।", cn: "此内容已不可用。",
-  },
-  error_session_expired: {
-    en: "Your session has expired. Please sign in again.", sp: "Tu sesión ha caducado. Inicia sesión de nuevo.", fr: "Votre session a expiré. Veuillez vous reconnecter.",
-    ru: "Сеанс истёк. Войдите снова.", ar: "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.", fa: "نشست شما منقضی شده است. لطفاً دوباره وارد شوید.",
-    in: "आपका सत्र समाप्त हो गया है। कृपया फिर से साइन इन करें।", cn: "您的会话已过期，请重新登录。",
-  },
-  error_profile_unavailable: {
-    en: "This profile isn't available.", sp: "Este perfil no está disponible.", fr: "Ce profil n'est pas disponible.",
-    ru: "Этот профиль недоступен.", ar: "هذا الملف الشخصي غير متاح.", fa: "این نمایه در دسترس نیست.",
-    in: "यह प्रोफ़ाइल उपलब्ध नहीं है।", cn: "此个人资料不可用。",
-  },
+
+
+
+
+
 };
 
 /** The web's own copy for a slug in a language (English if that language is missing). */

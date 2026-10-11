@@ -83,9 +83,14 @@ export function usePaged<T>(
   }, [load]);
 
   /** Pull-to-refresh: fetches page 1 again and replaces the list only when it arrives.
-   *  A failed refresh keeps what is shown and rethrows, for the caller to report. */
+   *  It takes over from a page that is still loading (that answer is then ignored), so a
+   *  pull is never dropped. A failed refresh keeps what is shown and rethrows, for the
+   *  caller to report. */
+  const refreshRunning = useRef(false);
   const refresh = useCallback(async () => {
-    if (inFlight.current) return;
+    if (refreshRunning.current) return;
+    refreshRunning.current = true;
+    setLoading(false);
     const gen = ++generation.current;
     inFlight.current = true;
     setRefreshing(true);
@@ -96,6 +101,7 @@ export function usePaged<T>(
       setError(null);
       apply({ page: 1, ended: result.length === 0, items: merged }, meta);
     } finally {
+      refreshRunning.current = false;
       if (gen === generation.current) { setRefreshing(false); inFlight.current = false; }
     }
   }, [apply]);

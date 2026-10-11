@@ -236,3 +236,36 @@ After Aariz explicitly authorized physical testing and granted Chrome permission
 ## Android-parity round — 10 October 2026
 
 The client's specification of 9 October (Android as the reference) and the networking follow-up are implemented and tested in the browser against the live API (Chrome, WebKit, Firefox; production build for request counts). Details, results per requirement and what remains: `WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md`. Intentional differences updated in `docs/WEB-VS-ANDROID.md`.
+
+## Final ten client changes — 11 October 2026
+
+The client's ten remaining changes are implemented and verified. Per-requirement detail is in `WEB_FINAL_CHANGES_ACCEPTANCE.md`.
+
+| Change | Result |
+|---|---|
+| 1. Match checked before every action, with Try Again that continues the action | PASS |
+| 2. Short Accept and Reject windows | PASS |
+| 3. Visible Cancel button in the cancel-request window | PASS |
+| 4. Short error only, back after 2 s | PASS |
+| 5. It's a Match card animation | PASS |
+| 6. Simpler notification window | PASS |
+| 7. Notification and issue dates as stored | PASS |
+| 8. Connection Problem window | PASS |
+| 9. Only reads retried; ambiguous actions reconciled, never resent | PASS |
+| 10. Managed texts for every error | PASS |
+
+**Final verification** used the production build against the live API, with fresh disposable client and caregiver accounts:
+
+| Suite | Passed | Failed | Blocked |
+|---|---|---|---|
+| Ten changes (t10) | 54 | 0 | 0 |
+| Start-up, permission, reference data, sign-in, password rules, password reset with a real emailed code, preferences (r1) | 21 | 0 | 0 |
+| Matches list, pagination, profile lifecycle in both roles, It's a Match, Matches & Requests, notification links (r2) | 30 | 0 | 0 |
+| Chat, polling, FAQ, password change, session renewal, read retries, accepted differences, earlier requirements, layouts at 360/768/1280 px, Arabic, accessibility, WebKit and Firefox (r3) | 29 | 0 | 0 |
+| **Total** | **134** | **0** | **0** |
+
+Also clean: unit tests (16), lint, type check and the production build.
+
+In the final pass, r2 was cut short by a connection timeout from the test script itself to the live API. It was rerun on the same build and passed 30 of 30.
+
+One frontend defect was found and fixed this round: a pull-to-refresh made while the next page was still loading was ignored.

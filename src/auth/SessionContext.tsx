@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
   type ReactNode,
 } from "react";
-import { SESSION_EXPIRED_EVENT } from "../api/client";
+import { SESSION_EXPIRED_EVENT, clearConnectionProblem } from "../api/client";
 import { ApiError } from "../api/errors";
 import { authService } from "../api/services";
 import { tokenStore } from "../api/session";
@@ -91,6 +91,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
       },
       async signOut() {
+        // Nothing should keep waiting for a renewal once the user has signed out.
+        clearConnectionProblem();
         // The server call is best effort; locally the user is always signed out.
         await authService.logout().catch(() => undefined);
         setState({ status: "signedOut" });

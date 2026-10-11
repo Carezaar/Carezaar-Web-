@@ -54,9 +54,10 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 
 ### Times
 - **Web and Android:** message times are shown exactly as the server stores them (UTC), not converted.
-- **Status:** matches Android (client request, 2026-10-10). Notification and issue dates are still shown in local time on the web.
+- **Status:** matches Android (client requests, 2026-10-10 and 2026-10-11). Notification and issue dates are shown as stored too.
 ### Session refresh
-- **Web and Android:** when the server refuses a request, for any reason, the session is renewed with `auth/refresh`, sending only `version_app`, and the request is sent once more. The second answer is final.
+- **Web and Android:** when the server refuses a request, for any reason, the session is renewed with `auth/refresh`, sending only `version_app`, and the request is sent once more. The second answer is final. If the renewal can't reach the server, a blocking Connection Problem window offers Retry until it succeeds; waiting reads continue afterwards, waiting actions are not resent.
+- **Connection drops:** only reads are retried (up to 3 times); actions are never repeated automatically.
 - **Status:** matches Android (client request, 2026-10-10).
 ### Reviews
 - **Web:** finished matches show no reviews: no stars, comments or Review button (client request, 2026-10-10). Review data on the server is untouched.

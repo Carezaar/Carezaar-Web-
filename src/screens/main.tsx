@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { ApiError } from "../api/errors";
 import { caregiverService, clientService, userService } from "../api/services";
 import type { CaregiverBrief, ClientBrief, MatchSort, PartnerUser } from "../api/types";
 import { formatDistance } from "../api/match";
@@ -101,7 +102,15 @@ function MatchesTab() {
     try {
       await (on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id));
     } catch (e) {
-      setFavorite(on);
+      // No answer: the change may have gone through. It isn't sent again; the person's
+      // profile is read to show what the server has.
+      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
+        try {
+          const p = isClient ? await clientService.caregiver(card.id) : await caregiverService.client(card.id);
+          setFavorite(p.user.is_favorite);
+          if (p.user.is_favorite !== on) return;
+        } catch { setFavorite(on); }
+      } else setFavorite(on);
       toast(messageOf(e));
     } finally {
       favoriteBusy.current.delete(card.id);

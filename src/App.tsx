@@ -9,6 +9,7 @@ import { NotificationsProvider } from "./app/notifications";
 import { SignUpProvider } from "./app/signup";
 import { RecoveryBoundary } from "./app/recovery";
 import { NotificationGate } from "./app/NotificationGate";
+import { ConnectionProblem } from "./app/ConnectionProblem";
 import {
   ForgotPasswordScreen, IntroScreen, OtpScreen, SetupPasswordScreen, SignInScreen,
   SignUpCredentialsScreen, SplashScreen,
@@ -82,6 +83,7 @@ export function App() {
       <BaseDataProvider>
         <Localised>
           <NotificationGate>
+          <ConnectionProblem>
           <RecoveryBoundary>
           <SessionProvider>
             <NotificationsProvider>
@@ -128,6 +130,7 @@ export function App() {
             </NotificationsProvider>
           </SessionProvider>
           </RecoveryBoundary>
+          </ConnectionProblem>
           </NotificationGate>
         </Localised>
       </BaseDataProvider>

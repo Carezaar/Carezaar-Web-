@@ -581,7 +581,7 @@ export function ForgotPasswordScreen() {
 export function SetupPasswordScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { act, toast, messageOf, unavailable } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
   const { state: signUp, reset } = useSignUp();
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -615,7 +615,7 @@ export function SetupPasswordScreen() {
         // Stay here: the code is corrected in place, or a new one requested.
         setCodeError(messageOf(e));
       } else {
-        toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("signup_forgot_password_title", "Forgot Password")) : messageOf(e));
+        toast(messageOf(e));
       }
     }
   };

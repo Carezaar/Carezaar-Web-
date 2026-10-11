@@ -1,4 +1,4 @@
-import { localTime } from "../app/serverTime";
+import { asStored } from "../app/serverTime";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
@@ -84,7 +84,7 @@ export function NotificationsScreen() {
                   </span>
                   <span className="notif-when">
                     <Icon name="ic_clock" size={12} tint="var(--text-secondary)" />
-                    <span className="notif-date">{localTime(n.created_at).split(" ").map((part) => <span key={part}>{part}</span>)}</span>
+                    <span className="notif-date">{asStored(n.created_at).split(" ").map((part) => <span key={part}>{part}</span>)}</span>
                   </span>
                   <Icon name="ic_chevron_forward" size={16} tint="var(--text-secondary)" className="flip-rtl notif-chevron" />
                 </button>
@@ -93,22 +93,20 @@ export function NotificationsScreen() {
           </ul>
         )}
       <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
-      <Dialog open={selected !== null} onClose={() => setSelected(null)} labelledBy="notification-title"
-        title={selected ? label(find("subjects", selected.subject_id)) || t("general_notifications", "Notifications") : ""}>
+      {/* The details: who, what, and Show. No date (it's on the row just tapped) and no
+          Cancel: tapping outside or Escape closes it, leaving Show as the one action. */}
+      <Dialog open={selected !== null} onClose={() => setSelected(null)} labelledBy="notification-text">
         {selected && (
-          <>
+          <div className="notif-details">
             {selected.partner && (
-              <div className="request-context-who">
-                <Avatar src={selected.partner.photo} size={48} />
+              <div className="notif-details-who">
+                <Avatar src={selected.partner.photo} size={64} />
                 <b dir="auto">{selected.partner.first_name} {selected.partner.last_name}</b>
               </div>
             )}
-            <p className="muted small"><Icon name="ic_clock" size={12} tint="var(--text-secondary)" /> {localTime(selected.created_at)}</p>
-            <div className="dialog-actions">
-              <Button variant="outline" onClick={() => setSelected(null)}>{t("general_cancel", "Cancel")}</Button>
-              {shown && <Button onClick={() => { setSelected(null); navigate(shown.path, { state: shown.state }); }}>{t("general_show", "Show")}</Button>}
-            </div>
-          </>
+            <p id="notification-text">{label(find("subjects", selected.subject_id)) || t("general_notifications", "Notifications")}</p>
+            {shown && <Button onClick={() => { setSelected(null); navigate(shown.path, { state: shown.state }); }}>{t("general_show", "Show")}</Button>}
+          </div>
         )}
       </Dialog>
     </Page>
@@ -224,7 +222,7 @@ export function FaqScreen() {
 export function ReportIssueScreen() {
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
-  const { run, act, toast, messageOf, unavailable } = useFeedback();
+  const { run, act, toast, messageOf } = useFeedback();
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [open, setOpen] = useState(false);
@@ -250,8 +248,10 @@ export function ReportIssueScreen() {
       setOpen(false); setSubject(""); setDescription(""); setType("other");
       load();
     } catch (e) {
-      toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("report_an_issue_title", "Report An Issue"))
-        : e instanceof ApiError && e.kind === "validation" ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
+      // No answer: the issue may have been filed. It isn't sent again; the list is
+      // reloaded so the user can see whether it arrived before submitting again.
+      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) load();
+      toast(messageOf(e));
     }
   };
 
@@ -271,7 +271,7 @@ export function ReportIssueScreen() {
                   </span></header>
                 {i.issuetype_id && i.title && <p><b>{i.title}</b></p>}
                 <p dir="auto">{i.description}</p>
-                <p className="muted small end">{localTime(i.created_at)}</p>
+                <p className="muted small end">{asStored(i.created_at)}</p>
                 {i.reply && (
                   <div className="admin-reply"><b>{t("report_an_issue_admin", "Administrator")}</b><p dir="auto">{i.reply}</p>
                     <p className="small end">{i.replied_at}</p></div>
@@ -343,7 +343,7 @@ export function ChangePasswordScreen() {
   const navigate = useNavigate();
   const goBack = useGoBack("/main/profile");
   const { t } = useI18n();
-  const { act, toast, messageOf, unavailable } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
   const { user, refreshUser, signOut } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -362,13 +362,22 @@ export function ChangePasswordScreen() {
     let changed = false;
     try {
       await act(t("loading_user_password_change", "Changing password"), () => replaceSession(async () => {
-        await userService.changePassword(current, next);
+        try {
+          await userService.changePassword(current, next);
+        } catch (e) {
+          // No answer: the change may have gone through. It is not sent again; signing in
+          // with the new password (a check, not a repeat) shows whether it did.
+          if (!(e instanceof ApiError && (e.kind === "network" || e.kind === "timeout"))) throw e;
+          try { await authService.login(email, next); } catch { throw e; }
+          changed = true;
+          return;
+        }
         changed = true;
         await authService.login(email, next);
       }));
     } catch (e) {
       if (!changed) {
-        toast(e instanceof ApiError && e.isServiceFault ? unavailable(t("settings_change_password_title", "Change Password")) : messageOf(e));
+        toast(messageOf(e));
         return;
       }
       toast(messageOf(e));
@@ -414,7 +423,7 @@ export function DeleteAccountScreen() {
   const goBack = useGoBack("/help");
   const { t, label } = useI18n();
   const { items } = useBaseData();
-  const { act, toast, messageOf, unavailable } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
   const { signOut, role } = useSession();
   const [reason, setReason] = useState<number | "">("");
   // Reason codes are role-prefixed (`client_…`, `caregiver_…`); show the user's own.
@@ -429,9 +438,16 @@ export function DeleteAccountScreen() {
       await signOut();
       navigate("/intro", { replace: true });
     } catch (e) {
-      // Until 2026-10-01 the server rejected every reason id (BE-04); a refusal still gets the support message.
-      toast(e instanceof ApiError && (e.isServiceFault || e.fieldError("reason_id"))
-        ? unavailable(t("delete_account_title", "Delete Account")) : messageOf(e));
+      // No answer: the account may already be deleted. It isn't sent again; reading the
+      // account shows which (a deleted account's sign-in is refused and the app signs out).
+      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
+        try { await authService.currentUser(); } catch (check) {
+          if (check instanceof ApiError && (check.kind === "unauthenticated" || check.kind === "forbidden")) {
+            await signOut(); navigate("/intro", { replace: true }); return;
+          }
+        }
+      }
+      toast(messageOf(e));
     }
   };
   return (

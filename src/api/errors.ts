@@ -48,23 +48,8 @@ export class ApiError extends Error {
   }
 }
 
+/** Internal description only (logs, tests). What people see comes from `messageOf`,
+ *  which uses the managed texts. */
 function defaultMessage(kind: ApiErrorKind): string {
-  switch (kind) {
-    case "unauthenticated":
-      return "Your session has expired. Please sign in again.";
-    case "forbidden":
-      return "You can't do this.";
-    case "notFound":
-      return "Not found.";
-    case "server":
-      return "Something went wrong on our end.";
-    case "network":
-      return "No internet connection. Please try again.";
-    case "timeout":
-      return "The server is taking too long to respond. Please try again.";
-    case "decoding":
-      return "Unexpected response from the server.";
-    default:
-      return "Something went wrong.";
-  }
+  return `API error: ${kind}`;
 }

@@ -35,7 +35,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const navigate = useNavigate();
   const goBack = useGoBack("/main/profile");
   const { t, label } = useI18n();
-  const { run, act, toast, messageOf, unavailable } = useFeedback();
+  const { run, act, toast, messageOf } = useFeedback();
   const { items } = useBaseData();
   const { state: signUp, update } = useSignUp();
   const { user, refreshUser } = useSession();
@@ -146,9 +146,9 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
     } catch (e) {
       // Until 2026-10-01 the server refused every profile update after signup with "The
       // selected Email is invalid." (BE-05). Should it happen again, that message would
-      // wrongly tell the user their email is bad, so it is shown as unavailable instead.
-      if (mode === "edit" && e instanceof ApiError && (e.isServiceFault || /email/i.test(e.message) && !e.fieldError("first_name"))) {
-        toast(unavailable(t("profile_edit_title", "Edit profile")));
+      // wrongly tell the user their email is bad, so the general message is shown instead.
+      if (mode === "edit" && e instanceof ApiError && /email/i.test(e.message) && !e.fieldError("first_name")) {
+        toast(t("general_error_general", "Something went wrong. Please try again."));
       } else if (e instanceof ApiError && e.kind === "validation") {
         setErrors(Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, v[0]])));
       } else toast(messageOf(e));

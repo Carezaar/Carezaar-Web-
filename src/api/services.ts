@@ -12,7 +12,6 @@ export const authService = {
       method: "POST",
       path: "auth/login",
       auth: false,
-      idempotent: true,
       form: { email, password, ...loginDeviceFields() },
     }));
     tokenStore.save(session);
@@ -145,7 +144,7 @@ export const userService = {
     if (input.dateOfBirth) body.append("date_of_birth", String(epochDay(input.dateOfBirth)));
     if (input.photo) body.append("photo", input.photo, input.photo.name);
     return api.send<User>({
-      method: "POST", path: "users/profile", multipart: body, auth: !input.anonymous, idempotent: true,
+      method: "POST", path: "users/profile", multipart: body, auth: !input.anonymous,
     });
   },
 
@@ -215,7 +214,7 @@ export const userService = {
   },
   createChat(partnerId: string) {
     return api.send<ChatFull>({
-      method: "POST", path: "users/chats", form: { partner_id: partnerId }, idempotent: true,
+      method: "POST", path: "users/chats", form: { partner_id: partnerId },
     });
   },
   sendMessage(chatId: number, message: string, parentId?: number | null) {
@@ -233,7 +232,7 @@ export const userService = {
   },
   addBookmark(partnerId: string) {
     return api.sendIgnoringResult({
-      method: "POST", path: "users/bookmarks", form: { partner_id: partnerId }, idempotent: true,
+      method: "POST", path: "users/bookmarks", form: { partner_id: partnerId },
     });
   },
   removeBookmark(partnerId: string) {

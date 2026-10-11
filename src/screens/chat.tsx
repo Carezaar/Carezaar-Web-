@@ -130,6 +130,21 @@ export function ChatScreen() {
       setDraft(""); setReplyTo(null);
       window.dispatchEvent(new Event(CHATS_CHANGED));
     } catch (e) {
+      // No answer: the message may have been delivered. It is not sent again; the
+      // conversation is read, and if the message is there it counts as sent.
+      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
+        const known = new Set((chat?.messages ?? []).map((m) => m.id));
+        try {
+          const fresh = chronological(await userService.chat(Number(chatId)));
+          setChat(fresh);
+          if (fresh.messages.some((m) => !known.has(m.id) && mine(m) && m.message.trim() === text)) {
+            stick.current = true;
+            setDraft(""); setReplyTo(null);
+            window.dispatchEvent(new Event(CHATS_CHANGED));
+            return;
+          }
+        } catch { /* still unknown: say so below, keep the text */ }
+      }
       toast(chatMessage(e));
     } finally {
       sendingRef.current = false;
