@@ -238,3 +238,19 @@ In r2's first run, the unmatch check read the screen too early, and the run then
 ## Test data left in the client's system
 
 The ten-change suite files a Report an Issue entry to test how issue dates are shown. It ran six times, so up to six identical issues titled "QA date display check" ("Automated web check of how dates are shown. Please ignore.") may be in the admin panel. They come from disposable accounts that have since been deleted. The API has no endpoint to delete an issue (`users/issues` offers only GET and POST), so they can only be removed from the admin side.
+
+## Final single uninterrupted pass on the pushed code
+
+All four suites ran back to back, without any rerun, against a production build of the pushed `main` (`27b882a`; app code identical to `30fbbf3`), using three new disposable accounts:
+
+| Suite | Passed | Failed | Blocked |
+|---|---|---|---|
+| t10: ten changes | 54 | 0 | 0 |
+| r1: start-up, sign-in, reset, preferences | 21 | 0 | 0 |
+| r2: matching | 30 | 0 | 0 |
+| r3: chat, settings, sessions, layouts, accessibility, other browsers | 29 | 0 | 0 |
+| **Total** | **134** | **0** | **0** |
+
+Two changes to the test suite before this pass:
+- **Issue dates:** checked against an issue list answered in the server's real format, so no further test issues are filed in the client's admin.
+- **Connection Problem recovery:** the renewal step now waits up to 90 seconds; the server took 5–30+ seconds to renew a session at times.
