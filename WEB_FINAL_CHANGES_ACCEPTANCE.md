@@ -199,3 +199,24 @@ The final counts are in `WEB_PRODUCTION_READINESS_REPORT.md`.
 | Backend | Unchanged from the previous round: the reset-code resend limit is longer than the app's 2-minute timer. The app shows the server's message. |
 | Environment | Headless browsers were used, with real touch events and a simulated camera. Safari itself can't be automated; WebKit, its engine, was tested. |
 | Test data | One test issue ("QA date display check", marked as an automated check to ignore) was filed by a disposable client account to test issue dates. The account was then deleted. |
+
+## Post-push verification of the exact revision
+
+After pushing, `main` was cloned fresh from GitHub into a clean folder and checked out at `2b7266d`. Its code is identical to `30fbbf3`; the only difference is one report file. It was installed from the lockfile (`npm ci`), built for production and served locally. The whole ten-change suite ran against it with two new disposable accounts:
+
+**54 passed, 0 failed, 0 blocked.**
+
+## Remaining limitation, per requirement
+
+| # | Remaining limitation |
+|---|---|
+| 1 | None. A match change that happens in the moment between the check and the action reaching the server is handled by the server's own answer and a reconciling read (1-j, M-13). |
+| 2 | None |
+| 3 | None. Both buttons read "Cancel" because that is the managed action label; screen readers hear the difference. |
+| 4 | None |
+| 5 | None. With reduced motion the cards appear without moving, which the specification allows. |
+| 6 | None |
+| 7 | None. Dates are whatever text the server sends; if the server's format changes, the display changes with it. |
+| 8 | None. A browser offline from the start (with no refusal from the server) shows the normal connection message, not this window, because no renewal is attempted. |
+| 9 | None. Profile and preference saves aren't retried automatically; the user can save again safely. |
+| 10 | None. The permission screen's texts aren't error messages and keep the web's own eight-language copy until the client adds them to the content table. |
