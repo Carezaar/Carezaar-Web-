@@ -224,7 +224,7 @@ function MessagesTab() {
 function MessagesHero() {
   const { t } = useI18n();
   return (
-    <Hero image="bg_messages" icon="ic_messages_off" title={t("messages_title", "Messages")}
+    <Hero image="header_senior" icon="ic_messages_off" title={t("messages_title", "Messages")}
       subtitle={t("messages_description", "All your conversations in one place")} />
   );
 }
@@ -335,7 +335,7 @@ function ProfileTab() {
 
   return (
     <>
-      <Hero image="bg_profile" icon="ic_profile_off" title={t("profile_title", "Profile")}
+      <Hero image="header_adult" icon="ic_profile_off" title={t("profile_title", "Profile")}
         subtitle={t("profile_description", "Manage your personal information and account settings.")} />
       <section className="profile-card">
         <Avatar src={user.photo} size={92} />

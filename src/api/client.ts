@@ -296,7 +296,9 @@ async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>>
     if (isRefusal(error) && options.auth !== false && options.renew !== false && used) {
       // Signed in again while this was on its way: just use the new sign-in.
       if (tokenStore.accessToken && tokenStore.accessToken !== used) return perform<T>(options);
-      let outcome = await refreshSession();
+      // Already blocked behind Connection Problem: wait for its Retry rather than make
+      // another renewal attempt of our own.
+      let outcome: RefreshOutcome = blocked ? "unreachable" : await refreshSession();
       if (outcome === "unreachable") {
         // The server can't be reached to renew the sign-in: one blocking Connection
         // Problem window instead of an error for every action. Reads go on after the

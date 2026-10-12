@@ -367,6 +367,10 @@ function SignUpScene({ form }: { form: SignUpForm }) {
   } = form;
   const [revealPassword, setRevealPassword] = useState(false);
   const [revealConfirm, setRevealConfirm] = useState(false);
+  // Continue stays disabled while the passwords differ, so say why as the user types
+  // (as the desktop card and Set Up Password do).
+  const shown = error ?? (confirmation !== "" && confirmation !== password
+    ? t("signup_credentials_password_match", "Passwords do not match.") : null);
 
   const binder = useMemo<SceneBinder>(() => {
     const isDialogNode = (n: DesignNode) => n.name === "Dialog" || n.name === "Rectangle 2931";
@@ -385,7 +389,7 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         || n.id === RULE_CHIP_ROW
         // Two lines with the values in blue, drawn as an overlay below.
         || n.name === "Credentials"
-        || (n.name === "Error" && !error)
+        || (n.name === "Error" && !shown)
         || n.text === "Confirm your password..."
         // No translation exists for this hint; the rule chips carry the same rules.
         || (languageId !== 1 && Boolean(n.text?.startsWith("Use 8 or more characters"))),
@@ -395,7 +399,7 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         return undefined;
       },
       text: (n) => {
-        if (n.name === "Error") return error ?? undefined;
+        if (n.name === "Error") return shown ?? undefined;
         if (n.text?.startsWith("Please review the details below")) {
           return t("signup_credentials_confirm_dialog_email_description", "Please review your email address below. It will be used to continue.");
         }
@@ -403,7 +407,7 @@ function SignUpScene({ form }: { form: SignUpForm }) {
       },
       inputType: (n) => (n.inputType === "password" && revealPassword ? "text" : undefined),
     };
-  }, [email, setEmail, password, setPassword, confirming, setConfirming, error, valid, t, goBack, proceed, confirm, languageId, revealPassword]);
+  }, [email, setEmail, password, setPassword, confirming, setConfirming, shown, valid, t, goBack, proceed, confirm, languageId, revealPassword]);
 
   return (
     <FigmaScreen sceneKey="v2-56-84378" binder={binder} overlays={[
