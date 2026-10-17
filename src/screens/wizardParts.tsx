@@ -9,6 +9,7 @@ import { BackHeader, Page } from "../ui/layout";
 import { Button, CheckChip, Field, Stepper } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 import type { LatLng } from "./LocationPicker";
+import { parsePay } from "../validation/validation";
 
 /** Android client-type art → the description slug shown under each care type. */
 const CARE_TYPE_DESCRIPTION: Record<string, string> = {
@@ -99,17 +100,18 @@ export function SalaryRange({ min, max, onMin, onMax, unit, title }: {
   unit: string; title: string;
 }) {
   const { t } = useI18n();
-  const parse = (v: string) => (v === "" ? null : Math.max(0, Math.round(Number(v))));
+  // Digits only, at most 6 (F4).
+  const parse = parsePay;
   return (
     <Section title={title} hint={`(${unit})`}>
       <div className="grid-2">
         <Field label={t("signup_form_client_minimum", "Minimum")} icon="ic_usd">
-          <input type="number" inputMode="numeric" min={0} value={min ?? ""} aria-label={t("signup_form_client_minimum", "Minimum")}
-            onChange={(e) => onMin(parse(e.target.value))} />
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={min ?? ""}
+            aria-label={t("signup_form_client_minimum", "Minimum")} onChange={(e) => onMin(parse(e.target.value))} />
         </Field>
         <Field label={t("signup_form_client_maximum", "Maximum")} icon="ic_usd">
-          <input type="number" inputMode="numeric" min={0} value={max ?? ""} aria-label={t("signup_form_client_maximum", "Maximum")}
-            onChange={(e) => onMax(parse(e.target.value))} />
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={max ?? ""}
+            aria-label={t("signup_form_client_maximum", "Maximum")} onChange={(e) => onMax(parse(e.target.value))} />
         </Field>
       </div>
     </Section>

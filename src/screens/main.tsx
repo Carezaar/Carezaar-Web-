@@ -8,6 +8,7 @@ import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
+import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
 import { AppHeader, BottomNav, Hero } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, PhotoBox, Spinner } from "../ui/kit";
@@ -157,11 +158,11 @@ function MatchesTab() {
         <ul className="card-list">
           {list.items.map((c) => (
             <li key={c.id}>
-              <article className="match-card" {...cardLink(() => navigate(isClient ? `/caregivers/${c.id}` : `/clients/${c.id}`), `${c.user.first_name} ${c.user.last_name}`)}>
+              <article className="match-card" {...cardLink(() => navigate(isClient ? `/caregivers/${c.id}` : `/clients/${c.id}`), personName(c.user, t))}>
                 <PhotoBox className="match-photo" src={c.user.photo} />
                 <div className="match-body">
                   <div className="match-title">
-                    <h3>{c.user.first_name} {c.user.last_name}</h3>
+                    <h3>{personName(c.user, t)}</h3>
                     {!isClient && c.min !== null && <span className="price"><bdi className="range">${c.min} - ${c.max}</bdi></span>}
                   </div>
                   <p className="meta"><Icon name="ic_distance" size={20} tint="var(--primary)" />
@@ -178,7 +179,7 @@ function MatchesTab() {
                   {/* Only for a current match (the server's is_match), not for requests. */}
                   {c.isMatch && <Icon name="ic_match_on" size={26} tint="var(--success)" label={t("general_match", "Match")} />}
                   <button type="button" className="icon-btn card-heart" aria-pressed={c.user.is_favorite}
-                    aria-label={`${c.user.is_favorite ? "Remove from favorites" : "Add to favorites"}: ${c.user.first_name ?? ""} ${c.user.last_name ?? ""}`}
+                    aria-label={`${c.user.is_favorite ? "Remove from favorites" : "Add to favorites"}: ${personName(c.user, t)}`}
                     onClick={(e) => { e.stopPropagation(); void toggleFavorite(c); }}
                     onKeyDown={(e) => e.stopPropagation()}>
                     <Icon name={c.user.is_favorite ? "ic_favorite_on" : "ic_favorite_off"} size={26}
@@ -256,6 +257,8 @@ export function MessagesDesktop({ selectedId, nested = false, children }: { sele
 /** Fired after sending, so a visible chat list refreshes its last-message preview. */
 export const CHATS_CHANGED = "carezaar:chats-changed";
 
+const CHAT_LIST_POLL_MS = 10_000;
+
 function ChatList({ selectedId }: { selectedId: number | null }) {
   const navigate = useNavigate();
   const { role } = useSession();
@@ -265,12 +268,20 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
     const work = userService.chats(page);
     return page === 1 ? run(`${t("loading_chat_get_all", "Getting list of chats - Page")} ${page}`, () => work) : work;
   }, []);
-  const { reload } = list;
+  const { reload, refresh } = list;
   useEffect(() => {
     const onChange = () => void reload();
     window.addEventListener(CHATS_CHANGED, onChange);
     return () => window.removeEventListener(CHATS_CHANGED, onChange);
   }, [reload]);
+  // The list updates itself every 10 seconds while it is open, as on Android (parity
+  // review v4.0, K1): quietly, keeping what is shown if a check fails.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") refresh({ keepMore: true }).catch(() => undefined);
+    }, CHAT_LIST_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
   return (
     <>
       {list.error && list.items.length === 0 ? (
@@ -291,7 +302,7 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
                   onClick={() => navigate(`/chat/${chat.id}`, { replace: selectedId !== null })}>
                   <Avatar src={partner?.photo} size={60} />
                   <span className="chat-row-text">
-                    <span className="chat-row-top"><b>{partner?.first_name} {partner?.last_name}</b>
+                    <span className="chat-row-top"><b>{personName(partner, t)}</b>
                       <small>{chat.updated_at}</small></span>
                     <span className="muted ellipsis" dir="auto">{chat.last_message}</span>
                   </span>
@@ -329,7 +340,7 @@ function ProfileTab() {
     { icon: "ic_language", title: t("profile_change_language_title", "Change Language"), description: t("profile_change_language_description", "Choose your preferred language"), to: "/change-language" },
     { icon: "ic_favorite_off", title: t("profile_favorites_title", "Favorites"),
       description: role === "client" ? t("profile_favorites_client_description", "View your saved caregivers") : t("profile_favorites_caregiver_description", "View your saved clients"), to: "/favorites" },
-    { icon: "ic_lock", title: t("navigation_drawer_password_title", "Change Password"), description: t("navigation_drawer_password_description", "Update your account password"), to: "/change-password" },
+    { icon: "ic_lock", title: t("profile_password_change_title", "Change Password"), description: t("profile_password_change_description", "Change your current password"), to: "/change-password" },
     { icon: "ic_logout", title: t("profile_log_out_title", "Log Out"), description: t("profile_log_out_description", "Sign out from your account"), action: () => setConfirmLogout(true), tone: "danger" },
   ];
 

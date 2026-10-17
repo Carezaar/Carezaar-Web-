@@ -1,0 +1,35 @@
+# Web ↔ Android functional parity (parity review v4.0)
+
+Source: *Carezaar – Web and Android Parity Review*, version 4.0, 16 October 2026 (10 pages), prepared by Mohammad Mostafa Shahraki. It lists 19 items to change on the web ("Align with app") and 3 accepted differences.
+
+Reference used for Android: the review itself, the live managed texts (`GET base/contents`, read 17 October 2026) and the live API. The only Android build available locally is `Carezaar v1_0_0 2026-09-21 10-00.apk` (decompiled with jadx 1.5.6). It predates the Android updates of 13 and 15 October that the review compares against, and none of the review's new texts are in it. **No Kotlin source was available or reviewed.**
+
+Evidence paths are relative to the delivery workspace (`test-evidence/web/…`). The browser suite is `web-qa/pv-web.mjs` (with `pv-extra.mjs`); unit tests are `tests/parity.test.mjs` and `tests/session.test.mjs`.
+
+Status: **PASS** = verified on the running app with evidence; **BLOCKED** = cannot be completed without something from the client.
+
+| ID (page) | Area | Required (Android) | Web implementation | Test / evidence | Status |
+|---|---|---|---|---|---|
+| A1 (p4) | Opening the app | Ask for notification permission as the app opens; carry on whether allowed or not | `src/app/NotificationGate.tsx`: asks on the first click (browsers only allow it after a user action, an accepted platform difference); no blocking window ever | `pv-web A1` (allowed / refused, site usable), `lb B-10-webkit-gate`; `pv-A1-refused-still-usable.png` | PASS |
+| B1 (p4) | Signing in | Unfinished sign-up: show the server's message and go to the profile step | `src/screens/auth.tsx` (`useSignInForm`), `src/api/errors.ts` (`meta`): 409 + `meta.role` → toast with the server's text, sign-up state seeded, `/sign-up/profile` | `pv-web B1`: real account, login 409 → profile step → profile saved → preferences wizard; `pv-B1-profile-step.png` | PASS |
+| C2 (p5) | Create Account | Continue always active; every problem under its own field with the managed texts | `src/validation/validation.ts` `signUpErrors`, `src/screens/auth.tsx`, `src/screens/authCards.tsx` | `tests/parity.test.mjs`; `pv-web C2` phone + desktop, Chrome/Firefox/WebKit; `pv-C2-*-empty.png`, `pv-C2-*-invalid.png` | PASS |
+| C3 (p5) | Create Account | "I agree to the Terms of Use and acknowledge that I have read the Privacy Policy."; each name opens the document in the app, scrollable and zoomable | `src/screens/legal.tsx` (`ConsentText`, `LegalDocumentDialog`), `src/api/config.ts` (`LEGAL_DOCUMENT_URLS`) | `pv-web C3` (sentence, links, titles, box not ticked), `pv-extra C3-viewer` (iframe, zoom to 150 %, scroll, Escape), `KBD-signup`, `RTL-signup` | **BLOCKED** (UI done; no Terms of Use / Privacy Policy document exists to show) |
+| C4 (p5) | Create Account | Confirmation text `signup_credentials_confirm_dialog_description` | Both layouts use the managed slug | `pv-web C4` phone + desktop; `pv-C4-*.png` | PASS |
+| C5 (p5) | Create Account | Account created but code not sent → code screen still opens, code can be asked again | `useSignUpForm.confirm`: after a successful register, a failed `users/otp/send` still opens `/otp` with Re-send available at once | `pv-web C5` (register answered, otp/send dropped); `pv-C5-otp-after-send-failure.png` | PASS |
+| F1 (p6) | Preferences / skills | No automatic location; whole-country map when none chosen; device location only on My Location | `src/screens/LocationPicker.tsx`: removed the locate-on-open call | `pv-web F1`: 0 geolocation calls on open, 1 after My Location; `pv-F1-whole-country.png` | PASS |
+| F2 (p6) | Preferences / skills | Refused location access → `general_location_permission_denied` | `LocationPicker.tsx` | `pv-web F2`; `pv-F2-denied.png` | PASS |
+| F3 (p6) | Preferences / skills | Continuing without a location → `general_location_required` | `src/screens/wizard.tsx` (both wizards) | `pv-web F3`; `pv-F3-location-required.png` | PASS |
+| F4 (p6) | Preferences / skills | Pay: digits only, up to 6 | `parsePay` in `validation.ts`; text inputs with numeric keypad in `wizardParts.tsx` | `tests/parity.test.mjs`; `pv-web F4` ("12.5abc9999999" → 125999); `pv-F4-pay-digits.png` | PASS |
+| K1 (p7) | Messages | Conversation list updates itself every 10 s while open | `src/screens/main.tsx` `ChatList` timer (visible tab only), `usePaged.refresh({ keepMore })` | `pv-web K1`: a message from the other role appeared in 9.2 s; 2 reads / 25 s; `pv-K1-list-updated.png` | PASS |
+| K2 (p7) | Messages | Former match: box off, grey send, `chat_screen_match_check` above the box | `src/screens/chat.tsx` | `pv-web K2` (Chrome/Firefox/WebKit), `lb B-3.7`; `pv-K2-former-match.png` | PASS |
+| K3 (p7) | Messages | Deleted account: "Deleted Account" everywhere; conversation closed with `chat_screen_account_deleted` | `src/app/names.ts` (`personName`) used in chats, conversation, notifications, matches, favourites, profile; `chat.tsx` closed state | API shape verified live (`is_deleted: true`, null names); `pv-web K3` (list, conversation, notifications), `RTL-chat`; `pv-K3-*.png` | PASS |
+| K4 (p7) | Messages | Empty send → `chat_screen_message_required` | `chat.tsx`: Send stays active | `pv-web K4` (toast, 0 requests; 3 browsers); `pv-K4-empty-send.png` | PASS |
+| M1 (p8) | My profile | Messages/Profile header pictures: a phone with a conversation; everyday care scenes | Not changed | `pv-M1-*-current.png` | **BLOCKED** (images not available) |
+| M2 (p8) | My profile | Change Password entry reads "Change your current password" | `main.tsx`: `profile_password_change_title` / `_description` | `pv-web M2`; `pv-M2-profile-menu.png` | PASS |
+| O1 (p8) | Account settings | After a password change: signed out, back to the start | `src/screens/account.tsx` `ChangePasswordScreen` | `pv-web O1` (to `/intro`, new password signs in), `la A-10b`, `l02 9-f` (answer lost) | PASS |
+| Q1 (p9) | Behind the scenes | An error answering the renewal signs the person out; Connection Problem only when unreachable | `src/api/client.ts` `refreshSession` | `tests/session.test.mjs` (500 and 401 → signed out), `pv-web Q1`, `l02 8-f`; `pv-Q1-signed-out.png` | PASS |
+| Q2 (p9) | Behind the scenes | Retry success closes the window; what failed meanwhile shows its error and is not repeated | `client.ts` `sendEnvelope` / `retryRenewal`; requests no longer wait behind the window | `tests/session.test.mjs`, `pv-web Q2`, `l02 8-a…8-g`; `pv-Q2-*.png` | PASS |
+
+Accepted differences (no change, as agreed): **C1** sign-up progress kept for the browser session; **E1** photos JPEG/PNG/WebP up to 10 MB; **Q3** current photo read through the site's `/uploads/` path.
+
+Areas the review found fully aligned (D, G, H, I, J, L, N, P) were covered by the regression suites listed in `WEB_PARITY_TEST_EXECUTION_REPORT.md`.

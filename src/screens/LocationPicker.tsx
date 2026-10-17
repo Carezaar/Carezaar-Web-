@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { BackHeader } from "../ui/layout";
 import { Button } from "../ui/kit";
@@ -14,10 +15,13 @@ export function LocationPicker({ initial, onConfirm, onCancel }: {
   initial: LatLng | null; onConfirm: (p: LatLng) => void; onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const { toast } = useFeedback();
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const [locating, setLocating] = useState(false);
 
+  // Nothing chosen yet: the whole country. The visitor's own location is asked for only
+  // when they tap My Location, as on Android (parity review v4.0, F1).
   useEffect(() => {
     if (!host.current || map.current) return;
     const start = initial ?? { lat: 39.8283, lng: -98.5795 };
@@ -26,17 +30,23 @@ export function LocationPicker({ initial, onConfirm, onCancel }: {
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19, attribution: "© OpenStreetMap",
     }).addTo(map.current);
-    if (!initial) locate();
     return () => { map.current?.remove(); map.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the map is created once per mount
   }, []);
 
+  const denied = () => toast(t("general_location_permission_denied", "Allow location access to use your current location."));
+
   function locate() {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) { denied(); return; }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => { map.current?.setView([pos.coords.latitude, pos.coords.longitude], 15); setLocating(false); },
-      () => setLocating(false),
+      (error) => {
+        setLocating(false);
+        // Refused (now or earlier, in the browser's site settings): say what's needed
+        // rather than leave a button that seems not to work (F2).
+        if (error.code === error.PERMISSION_DENIED) denied();
+      },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   }

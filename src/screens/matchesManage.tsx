@@ -6,6 +6,7 @@ import { awaitsPartner, matchStage } from "../api/match";
 import { useSession } from "../auth/SessionContext";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
+import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, Spinner } from "../ui/kit";
@@ -46,10 +47,10 @@ export function ManageMatchesScreen() {
               const preview = requestPreview(m.introduction ?? "");
               return (
                 <li key={m.id}>
-                  <article className="match-row" {...cardLink(() => { if (partner) navigate(role === "client" ? `/caregivers/${partner.id}` : `/clients/${partner.id}`); }, `${partner?.user.first_name ?? ""} ${partner?.user.last_name ?? ""}`)}>
+                  <article className="match-row" {...cardLink(() => { if (partner) navigate(role === "client" ? `/caregivers/${partner.id}` : `/clients/${partner.id}`); }, personName(partner?.user, t))}>
                     <Avatar src={partner?.user.photo} size={72} />
                     <div className="match-row-text">
-                      <h3>{partner?.user.first_name} {partner?.user.last_name}</h3>
+                      <h3>{personName(partner?.user, t)}</h3>
                       <p className="muted">{t("match_start", "Start")}: {m.created_at}</p>
                       {m.finished_at && <p className="muted">{t("match_end", "End")}: {m.finished_at}</p>}
                       {stage === "pending" && role && awaitsPartner(m, role) && <p className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</p>}
@@ -88,7 +89,7 @@ function IntroductionDialog({ match, onClose }: { match: Match | null; onClose: 
   const { t } = useI18n();
   if (!match) return null;
   const partner = role === "client" ? match.caregiver : match.client;
-  const name = `${partner?.user.first_name ?? ""} ${partner?.user.last_name ?? ""}`.trim();
+  const name = personName(partner?.user, t);
   return (
     <Dialog open onClose={onClose} labelledBy="intro-title" title={t("match_introduction_title", "Introduction")}>
       <div className="request-context-who"><Avatar src={partner?.user.photo} size={56} name={name} /><b dir="auto">{name}</b></div>

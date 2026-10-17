@@ -9,6 +9,7 @@ import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
+import { personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
 import { Button, Dialog, PhotoBox, Spinner, TextArea } from "../ui/kit";
 import { INTRODUCTION_MAX_LENGTH } from "../api/config";
@@ -164,7 +165,7 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
         </div>
         <div className="detail-facts">
           <h1><Icon name={find("genders", partner.gender_id)?.icon} size={26} tint="var(--primary-dark)" />
-            {partner.first_name} {partner.last_name}</h1>
+            {personName(partner, t)}</h1>
           <p className="muted">{isCaregiver ? label(find("roles", cg.role_id)) : label(find("clienttypes", cl.clienttype_id))}</p>
           <p className="fact"><Icon name="ic_distance" size={26} tint="var(--primary-dark)" /><b>{formatDistance(detail.distance)}</b> {t("general_miles_away", "mile(s) away")}</p>
           {isCaregiver && <p className="fact"><Icon name="ic_calendar" size={26} tint="var(--primary-dark)" />{label(find("experiences", cg.experience_id))}</p>}

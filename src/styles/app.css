@@ -235,6 +235,10 @@ a { color: var(--primary); }
 .composer-row textarea { flex: 1; resize: none; border: 0; background: #eaf2fc; border-radius: 16px; padding: 16px; font-size: 15px; max-height: 120px; }
 .send-btn { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--primary); display: grid; place-items: center; cursor: pointer; }
 .send-btn:disabled { opacity: .45; }
+/* A conversation that can't take messages any more: grey send button, note above the box. */
+.send-btn.closed { background: var(--text-secondary); }
+.composer-row textarea:disabled { background: #f0f2f5; color: var(--text-secondary); }
+.composer-note { margin: 0; font-size: 13px; color: var(--text-secondary); text-align: center; }
 
 /* ---------- matches management ---------- */
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
@@ -288,7 +292,14 @@ a { color: var(--primary); }
 .dialog { width: min(100%, 400px); max-height: 86dvh; overflow: auto; background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 14px; }
 .dialog-title { margin: 0; text-align: center; font-size: 22px; display: flex; gap: 8px; justify-content: center; align-items: center; }
 .dialog p { margin: 0; text-align: center; }
-.eula { white-space: pre-wrap; font-size: 13px; max-height: 55dvh; overflow: auto; text-align: start; }
+.consent-field { display: flex; flex-direction: column; gap: 4px; }
+.consent-text { font-size: 14px; line-height: 1.4; }
+.legal-link { text-decoration: underline; padding: 0; font-size: inherit; display: inline; }
+.legal-zoom { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 14px; }
+.legal-zoom .icon-btn { font-size: 22px; line-height: 1; width: 36px; height: 36px; color: var(--primary); }
+.legal-document { height: 55dvh; overflow: auto; border: 1px solid var(--border, #e3e8ef); border-radius: 12px; }
+.legal-document iframe { border: 0; display: block; }
+.dialog p.legal-missing { padding: 24px 0; }
 .busy-scrim { z-index: 50; background: rgba(15, 20, 30, .22); }
 .busy-card { background: #fff; border-radius: 16px; padding: 16px 20px; box-shadow: 0 12px 40px rgba(0,0,0,.18); min-width: 260px; max-width: 340px; }
 .busy-head { display: flex; gap: 12px; align-items: center; font-size: 17px; }

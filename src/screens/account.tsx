@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
 import { authService, userService } from "../api/services";
-import { replaceSession } from "../api/client";
 import type { AppNotification, Faq, FaqCategory, Issue, User } from "../api/types";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
+import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
 import { isPasswordValid, passwordRules, required } from "../validation/validation";
 import { BackHeader, Page } from "../ui/layout";
@@ -79,7 +79,7 @@ export function NotificationsScreen() {
                     );
                   })()}
                   <span className="notif-text">
-                    {n.partner && <b dir="auto">{n.partner.first_name} {n.partner.last_name}</b>}
+                    {n.partner && <b dir="auto">{personName(n.partner, t)}</b>}
                     <span>{label(find("subjects", n.subject_id))}</span>
                   </span>
                   <span className="notif-when">
@@ -101,7 +101,7 @@ export function NotificationsScreen() {
             {selected.partner && (
               <div className="notif-details-who">
                 <Avatar src={selected.partner.photo} size={64} />
-                <b dir="auto">{selected.partner.first_name} {selected.partner.last_name}</b>
+                <b dir="auto">{personName(selected.partner, t)}</b>
               </div>
             )}
             <p id="notification-text">{label(find("subjects", selected.subject_id)) || t("general_notifications", "Notifications")}</p>
@@ -138,9 +138,9 @@ export function FavoritesScreen() {
           <ul className="card-list">
             {list.items.map((u) => (
               <li key={u.id}>
-                <article className="fav-card" {...cardLink(() => navigate(partnerPath(u)), `${u.first_name} ${u.last_name}`)}>
+                <article className="fav-card" {...cardLink(() => navigate(partnerPath(u)), personName(u, t))}>
                   <Avatar src={u.photo} size={96} />
-                  <div className="fav-text"><h3>{u.first_name} {u.last_name}</h3><p className="clamp-3" dir="auto">{u.bio}</p></div>
+                  <div className="fav-text"><h3>{personName(u, t)}</h3><p className="clamp-3" dir="auto">{u.bio}</p></div>
                   <div className="match-side">
                     <button type="button" className="icon-btn" aria-label="Remove from favorites"
                       onClick={(e) => { e.stopPropagation(); void remove(u); }}>
@@ -341,10 +341,9 @@ export function ChangeLanguageScreen() {
 /** Calls `users/password/change` as Android does. The user stays signed in afterwards. */
 export function ChangePasswordScreen() {
   const navigate = useNavigate();
-  const goBack = useGoBack("/main/profile");
   const { t } = useI18n();
   const { act, toast, messageOf } = useFeedback();
-  const { user, refreshUser, signOut } = useSession();
+  const { user, signOut } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -354,14 +353,11 @@ export function ChangePasswordScreen() {
     setConfirming(false);
     const email = user?.email;
     if (!email) return;
-    // The server ends every session of the account when its password changes (verified:
-    // the old tokens are refused with 401). To keep the user signed in, a new session is
-    // opened with the new password straight away, and requests refused in between wait
-    // for it (replaceSession). If signing in again fails, the user is signed out cleanly
-    // rather than left with a session that no longer works.
-    let changed = false;
+    // After the password changes, the person is signed out and taken back to the start,
+    // where they sign in with the new password, as on Android (parity review v4.0, O1).
+    // The server ends every session of the account at that moment anyway.
     try {
-      await act(t("loading_user_password_change", "Changing password"), () => replaceSession(async () => {
+      await act(t("loading_user_password_change", "Changing password"), async () => {
         try {
           await userService.changePassword(current, next);
         } catch (e) {
@@ -369,25 +365,15 @@ export function ChangePasswordScreen() {
           // with the new password (a check, not a repeat) shows whether it did.
           if (!(e instanceof ApiError && (e.kind === "network" || e.kind === "timeout"))) throw e;
           try { await authService.login(email, next); } catch { throw e; }
-          changed = true;
-          return;
         }
-        changed = true;
-        await authService.login(email, next);
-      }));
+      });
     } catch (e) {
-      if (!changed) {
-        toast(messageOf(e));
-        return;
-      }
       toast(messageOf(e));
-      await signOut();
-      navigate("/sign-in", { replace: true });
       return;
     }
-    await refreshUser();
     setCurrent(""); setNext(""); setConfirmation("");
-    goBack();
+    await act(t("loading_auth_logout", "Signing out"), signOut);
+    navigate("/intro", { replace: true });
   };
   return (
     <Page header={<BackHeader title={t("settings_change_password_title", "Change Password")} />}

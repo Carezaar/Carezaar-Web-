@@ -49,3 +49,12 @@ Routed as engineering work on the existing app (client specification of 9–10 O
 | 2 | implementation (no skill invoked) | Implemented the 9 October list and the networking follow-up (see WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md). | src/**, tests/* |
 | 3 | tdd — partial (no skill invoked) | Unit tests for the password symbol set, the first-line preview and paging merge; browser checks against the live API in Chrome, WebKit and Firefox. Two defects found by testing and fixed: GIF accepted (approved difference) and a session-replacement race after a password change. | tests/*, src/screens/profileForm.tsx, src/api/client.ts |
 | 4 | humanizer — NOT RUN | Not installed on this machine; report and docs written plainly. | README.md, docs/WEB-VS-ANDROID.md, WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md |
+
+# Parity review v4.0 (web) — 2026-10-17
+
+| ## | skill | what it changed | files touched |
+| --- | --- | --- | --- |
+| 1 | investigate (no skill invoked) | Read both parity PDFs (v4.0 web, v3.0 iOS) and both QA documents; probed the live API: 409 + `meta.role` for an unfinished sign-up, `is_deleted` + null names for deleted accounts, every quoted managed text present in `base/contents`. Decompiled the 21 Sep APK with jadx: it predates the Android update the review compares against. | none |
+| 2 | implementation (no skill invoked) | All 19 "Align with app" items except M1 (images not available) and the C3 document content (documents not available). No redesign. | src/**, docs/WEB-VS-ANDROID.md |
+| 3 | tdd — partial (no skill invoked) | Unit tests for the sign-up checks, pay parsing, deleted-account names and the renewal/Connection Problem rules (real API client, scripted fetch); browser suite pv-web/pv-extra per item; earlier regression suites updated only where the review reversed a behaviour. | tests/parity.test.mjs, tests/session.test.mjs, web-qa/pv-*.mjs |
+| 4 | new design direction — N/A | Parity corrections only; existing components and styles reused. | None |

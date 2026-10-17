@@ -62,3 +62,33 @@ export function validateConfirmation(password: string, confirmation: string): st
 
 /** The OTP is 5 digits ("Kindly enter the 5-digit OTP that we sent to your email."). */
 export const OTP_LENGTH = 5;
+
+export interface SignUpFields { email: string; password: string; confirmation: string; accepted: boolean }
+export interface SignUpErrors { email?: string; password?: string; confirmation?: string; accepted?: string }
+
+/** Create Account's Continue, as on Android (parity review v4.0, C2 / iOS v3.0, C1):
+ *  every field is checked at once and each problem is reported under its own field, in
+ *  the managed texts: a missing entry, an invalid email, the first password rule not
+ *  met (its checklist label), passwords that differ, or the agreement not ticked. */
+export function signUpErrors(f: SignUpFields, t: (slug: string, fallback: string) => string): SignUpErrors {
+  const required = t("general_required", "This field is required.");
+  const email = f.email.trim();
+  const unmet = passwordRules(f.password).find((r) => !r.satisfied);
+  return {
+    email: email === "" ? required
+      : validateEmail(email) ? t("signup_credentials_email_invalid", "Please enter a valid email address.") : undefined,
+    password: f.password === "" ? required
+      : unmet ? t(`signup_credentials_password_validation_${unmet.id}`, unmet.label) : undefined,
+    confirmation: f.confirmation === "" ? required
+      : f.confirmation !== f.password ? t("signup_credentials_password_match", "Passwords do not match.") : undefined,
+    accepted: f.accepted ? undefined : t("signup_credentials_accept_required", "Please accept the license agreement to continue."),
+  };
+}
+
+/** Pay rates: digits only, at most 6, as on Android (parity review v4.0, F4). Anything
+ *  else typed or pasted is dropped, never rounded. */
+export const PAY_MAX_DIGITS = 6;
+export function parsePay(value: string): number | null {
+  const digits = value.replace(/\D/g, "").slice(0, PAY_MAX_DIGITS);
+  return digits === "" ? null : Number(digits);
+}

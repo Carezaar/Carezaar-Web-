@@ -119,7 +119,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         <SalaryRange title={t("signup_form_client_pay_rate", "Pay Rate")} unit={t("signup_form_client_usd_per_hour", "USD per hour")}
           min={salaryMin} max={salaryMax} onMin={setSalaryMin} onMax={setSalaryMax} />
       </>,
-      problem: () => (location ? null : t("signup_form_client_location_hint", "Tap to select location from map or your current location"))
+      problem: () => (location ? null : t("general_location_required", "Please select a location to continue."))
         ?? need(commutes, t("signup_form_client_max_commute", "Max Commute"))
         ?? need(shifts, t("signup_form_client_preferred_shifts", "Preferred Shifts"))
         ?? need(days, t("signup_form_client_care_days", "Care Days"))
@@ -290,7 +290,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         <SalaryRange title={t("signup_form_caregiver_salary", "Expected Pay Rate")} unit={t("signup_form_caregiver_unit", "USD per hour")}
           min={salaryMin} max={salaryMax} onMin={setSalaryMin} onMax={setSalaryMax} />
       </>,
-      problem: () => (location ? null : t("signup_form_client_location_hint", "Tap to select location from map or your current location"))
+      problem: () => (location ? null : t("general_location_required", "Please select a location to continue."))
         ?? need(commute !== null, t("signup_form_caregiver_commute", "Max Commute"))
         ?? need(shifts.length > 0, t("signup_form_caregiver_shift", "Preferred Shifts"))
         ?? need(days.length > 0, t("signup_form_caregiver_careday", "Days Available"))

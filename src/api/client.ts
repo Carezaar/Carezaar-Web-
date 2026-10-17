@@ -92,8 +92,8 @@ async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean
   }
 }
 
-/** `renewed`: new tokens stored. `refused`: the server will not renew this sign-in.
- *  `unreachable`: no answer, so the session may still be fine. */
+/** `renewed`: new tokens stored. `refused`: the server answered, but not with a new
+ *  sign-in. `unreachable`: no answer at all, so the session may still be fine. */
 type RefreshOutcome = "renewed" | "refused" | "unreachable";
 let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
@@ -104,10 +104,11 @@ async function refreshSession(): Promise<RefreshOutcome> {
     const refresh = tokenStore.refreshToken;
     if (!refresh) return "refused";
     const replaced = () => tokenStore.refreshToken !== null && tokenStore.refreshToken !== refresh;
+    let response: Response;
     try {
       // Only the app version: the backend requires it (422 "The version app field is
       // required." without it) and needs no other device field to renew.
-      const response = await fetchWithRetry(buildUrl("auth/refresh"), {
+      response = await fetchWithRetry(buildUrl("auth/refresh"), {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${refresh}`,
@@ -117,14 +118,21 @@ async function refreshSession(): Promise<RefreshOutcome> {
         },
         body: encodeForm({ version_app: APP_VERSION }),
       }, false); // no automatic retry: a renewal that can't reach the server opens Connection Problem
-      // A new sign-in replaced these tokens meanwhile: use it rather than give up.
-      if (!response.ok) return replaced() ? "renewed" : response.status >= 500 ? "unreachable" : "refused";
+    } catch {
+      return "unreachable";
+    }
+    // The server answered. Any error, a server error (5xx) included, ends the sign-in,
+    // as on Android (parity review v4.0, Q1): Connection Problem is only for a server
+    // that can't be reached at all. A new sign-in that replaced these tokens meanwhile
+    // is used rather than given up.
+    if (!response.ok) return replaced() ? "renewed" : "refused";
+    try {
       const envelope = (await response.json()) as ApiEnvelope<Session>;
       if (!envelope.result?.access_token || !envelope.result.refresh_token) return "refused";
       tokenStore.save(envelope.result);
       return "renewed";
     } catch {
-      return "unreachable";
+      return "refused";
     }
   })();
   const result = await refreshInFlight;
@@ -213,6 +221,8 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
         response.status >= 500 ? "server" : "unknown",
         message,
         response.status,
+        {},
+        (raw.meta && typeof raw.meta === "object" ? raw.meta : null) as Record<string, unknown> | null,
       );
   }
 }
@@ -220,68 +230,36 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
 /** The server refused the request (401 or 403), whatever the reason it gives. */
 const isRefusal = (error: unknown) => error instanceof ApiError && (error.kind === "unauthenticated" || error.kind === "forbidden");
 
-/** Replaces the session (e.g. signing in again after a password change, which ends
- *  every session of the account). While `work` runs, any request the server refuses
- *  waits for it and is then sent once more with the new sign-in, instead of trying to
- *  renew the old one and signing the user out. */
-export async function replaceSession(work: () => Promise<void>): Promise<void> {
-  while (refreshInFlight) await refreshInFlight.catch(() => undefined);
-  let failure: unknown = null;
-  const switching = (async (): Promise<RefreshOutcome> => {
-    try { await work(); } catch (error) { failure = error; }
-    // Whatever happened, waiting requests try once more with the tokens now stored.
-    return "renewed";
-  })();
-  refreshInFlight = switching;
-  try {
-    await switching;
-  } finally {
-    if (refreshInFlight === switching) refreshInFlight = null;
-  }
-  if (failure) throw failure;
-}
-
 /* ------------------------------------------------- Connection Problem window */
 
-/** Dispatched with `detail: boolean` when the app must block on (or is released from)
- *  a sign-in renewal that couldn't reach the server. */
+/** Dispatched with `detail: boolean` when the Connection Problem window opens (the
+ *  sign-in had to be renewed and the server couldn't be reached) or closes. */
 export const CONNECTION_PROBLEM_EVENT = "carezaar:connection-problem";
 
-let blocked: { promise: Promise<"renewed" | "refused">; settle: (outcome: "renewed" | "refused") => void } | null = null;
+let problemOpen = false;
 
-/** Every request whose renewal couldn't reach the server waits here, behind one
- *  Connection Problem window, until a Retry renews the sign-in or the server refuses it. */
-function waitForRenewal(): Promise<"renewed" | "refused"> {
-  if (!blocked) {
-    let settle!: (outcome: "renewed" | "refused") => void;
-    const promise = new Promise<"renewed" | "refused">((resolve) => { settle = resolve; });
-    blocked = { promise, settle };
-    window.dispatchEvent(new CustomEvent(CONNECTION_PROBLEM_EVENT, { detail: true }));
-  }
-  return blocked.promise;
-}
-
-function release(outcome: "renewed" | "refused") {
-  const current = blocked;
-  blocked = null;
-  current?.settle(outcome);
-  window.dispatchEvent(new CustomEvent(CONNECTION_PROBLEM_EVENT, { detail: false }));
+function setConnectionProblem(open: boolean) {
+  if (problemOpen === open) return;
+  problemOpen = open;
+  window.dispatchEvent(new CustomEvent(CONNECTION_PROBLEM_EVENT, { detail: open }));
 }
 
 /** The Connection Problem window's Retry: one renewal attempt. Returns false while the
- *  server still can't be reached (the window stays); on success the waiting reads go
- *  on; if the server refuses the sign-in, the user is signed out. */
+ *  server still can't be reached (the window stays). Otherwise the window closes: with
+ *  a new sign-in the app simply carries on, and if the server refuses the sign-in the
+ *  user is signed out. Nothing that failed while the window was open is sent again;
+ *  each of those showed its own error (parity review v4.0, Q2). */
 export async function retryRenewal(): Promise<boolean> {
   const outcome = await refreshSession();
   if (outcome === "unreachable") return false;
   if (outcome === "refused") expireSession();
-  release(outcome);
+  setConnectionProblem(false);
   return true;
 }
 
-/** Signing out while blocked: nothing is waiting for a renewal any more. */
+/** Signing out while the window is open: there is no sign-in left to renew. */
 export function clearConnectionProblem() {
-  if (blocked) release("refused");
+  setConnectionProblem(false);
 }
 
 async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
@@ -296,27 +274,21 @@ async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>>
     if (isRefusal(error) && options.auth !== false && options.renew !== false && used) {
       // Signed in again while this was on its way: just use the new sign-in.
       if (tokenStore.accessToken && tokenStore.accessToken !== used) return perform<T>(options);
-      // Already blocked behind Connection Problem: wait for its Retry rather than make
-      // another renewal attempt of our own.
-      let outcome: RefreshOutcome = blocked ? "unreachable" : await refreshSession();
+      // While Connection Problem is open, nothing makes another renewal attempt of its
+      // own: only the window's Retry does.
+      const outcome: RefreshOutcome = problemOpen ? "unreachable" : await refreshSession();
       if (outcome === "unreachable") {
-        // The server can't be reached to renew the sign-in: one blocking Connection
-        // Problem window instead of an error for every action. Reads go on after the
-        // user's Retry succeeds; an action is not sent again, its caller is told it
-        // didn't go through and the user repeats it.
-        outcome = await waitForRenewal();
-        if (outcome === "renewed") {
-          if (isRetryableMethod(options.method)) return perform<T>(options);
-          throw new ApiError("unknown", "");
-        }
-        throw error;
+        // The server can't be reached to renew the sign-in: one Connection Problem window,
+        // and this request fails now with the connection error. It is not held back and
+        // not sent again after Retry (Q2).
+        setConnectionProblem(true);
+        throw new ApiError("network", "");
       }
       if (outcome === "renewed") return perform<T>(options);
-      // The sign-in itself can't be renewed: drop to the signed-out routes rather than
-      // leave a shell that looks signed in while every call fails. When the server
-      // couldn't be reached, the session is kept and the refusal reported. A sign-in
-      // that replaced this one in the meantime is left alone.
-      if (outcome === "refused" && tokenStore.accessToken === used) expireSession();
+      // The server answered the renewal with an error: the sign-in has ended, so drop to
+      // the signed-out routes as Android does (Q1). A sign-in that replaced this one in
+      // the meantime is left alone.
+      if (tokenStore.accessToken === used) expireSession();
     }
     throw error;
   }

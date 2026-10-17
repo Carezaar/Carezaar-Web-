@@ -16,18 +16,22 @@ export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly fields: Record<string, string[]>;
   readonly status: number;
+  /** The envelope's `meta`, e.g. `{ role }` on the 409 for an unfinished sign-up. */
+  readonly meta: Record<string, unknown> | null;
 
   constructor(
     kind: ApiErrorKind,
     message: string,
     status = 0,
     fields: Record<string, string[]> = {},
+    meta: Record<string, unknown> | null = null,
   ) {
     super(message || defaultMessage(kind));
     this.name = "ApiError";
     this.kind = kind;
     this.status = status;
     this.fields = fields;
+    this.meta = meta;
   }
 
   /** True when the server's message is an implementation detail (a PHP notice, a

@@ -6,6 +6,7 @@ import type { ChatFull, ChatMessage } from "../api/types";
 import { useSession } from "../auth/SessionContext";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
+import { isDeletedAccount, personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, EmptyState, ErrorState, Spinner } from "../ui/kit";
 import { Icon } from "../ui/Icon";
@@ -100,7 +101,16 @@ export function ChatScreen() {
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [chatId]);
 
-  const partner = role === "client" ? chat?.caregiver?.user : chat?.client?.user;
+  const partnerEntity = role === "client" ? chat?.caregiver : chat?.client;
+  const partner = partnerEntity?.user;
+  // A conversation that can't take messages any more is closed, with the reason above
+  // the box, as on Android (parity review v4.0, K2 and K3): the other person deleted
+  // their account, or is no longer a match (the server itself would accept the message).
+  const closedNote = isDeletedAccount(partner)
+    ? t("chat_screen_account_deleted", "This account has been deleted. You can no longer send messages.")
+    : partnerEntity && partnerEntity.is_match === false
+      ? t("chat_screen_match_check", "You can only send messages to your current matches.")
+      : null;
   // A chat belongs to the match that created it; once that match ends the server
   // answers "The id field contains an unauthorized value."
   const chatMessage = (e: unknown) => (e instanceof ApiError && e.status === 400 && /unauthori[sz]ed/i.test(e.message)
@@ -112,15 +122,10 @@ export function ChatScreen() {
   // a failed send leaves the text there to try again. A send is never repeated
   // automatically: it may have reached the server.
   const send = async () => {
+    if (sendingRef.current || closedNote) return;
     const text = draft.trim();
-    if (!text || sendingRef.current) return;
-    // Android checks the partner's is_match before sending; the server itself accepts
-    // messages to an ended match.
-    const partnerEntity = role === "client" ? chat?.caregiver : chat?.client;
-    if (partnerEntity && partnerEntity.is_match === false) {
-      toast(t("chat_screen_match_check", "You can only send messages to your current matches."));
-      return;
-    }
+    // Send stays active with an empty box and says why nothing was sent (K4).
+    if (!text) { toast(t("chat_screen_message_required", "Please type a message first.")); return; }
     sendingRef.current = true;
     setSending(true);
     try {
@@ -154,7 +159,8 @@ export function ChatScreen() {
 
   const composer = (
     <div className="composer">
-      {replyTo && (
+      {closedNote && <p className="composer-note" role="status">{closedNote}</p>}
+      {replyTo && !closedNote && (
         <div className="reply-bar">
           <Icon name="ic_reply" size={18} tint="var(--primary)" />
           <span className="ellipsis">{replyTo.message}</span>
@@ -165,9 +171,11 @@ export function ChatScreen() {
       )}
       <div className="composer-row">
         <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={sending} aria-busy={sending}
+          disabled={closedNote !== null}
           placeholder={t("chat_screen_message_placeholder", "Type a message...")} aria-label={t("chat_screen_message_placeholder", "Type a message...")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} />
-        <button type="button" className="send-btn" onClick={() => void send()} disabled={!draft.trim() || sending}
+        <button type="button" className={`send-btn ${closedNote ? "closed" : ""}`} onClick={() => void send()}
+          disabled={sending || closedNote !== null}
           aria-label={sending ? t("loading_chat_send", "Sending a new message") : "Send"}>
           {sending ? <span className="spinner small" aria-hidden="true" /> : <Icon name="ic_send" size={22} tint="#fff" className="flip-rtl" />}
         </button>
@@ -179,7 +187,7 @@ export function ChatScreen() {
     <>
       <div className="chat-partner">
         <Avatar src={partner?.photo} size={44} />
-        <b>{partner?.first_name} {partner?.last_name}</b>
+        <b>{personName(partner, t)}</b>
         <button type="button" className="icon-btn" onClick={load} aria-label={t("chat_screen_refresh", "Refresh")}>
           <Icon name="ic_refresh" size={24} tint="var(--primary)" />
         </button>

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
 import { authService, userService } from "../api/services";
 import type { UserRole } from "../api/types";
 import {
-  OTP_LENGTH, isPasswordValid, passwordRules, validateConfirmation, validateEmail,
+  OTP_LENGTH, isPasswordValid, passwordRules, signUpErrors, validateEmail, type SignUpErrors,
 } from "../validation/validation";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData, TABLE_LABELS } from "../app/baseData";
@@ -18,6 +18,7 @@ import type { DesignNode } from "../design/types";
 import { BackHeader, Page } from "../ui/layout";
 import { useIsWide } from "../ui/frames";
 import { IntroCard, SignInCard, SignUpCard } from "./authCards";
+import { ConsentText, LegalDocumentDialog, type LegalDocument } from "./legal";
 import { Button, Checkbox, Dialog, TextField } from "../ui/kit";
 import { assetUrl, Icon } from "../ui/Icon";
 import { RuleChips } from "../ui/RuleChips";
@@ -207,12 +208,24 @@ function useSignInForm() {
       // The signed-out route guard moves the user into the app once the session exists.
       await act(t("loading_auth_login", "Signing in"), () => signIn(email.trim(), password));
     } catch (e) {
+      // A sign-up that was never finished (409, with the account's role in `meta`): as
+      // on Android, show the server's message and continue at the profile step, which
+      // is keyed by the email, then the role's preferences and the final sign-in.
+      const role = e instanceof ApiError && e.status === 409 ? e.meta?.role : undefined;
+      if (role === "client" || role === "caregiver") {
+        toast(e instanceof ApiError && e.message && !e.isTechnical ? e.message : messageOf(e));
+        update({
+          role, email: email.trim(), password, userId: null, entityCreated: false, isPasswordRecovery: false,
+        });
+        navigate("/sign-up/profile");
+        return;
+      }
       toast(e instanceof ApiError && e.kind === "validation"
         ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
     } finally {
       setBusy(false);
     }
-  }, [email, password, act, signIn, t, toast, messageOf]);
+  }, [email, password, act, signIn, t, toast, messageOf, update, navigate]);
 
   const forgotPassword = useCallback(() => {
     update({ isPasswordRecovery: true });
@@ -295,38 +308,53 @@ function useSignUpForm() {
   const { t } = i18n;
   const { act, toast, messageOf } = useFeedback();
   const { state: signUp, update } = useSignUp();
-  const [email, setEmail] = useState(signUp.email);
-  const [password, setPassword] = useState(signUp.password);
-  const [confirmation, setConfirmation] = useState(signUp.password);
-  const [accepted, setAccepted] = useState(false);
-  const [licenseOpen, setLicenseOpen] = useState(false);
+  const [email, setEmailState] = useState(signUp.email);
+  const [password, setPasswordState] = useState(signUp.password);
+  const [confirmation, setConfirmationState] = useState(signUp.password);
+  const [accepted, setAcceptedState] = useState(false);
+  const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<SignUpErrors>({});
 
   const rules = useMemo(() => passwordRules(password), [password]);
-  const valid = validateEmail(email) === null && isPasswordValid(password)
-    && password === confirmation && accepted;
+  // Editing a field clears its own message; the rest stay until the next Continue.
+  const setEmail = useCallback((v: string) => { setEmailState(v); setErrors((e) => ({ ...e, email: undefined })); }, []);
+  const setPassword = useCallback((v: string) => { setPasswordState(v); setErrors((e) => ({ ...e, password: undefined })); }, []);
+  const setConfirmation = useCallback((v: string) => { setConfirmationState(v); setErrors((e) => ({ ...e, confirmation: undefined })); }, []);
+  const setAccepted = useCallback((v: boolean) => { setAcceptedState(v); setErrors((e) => ({ ...e, accepted: undefined })); }, []);
 
+  /** Continue is always active, as on Android: it checks every field at once and puts
+   *  each problem under its own field (parity review v4.0, C2). */
   const proceed = useCallback(() => {
-    const problem = validateEmail(email)
-      ?? (isPasswordValid(password) ? null : t("general_required", "This field is required."))
-      ?? validateConfirmation(password, confirmation);
-    setError(problem === "Passwords do not match." ? t("signup_credentials_password_match", problem) : problem);
-    if (!problem && accepted) setConfirming(true);
+    const next = signUpErrors({ email, password, confirmation, accepted }, t);
+    setErrors(next);
+    if (!Object.values(next).some(Boolean)) setConfirming(true);
   }, [email, password, confirmation, accepted, t]);
 
   const confirm = useCallback(async () => {
     setConfirming(false);
+    let registered = false;
     try {
       await act(t("loading_auth_register", "Registering"), async () => {
         await authService.register(role, email.trim(), password);
+        registered = true;
         update({ role, email: email.trim(), password, isPasswordRecovery: false });
         await userService.sendOTP(email.trim());
       });
       navigate("/otp");
     } catch (e) {
+      // The account exists but the code wasn't sent: open the code screen anyway, where
+      // it can be asked for again (parity review v4.0, C5). Staying here would leave a
+      // form whose Continue can only fail, because the account now exists.
+      if (registered) {
+        toast(messageOf(e));
+        navigate("/otp", { state: { codeNotSent: true } });
+        return;
+      }
       if (e instanceof ApiError && e.kind === "validation") {
-        setError(e.fieldError("email") ?? e.fieldError("password") ?? e.message);
+        const email = e.fieldError("email");
+        const password = e.fieldError("password");
+        setErrors({ email, password: password ?? (email ? undefined : e.message) });
       } else toast(messageOf(e));
     }
   }, [act, t, role, email, password, update, navigate, toast, messageOf]);
@@ -334,8 +362,8 @@ function useSignUpForm() {
   return {
     i18n, toast, goBack,
     email, setEmail, password, setPassword, confirmation, setConfirmation, accepted, setAccepted,
-    licenseOpen, setLicenseOpen, confirming, setConfirming,
-    error, rules, valid, proceed, confirm,
+    legalDocument, setLegalDocument, confirming, setConfirming,
+    errors, rules, proceed, confirm,
   };
 }
 export type SignUpForm = ReturnType<typeof useSignUpForm>;
@@ -344,17 +372,24 @@ export type SignUpForm = ReturnType<typeof useSignUpForm>;
  *  tablet width up. */
 export function SignUpCredentialsScreen() {
   const form = useSignUpForm();
-  const { t } = form.i18n;
   return (
     <>
       {useIsWide() ? <SignUpCard form={form} /> : <SignUpScene form={form} />}
-      <Dialog open={form.licenseOpen} onClose={() => form.setLicenseOpen(false)}
-        title={capitalized(t("signup_credentials_accept_license", "License agreement"))} labelledBy="eula">
-        <div className="eula">{t("signup_credentials_accept_contents", "")}</div>
-        <Button onClick={() => { form.setAccepted(true); form.setLicenseOpen(false); }}>{t("general_confirm", "Confirm")}</Button>
-      </Dialog>
+      <LegalDocumentDialog doc={form.legalDocument} onClose={() => form.setLegalDocument(null)} />
     </>
   );
+}
+
+/** The frame's Continue button (56:84406) moves down to make room for the messages
+ *  under Confirm Password and the agreement, and for the two-line agreement itself. */
+const SIGNUP_CONTINUE = "56:84406";
+const SIGNUP_CONTINUE_SHIFT = 66;
+
+/** "Passwords do not match." while the two passwords differ, before any Continue (as
+ *  the desktop card and Set Up Password do), or Continue's message for the field. */
+function confirmationMessage(form: SignUpForm): string | undefined {
+  return form.errors.confirmation ?? (form.confirmation !== "" && form.confirmation !== form.password
+    ? form.i18n.t("signup_credentials_password_match", "Passwords do not match.") : undefined);
 }
 
 /** The phone frame, which contains the full form and the "Are you sure?" dialog. The
@@ -363,14 +398,11 @@ function SignUpScene({ form }: { form: SignUpForm }) {
   const { t, languageId } = form.i18n;
   const {
     email, setEmail, password, setPassword, confirmation, setConfirmation, accepted, setAccepted,
-    confirming, setConfirming, error, valid, rules, goBack, proceed, confirm,
+    confirming, setConfirming, errors, rules, goBack, proceed, confirm,
   } = form;
   const [revealPassword, setRevealPassword] = useState(false);
   const [revealConfirm, setRevealConfirm] = useState(false);
-  // Continue stays disabled while the passwords differ, so say why as the user types
-  // (as the desktop card and Set Up Password do).
-  const shown = error ?? (confirmation !== "" && confirmation !== password
-    ? t("signup_credentials_password_match", "Passwords do not match.") : null);
+  const confirmError = confirmationMessage(form);
 
   const binder = useMemo<SceneBinder>(() => {
     const isDialogNode = (n: DesignNode) => n.name === "Dialog" || n.name === "Rectangle 2931";
@@ -389,25 +421,22 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         || n.id === RULE_CHIP_ROW
         // Two lines with the values in blue, drawn as an overlay below.
         || n.name === "Credentials"
-        || (n.name === "Error" && !shown)
+        // The frame's message slot under Password is drawn smaller than the others; the
+        // overlay below shows every field's message in one style.
+        || n.name === "Error"
         || n.text === "Confirm your password..."
         // No translation exists for this hint; the rule chips carry the same rules.
         || (languageId !== 1 && Boolean(n.text?.startsWith("Use 8 or more characters"))),
-      isEnabled: (n) => (n.name === "Button" && !semanticLabel(n).match(/edit|confirm/) ? valid : true),
-      opacity: (n) => {
-        if (n.name === "Button" && !semanticLabel(n).match(/edit|confirm/) && !valid) return 0.45;
-        return undefined;
-      },
+      offsetY: (n) => (n.id === SIGNUP_CONTINUE ? SIGNUP_CONTINUE_SHIFT : undefined),
       text: (n) => {
-        if (n.name === "Error") return shown ?? undefined;
         if (n.text?.startsWith("Please review the details below")) {
-          return t("signup_credentials_confirm_dialog_email_description", "Please review your email address below. It will be used to continue.");
+          return t("signup_credentials_confirm_dialog_description", "Please review the details below. The email address will be used to continue.");
         }
         return undefined;
       },
       inputType: (n) => (n.inputType === "password" && revealPassword ? "text" : undefined),
     };
-  }, [email, setEmail, password, setPassword, confirming, setConfirming, shown, valid, t, goBack, proceed, confirm, languageId, revealPassword]);
+  }, [email, setEmail, password, setPassword, confirming, setConfirming, t, goBack, proceed, confirm, languageId, revealPassword]);
 
   return (
     <FigmaScreen sceneKey="v2-56-84378" binder={binder} overlays={[
@@ -418,6 +447,12 @@ function SignUpScene({ form }: { form: SignUpForm }) {
           <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{email}</b></span>
         </div>
       ) }] : [
+        ...(errors.email ? [{ x: 20, y: 266, width: 372, height: 18, content: (
+          <p className="field-message" role="alert">{errors.email}</p>
+        ) }] : []),
+        ...(errors.password ? [{ x: 20, y: 388, width: 372, height: 18, content: (
+          <p className="field-message" role="alert">{errors.password}</p>
+        ) }] : []),
         { x: 20, y: 410, width: 372, height: 32, content: <RuleChips rules={rules} /> },
         { x: 348, y: 340, width: 32, height: 32, content: (
           <PasswordToggle revealed={revealPassword} onToggle={() => setRevealPassword((r) => !r)} />
@@ -431,14 +466,17 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         { x: 348, y: 525, width: 32, height: 32, content: (
           <PasswordToggle revealed={revealConfirm} onToggle={() => setRevealConfirm((r) => !r)} />
         ) },
-        { x: 20, y: 572, width: 372, height: 28, content: (
+        ...(confirmError ? [{ x: 20, y: 572, width: 372, height: 18, content: (
+          <p className="field-message" role="alert">{confirmError}</p>
+        ) }] : []),
+        { x: 20, y: 594, width: 372, height: 44, content: (
           <Checkbox checked={accepted} onChange={setAccepted}>
-            {t("signup_credentials_accept_label", "I accept the")}{" "}
-            <button type="button" className="link" onClick={(e) => { e.preventDefault(); form.setLicenseOpen(true); }}>
-              {t("signup_credentials_accept_license", "license agreement")}
-            </button>
+            <ConsentText onOpen={form.setLegalDocument} />
           </Checkbox>
         ) },
+        ...(errors.accepted ? [{ x: 20, y: 640, width: 372, height: 18, content: (
+          <p className="field-message" role="alert">{errors.accepted}</p>
+        ) }] : []),
       ]),
     ]} />
   );
@@ -446,8 +484,8 @@ function SignUpScene({ form }: { form: SignUpForm }) {
 
 /* ------------------------------------------------------------------- OTP */
 
-function useCountdown(seconds: number) {
-  const [left, setLeft] = useState(seconds);
+function useCountdown(seconds: number, initial = seconds) {
+  const [left, setLeft] = useState(initial);
   useEffect(() => {
     if (left <= 0) return;
     const id = window.setTimeout(() => setLeft((l) => l - 1), 1000);
@@ -500,7 +538,9 @@ export function OtpScreen() {
   const { act, toast, messageOf } = useFeedback();
   const { state: signUp } = useSignUp();
   const [code, setCode] = useState("");
-  const { left, mmss, restart } = useCountdown(120);
+  // Opened although the code couldn't be sent (C5): asking again needs no wait.
+  const codeNotSent = (useLocation().state as { codeNotSent?: boolean } | null)?.codeNotSent === true;
+  const { left, mmss, restart } = useCountdown(120, codeNotSent ? 0 : 120);
 
   useEffect(() => { if (!signUp.email) navigate("/intro", { replace: true }); }, [signUp.email, navigate]);
 
@@ -672,5 +712,3 @@ function PasswordToggle({ revealed, onToggle }: { revealed: boolean; onToggle: (
   );
 }
 
-/** The link text ("license agreement") doubles as the dialog title. */
-const capitalized = (s: string) => s.charAt(0).toLocaleUpperCase() + s.slice(1);

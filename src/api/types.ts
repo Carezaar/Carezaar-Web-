@@ -20,6 +20,8 @@ export interface User {
   bio: string | null;
   date_of_birth: string | null;
   is_favorite: boolean;
+  /** The person deleted their account; their name comes back empty. */
+  is_deleted?: boolean;
 }
 
 /** The reviewer shape — `UserBrief` plus `rating`. */

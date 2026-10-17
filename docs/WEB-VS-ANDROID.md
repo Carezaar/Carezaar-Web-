@@ -38,10 +38,14 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Status:** matches native.
 
 ### New chat messages
-- **Android:** the conversation refreshes when a Firebase (FCM) push arrives.
-- **Web:** an open conversation re-checks every 10 seconds while visible, and immediately when the window regains focus.
-- **Reason:** the backend has no web push channel.
-- **Status:** intentional (platform).
+- **Android:** an open conversation and the conversation list each check every 10 seconds.
+- **Web:** the same: an open conversation re-checks every 10 seconds while visible (and when the window regains focus), and the conversation list updates itself every 10 seconds while it is open, keeping the pages already loaded.
+- **Status:** matches Android (parity review v4.0, K1).
+
+### Conversations that can't take messages
+- **Web and Android:** with someone who is no longer a match, the typing box is turned off, the send button turns grey and `chat_screen_match_check` ("You can only send messages to your current matches.") is shown above the box. With someone who deleted their account, they are shown as `general_deleted_account` ("Deleted Account") in the conversation list, the conversation and notifications, and the conversation is closed with `chat_screen_account_deleted`. The server marks such a person with `is_deleted: true` and empty names.
+- **Empty message:** Send stays active; tapping it with an empty box shows `chat_screen_message_required` ("Please type a message first.").
+- **Status:** matches Android (parity review v4.0, K2–K4).
 
 ### Sending several messages quickly
 - **Web and Android:** one send at a time; the next can be sent once the server has answered. The text stays in the box until then, and stays there if the send fails.
@@ -56,9 +60,9 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Web and Android:** message times are shown exactly as the server stores them (UTC), not converted.
 - **Status:** matches Android (client requests, 2026-10-10 and 2026-10-11). Notification and issue dates are shown as stored too.
 ### Session refresh
-- **Web and Android:** when the server refuses a request, for any reason, the session is renewed with `auth/refresh`, sending only `version_app`, and the request is sent once more. The second answer is final. If the renewal can't reach the server, a blocking Connection Problem window offers Retry until it succeeds; waiting reads continue afterwards, waiting actions are not resent.
+- **Web and Android:** when the server refuses a request, for any reason, the session is renewed with `auth/refresh`, sending only `version_app`, and the request is sent once more. The second answer is final. If the server answers the renewal with an error (a server error included), the person is signed out. Only when the server can't be reached at all does the Connection Problem window open; it offers Retry until a renewal succeeds, then closes. Anything that failed while it was open has shown its own error and is not sent again.
 - **Connection drops:** only reads are retried (up to 3 times); actions are never repeated automatically.
-- **Status:** matches Android (client request, 2026-10-10).
+- **Status:** matches Android (parity review v4.0, Q1 and Q2).
 ### Reviews
 - **Web:** finished matches show no reviews: no stars, comments or Review button (client request, 2026-10-10). Review data on the server is untouched.
 - **Status:** client decision.
@@ -74,8 +78,20 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Note:** the server limits new codes (about one every 3 minutes, growing with repeated requests); its "Please try again after N second(s)!" message is shown when the 2-minute timer allows a re-send sooner.
 - **Status:** matches Android.
 ### After changing the password
-- **Web:** the user stays signed in. The server ends every session of the account when the password changes, so the web signs in again with the new password at once.
-- **Status:** client request (2026-10-10). The server's confirmation text (`settings_change_password_dialog_message`) still says the user will be signed out of this device too; it should be updated in the content table.
+- **Web and Android:** the person is signed out and taken back to the start, where they sign in with the new password. (If the answer to the change is lost, signing in with the new password checks whether it went through; the change is never sent twice.)
+- **Status:** matches Android (parity review v4.0, O1; replaces the 2026-10-10 "stay signed in" behaviour).
+
+### Create Account
+- **Web and Android:** Continue is always active. Tapping it checks every field at once and shows each problem under its own field, in the managed texts: `general_required` for a missing entry, `signup_credentials_email_invalid`, the first password rule not met (its checklist label, e.g. "One uppercase"), `signup_credentials_password_match`, and `signup_credentials_accept_required` when the agreement isn't ticked.
+- **Agreement:** `signup_credentials_consent` ("I agree to the Terms of Use and acknowledge that I have read the Privacy Policy."), with each document's name as an underlined link that opens it inside the app, scrollable and zoomable. The documents' addresses are set with `VITE_CAREZAAR_TERMS_URL` / `VITE_CAREZAAR_PRIVACY_URL`; until the client publishes them the viewer says the document is not available. Their origin must then be added to the Content-Security-Policy `frame-src`.
+- **Confirmation:** `signup_credentials_confirm_dialog_description`.
+- **Code not sent:** if the account is created but the email code can't be sent, the code screen still opens, with Re-send available at once.
+- **Unfinished sign-up:** signing in to an account whose sign-up was never finished (409 with the role in `meta`) shows the server's message and continues at the profile step.
+- **Status:** matches Android (parity review v4.0, B1, C2–C5).
+
+### Location and pay
+- **Web and Android:** the map never locates the person by itself: with no location chosen it opens on the whole country, and the device location is used only after tapping My Location. A refused location permission shows `general_location_permission_denied`; continuing without a location shows `general_location_required`. Pay fields take digits only, at most 6.
+- **Status:** matches Android (parity review v4.0, F1–F4).
 ### Editing the profile keeps the photo
 - **Android (1.0.0):** sends the photo only when a new one is picked.
 - **Web:** sends the current photo again with every save unless the user removed it (read through the app's own `/uploads/` path, proxied to the API host).
@@ -93,7 +109,7 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 
 ### Country at sign-up
 - **Android:** Create Account asks for a country.
-- **Web:** it doesn't. Create Account takes the email, password, confirmation and licence agreement only, and `auth/register` is sent `role, email, password`. Location is still collected later, on the map in the role's preferences.
+- **Web:** it doesn't. Create Account takes the email, password, confirmation and the Terms of Use / Privacy Policy agreement only, and `auth/register` is sent `role, email, password`. Location is still collected later, on the map in the role's preferences.
 - **Reason:** client decision (2026-10-07): the platform is global. The current API doesn't take a country at registration.
 - **Status:** intentional (product). The native implementation is outside this web-only task.
 
@@ -112,8 +128,8 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 ### Notifications
 - **Android:** a system notification from a 30-second poll.
 - **Web:** the same poll, on the 30-second timer only, with a browser notification when the tab isn't visible. Tapping a notification opens its details; Show opens the related page.
-- **Permission:** required on both. The web asks on the first click (browsers only allow the prompt after a user action) and blocks the app until notifications are allowed. Browsers that have no notifications at all, such as Safari on an iPhone outside a Home Screen app, cannot grant it and are let in.
-- **Status:** matches Android, within what browsers allow.
+- **Permission:** asked for as the app opens, and the app carries on whether it is allowed or not. The web asks on the first click, because browsers only allow the prompt after a user action; refusing it never blocks the site.
+- **Status:** matches Android, within what browsers allow (parity review v4.0, A1).
 ### Map picker
 - **Android:** the Android map screen (crosshair, my-location, Confirm).
 - **Web:** Leaflet with OpenStreetMap tiles, with the same controls.
@@ -133,10 +149,13 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 - **Web:** My Matches refreshes with a downward pull on touch screens; mouse and keyboard users reload the page or change the sort.
 - **Status:** platform.
 
-## Accepted differences (client, 2026-10-10)
+## Accepted differences (parity review v4.0, 2026-10-16)
 
-These four stay as they are:
-- **Sign-up progress** is kept for the current browser session only and cleared on a new visit.
-- **Profile photos** are JPEG, PNG or WebP up to 10 MB; GIF is not accepted.
-- **Location** must be picked on the map before continuing.
-- **The current profile photo** is read through the website's own address (`/uploads/`, proxied to the API host).
+These three stay as they are:
+- **Sign-up progress** is kept for the current browser session only and cleared on a new visit (C1).
+- **Profile photos** are JPEG, PNG or WebP up to 10 MB, with an explanation when a picture is refused (E1).
+- **The current profile photo** is read through the website's own address (`/uploads/`, proxied to the API host) (Q3).
+
+## Open item (parity review v4.0, M1)
+
+The Messages and Profile tabs still use the My Matches care photos. Android's new header pictures (a phone showing a conversation; an illustration of everyday care scenes) are not in the Android build or design files available to us, so they have not been substituted. The two images (or the current Android build) are needed from the client.

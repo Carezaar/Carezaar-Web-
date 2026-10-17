@@ -3,6 +3,7 @@ import type { IntroModel, SignInForm, SignUpForm } from "./auth";
 import { Button, Checkbox, Dialog, TextField } from "../ui/kit";
 import { assetUrl, Icon } from "../ui/Icon";
 import { RuleChips } from "../ui/RuleChips";
+import { ConsentText } from "./legal";
 
 /* Signed-out screens from tablet width up (desktop designs 767:30, 767:33, 767:36):
  * real web forms in the AuthFrame card. Phones keep the Figma phone frames. */
@@ -164,14 +165,15 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
       <CardTop onBack={form.goBack} logo />
       <h1>{t("signup_credentials_title", "Create Account")}</h1>
       <p className="auth-sub">{t("signup_credentials_description", "Setup your account credentials.")}</p>
-      <form className="auth-fields" noValidate onSubmit={submitHandler(() => { if (form.valid) form.proceed(); })}>
+      <form className="auth-fields" noValidate onSubmit={submitHandler(form.proceed)}>
         <TextField label={t("signup_credentials_email", "Email Address")} required icon="ic_email" type="email"
           autoComplete="email" value={form.email} onChange={(e) => form.setEmail(e.target.value)}
-          placeholder={t("signup_credentials_email_placeholder", "Enter your email address...")} />
+          placeholder={t("signup_credentials_email_placeholder", "Enter your email address...")}
+          error={form.errors.email} />
         <TextField label={t("signup_credentials_password", "Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={form.password} onChange={(e) => form.setPassword(e.target.value)}
           placeholder={t("signup_credentials_password_placeholder", "Enter your password...")}
-          error={form.error} />
+          error={form.errors.password} />
         <div className="auth-rules">
           <RuleChips rules={form.rules} />
           {/* No content key exists for this hint; the chips carry the same rules. */}
@@ -180,21 +182,21 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
         <TextField label={t("signup_credentials_confirm_password", "Confirm Password")} required icon="ic_lock"
           type="password" autoComplete="new-password" value={form.confirmation}
           onChange={(e) => form.setConfirmation(e.target.value)}
-          error={mismatch ? t("signup_credentials_password_match", "Passwords do not match.") : null}
+          error={form.errors.confirmation ?? (mismatch ? t("signup_credentials_password_match", "Passwords do not match.") : null)}
           placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")} />
-        <Checkbox checked={form.accepted} onChange={form.setAccepted}>
-          {t("signup_credentials_accept_label", "I accept the")}{" "}
-          <button type="button" className="link" onClick={(e) => { e.preventDefault(); form.setLicenseOpen(true); }}>
-            {t("signup_credentials_accept_license", "license agreement")}
-          </button>
-        </Checkbox>
-        <Button type="submit" trailingIcon="ic_arrow_forward" disabled={!form.valid}>
+        <div className="consent-field">
+          <Checkbox checked={form.accepted} onChange={form.setAccepted}>
+            <ConsentText onOpen={form.setLegalDocument} />
+          </Checkbox>
+          {form.errors.accepted && <p className="field-message" role="alert">{form.errors.accepted}</p>}
+        </div>
+        <Button type="submit" trailingIcon="ic_arrow_forward">
           {t("signup_credentials_continue", "Continue")}
         </Button>
       </form>
       <Dialog open={form.confirming} onClose={() => form.setConfirming(false)} labelledBy="signup-confirm"
         title={t("signup_credentials_confirm_dialog_title", "Are You Sure?")}>
-        <p>{t("signup_credentials_confirm_dialog_email_description", "Please review your email address below. It will be used to continue.")}</p>
+        <p>{t("signup_credentials_confirm_dialog_description", "Please review the details below. The email address will be used to continue.")}</p>
         <div className="dialog-credentials">
           <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{form.email}</b></span>
         </div>
