@@ -158,4 +158,4 @@ These three stay as they are:
 
 ## Header pictures (parity review v4.0, M1)
 
-The Messages tab uses the client's picture of a phone showing a conversation (`header_messages`, supplied 17 October 2026). The Profile tab keeps its current picture: the illustration supplied for it shows people, and we don't use pictures of people, so the client can add it themselves if they want it.
+The Messages tab uses the client's picture of a phone showing a conversation (`header_messages`, supplied 17 October 2026). The Profile tab uses the desk picture from the Android app (`bg_profile`), the same as iOS: the illustration supplied for it shows people, and we don't use pictures of people, so the client can add it themselves if they want it.

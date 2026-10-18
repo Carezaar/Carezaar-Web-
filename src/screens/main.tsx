@@ -346,7 +346,7 @@ function ProfileTab() {
 
   return (
     <>
-      <Hero image="header_adult" icon="ic_profile_off" title={t("profile_title", "Profile")}
+      <Hero image="bg_profile" icon="ic_profile_off" title={t("profile_title", "Profile")}
         subtitle={t("profile_description", "Manage your personal information and account settings.")} />
       <section className="profile-card">
         <Avatar src={user.photo} size={92} />
