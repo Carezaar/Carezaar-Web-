@@ -4,6 +4,8 @@ const RASTERS = new Set([
   "bg_intro", "bg_matches", "bg_messages", "bg_profile", "bg_splash",
   "client_adult", "client_child", "client_pregnancy", "client_senior",
   "header_adult", "header_child", "header_pregnancy", "header_senior", "logo",
+  // Supplied by the client (2026-10-17) for the Messages tab (parity review v4.0, M1).
+  "header_messages",
 ]);
 
 /** URL of a product asset extracted from the Android APK, by its drawable name. */

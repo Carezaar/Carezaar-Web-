@@ -297,9 +297,15 @@ a { color: var(--primary); }
 .legal-link { text-decoration: underline; padding: 0; font-size: inherit; display: inline; }
 .legal-zoom { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 14px; }
 .legal-zoom .icon-btn { font-size: 22px; line-height: 1; width: 36px; height: 36px; color: var(--primary); }
-.legal-document { height: 55dvh; overflow: auto; border: 1px solid var(--border, #e3e8ef); border-radius: 12px; }
-.legal-document iframe { border: 0; display: block; }
-.dialog p.legal-missing { padding: 24px 0; }
+.dialog:has(.legal-document) { width: min(100%, 720px); }
+.legal-document { height: 55dvh; overflow: auto; border: 1px solid var(--line, #e3e8ef); border-radius: 12px; padding: 4px 16px 16px; line-height: 1.55; overflow-wrap: anywhere; }
+.legal-document:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.dialog .legal-document p, .legal-document h3 { text-align: start; margin: .8em 0 0; }
+.legal-document h3 { font-size: 1.07em; line-height: 1.35; }
+.dialog .legal-document p.legal-li { padding-inline-start: 1.2em; position: relative; margin-top: .4em; }
+.legal-document p.legal-li::before { content: "•"; position: absolute; inset-inline-start: .3em; }
+.legal-missing { padding: 24px 0; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.legal-pdf { align-self: center; font-size: 14px; }
 .busy-scrim { z-index: 50; background: rgba(15, 20, 30, .22); }
 .busy-card { background: #fff; border-radius: 16px; padding: 16px 20px; box-shadow: 0 12px 40px rgba(0,0,0,.18); min-width: 260px; max-width: 340px; }
 .busy-head { display: flex; gap: 12px; align-items: center; font-size: 17px; }

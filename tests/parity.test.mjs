@@ -62,3 +62,18 @@ test("K3: a deleted account is named \"Deleted Account\"; others by their name",
   assert.equal(personName({ first_name: "Nora", last_name: null }, t), "Nora");
   assert.equal(personName(null, t), "");
 });
+
+test("C3: the client's Terms of Use and Privacy Policy are bundled, with their PDFs", async () => {
+  const { readFileSync, statSync } = await import("node:fs");
+  const doc = (name) => JSON.parse(readFileSync(new URL(`../public/legal/${name}.json`, import.meta.url), "utf8"));
+  const text = (d) => d.blocks.map((b) => b.r.map((r) => r[0]).join("")).join("\n");
+  const terms = doc("terms-of-use"), privacy = doc("privacy-policy");
+  assert.equal(terms.title, "Terms of Use");
+  assert.equal(privacy.title, "Privacy Policy");
+  assert.ok(terms.blocks.some((b) => b.t === "h" && text({ blocks: [b] }) === "1. Introduction and Acceptance of Terms"));
+  assert.ok(privacy.blocks.some((b) => b.t === "h" && text({ blocks: [b] }) === "2. How We Collect Information"));
+  assert.ok(text(terms).length > 50000 && text(privacy).length > 11000);
+  for (const name of ["terms-of-use", "privacy-policy"]) {
+    assert.ok(statSync(new URL(`../public/legal/${name}.pdf`, import.meta.url)).size > 100000, `${name}.pdf`);
+  }
+});

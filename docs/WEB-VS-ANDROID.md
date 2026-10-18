@@ -83,7 +83,7 @@ Tests: `CR-V01` (Request a Match opens its confirmation; Message explains the ma
 
 ### Create Account
 - **Web and Android:** Continue is always active. Tapping it checks every field at once and shows each problem under its own field, in the managed texts: `general_required` for a missing entry, `signup_credentials_email_invalid`, the first password rule not met (its checklist label, e.g. "One uppercase"), `signup_credentials_password_match`, and `signup_credentials_accept_required` when the agreement isn't ticked.
-- **Agreement:** `signup_credentials_consent` ("I agree to the Terms of Use and acknowledge that I have read the Privacy Policy."), with each document's name as an underlined link that opens it inside the app, scrollable and zoomable. The documents' addresses are set with `VITE_CAREZAAR_TERMS_URL` / `VITE_CAREZAAR_PRIVACY_URL`; until the client publishes them the viewer says the document is not available. Their origin must then be added to the Content-Security-Policy `frame-src`.
+- **Agreement:** `signup_credentials_consent` ("I agree to the Terms of Use and acknowledge that I have read the Privacy Policy."), with each document's name as an underlined link that opens it inside the app, scrollable and zoomable. The documents are the client's PDFs of 17 October 2026: their text (converted with `scripts/legal-pdf-to-json.py`, checked character for character against the PDF) is shown in the app, and the original PDF is linked from the viewer (`public/legal/`). No iframe is used, so the site's `X-Frame-Options: DENY` and Content-Security-Policy stay as they are.
 - **Confirmation:** `signup_credentials_confirm_dialog_description`.
 - **Code not sent:** if the account is created but the email code can't be sent, the code screen still opens, with Re-send available at once.
 - **Unfinished sign-up:** signing in to an account whose sign-up was never finished (409 with the role in `meta`) shows the server's message and continues at the profile step.
@@ -156,6 +156,6 @@ These three stay as they are:
 - **Profile photos** are JPEG, PNG or WebP up to 10 MB, with an explanation when a picture is refused (E1).
 - **The current profile photo** is read through the website's own address (`/uploads/`, proxied to the API host) (Q3).
 
-## Open item (parity review v4.0, M1)
+## Header pictures (parity review v4.0, M1)
 
-The Messages and Profile tabs still use the My Matches care photos. Android's new header pictures (a phone showing a conversation; an illustration of everyday care scenes) are not in the Android build or design files available to us, so they have not been substituted. The two images (or the current Android build) are needed from the client.
+The Messages tab uses the client's picture of a phone showing a conversation (`header_messages`, supplied 17 October 2026). The Profile tab keeps its current picture: the illustration supplied for it shows people, and we don't use pictures of people, so the client can add it themselves if they want it.

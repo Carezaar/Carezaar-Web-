@@ -13,10 +13,10 @@ export const DEFAULT_PAGE_SIZE = 10;
 /** Server limit for the introduction sent with a match request (422 above it). */
 export const INTRODUCTION_MAX_LENGTH = 1000;
 
-/** Where the Terms of Use and the Privacy Policy opened from Create Account live.
- *  Neither document is published by the server or the website yet (October 2026);
- *  until these are set, the viewer says the document is not available. */
-export const LEGAL_DOCUMENT_URLS: Record<"terms" | "privacy", string> = {
-  terms: (import.meta.env?.VITE_CAREZAAR_TERMS_URL as string | undefined) ?? "",
-  privacy: (import.meta.env?.VITE_CAREZAAR_PRIVACY_URL as string | undefined) ?? "",
+/** The Terms of Use and the Privacy Policy opened from Create Account, as supplied by the
+ *  client (17 October 2026). `content` is the document's text, converted from the PDF and
+ *  checked character for character against it (shown in the app); `pdf` is the original. */
+export const LEGAL_DOCUMENTS: Record<"terms" | "privacy", { content: string; pdf: string }> = {
+  terms: { content: "/legal/terms-of-use.json", pdf: "/legal/terms-of-use.pdf" },
+  privacy: { content: "/legal/privacy-policy.json", pdf: "/legal/privacy-policy.pdf" },
 };

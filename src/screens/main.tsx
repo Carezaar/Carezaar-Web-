@@ -225,7 +225,7 @@ function MessagesTab() {
 function MessagesHero() {
   const { t } = useI18n();
   return (
-    <Hero image="header_senior" icon="ic_messages_off" title={t("messages_title", "Messages")}
+    <Hero image="header_messages" icon="ic_messages_off" title={t("messages_title", "Messages")}
       subtitle={t("messages_description", "All your conversations in one place")} />
   );
 }

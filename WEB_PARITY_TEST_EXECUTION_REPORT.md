@@ -10,15 +10,16 @@
 | | Count |
 |---|---|
 | Items to change on the web | 19 |
-| PASS (implemented and verified in the browser) | 17 |
-| BLOCKED | 2 (C3 document content, M1 pictures) |
+| PASS (implemented and verified in the browser) | 18 |
+| Left to the client | 1 (M1, Profile picture only) |
 | FAIL | 0 |
 | Accepted differences (no change) | 3 (C1, E1, Q3) |
 
-Both blocked items are waiting for material from the client, not for code:
+**Update, 18 October 2026.** The client sent the Terms of Use, the Privacy Policy, a final FAQ and two header pictures (email of 17 October):
 
-- **C3:** the sentence, the two links and an in-app viewer (scrollable and zoomable) are built and tested. No Terms of Use or Privacy Policy document exists anywhere we can reach: not on the server, the API, the website, or in the Android build. The viewer shows "This item is no longer available." until the two addresses are configured. The Android 21 Sep build contains only an excerpt of an older licence agreement (cut off after section 3).
-- **M1:** Android's new header pictures (a phone showing a conversation, and everyday care scenes) are not in the Android build or the design files we have. We didn't substitute other pictures.
+- **C3 is now PASS.** Both documents open inside the app from Create Account. The text is converted from the client's PDFs and checked character for character against them: 54,751 characters for the Terms and 12,042 for the Privacy Policy, whitespace aside. Headings and bold are kept, the text scrolls and zooms, and the original PDF is linked from the viewer.
+- **M1:** the Messages header now uses the client's picture of a phone showing a conversation. The Profile picture they sent shows people, and we don't use pictures of people, so the Profile header is unchanged and the client can add it themselves if they want.
+- **Final FAQ:** the app shows the FAQ the server sends (`base/faqs`, managed with its translations, as on Android). The server still has the older 14 questions, and the client's final FAQ has 18. It needs entering in the server's content admin; no app change is needed or appropriate.
 
 ## 2. Reference and method
 
@@ -41,7 +42,7 @@ The matrix with file locations is `docs/WEB-ANDROID-FUNCTIONAL-PARITY.md`. All r
 | A1 | PASS | The first click asked for permission exactly once. When it was allowed, and when it was refused, no blocking window appeared and Sign In stayed usable. | `pv-A1-refused-still-usable.png` |
 | B1 | PASS | Real unfinished account: login 409 → the server's message → `/sign-up/profile` → profile saved → preferences wizard. | `pv-B1-profile-step.png` |
 | C2 | PASS | Empty form: 3 × "This field is required." plus "Please accept the license agreement to continue." Invalid input: "Please enter a valid email address.", "One uppercase" (first unmet rule), "Passwords do not match." and the agreement message, all at once. Continue always active. Checked on phone and desktop, in Chrome, Firefox and WebKit. | `pv-C2-phone-*.png`, `pv-C2-desktop-*.png` |
-| C3 | BLOCKED (UI PASS) | Managed consent sentence with two underlined links. Each opens an in-app window titled with its name, and opening it doesn't tick the box. With a configured address (stand-in page): the document loads in the app, zooms to 150 %, scrolls, and Escape closes it. Keyboard: links reachable with Tab, Enter opens, focus returns. Arabic: translated sentence, two links. | `pv-C3-*-terms.png`, `pv-C3-viewer-zoomed.png`, `pv-RTL-signup-*.png` |
+| C3 | PASS (18 Oct) | Managed consent sentence with two underlined links. Each opens an in-app window with the client's document: the Terms of Use (208 blocks) and the Privacy Policy (52 blocks). Zoom reflows the text, the window scrolls, the original PDF is served, and opening a document doesn't tick the box. Keyboard: links reachable with Tab, Enter opens, focus returns. Arabic: the interface is right-to-left, and the English document stays left-to-right. axe on the open dialog: 0 serious or critical issues. | `pv-C3-*-terms.png`, `pv-C3-*-privacy.png`, `cm-terms-zoom-desktop.png`, `pv-C3-viewer-ar.png` |
 | C4 | PASS | The confirmation reads "Please review the details below. The email address will be used to continue." (phone and desktop). | `pv-C4-*.png` |
 | C5 | PASS | Registration succeeded and the code request failed: the code screen opened with Re-send available, and the connection message was shown. | `pv-C5-otp-after-send-failure.png` |
 | F1 | PASS | Location step of a new sign-up: 0 geolocation calls when the map opens on the whole country; 1 after tapping My Location. | `pv-F1-whole-country.png` |
@@ -52,7 +53,7 @@ The matrix with file locations is `docs/WEB-ANDROID-FUNCTIONAL-PARITY.md`. All r
 | K2 | PASS | Former match: note "You can only send messages to your current matches.", box disabled, send grey (Chrome, Firefox, WebKit; also suite B check B-3.7). | `pv-K2-former-match.png` |
 | K3 | PASS | Real deleted account: "Deleted Account" in the list, the conversation header and 2 notification rows. The conversation is closed with "This account has been deleted. You can no longer send messages." Arabic shows "حساب محذوف" and the translated note. | `pv-K3-*.png`, `pv-RTL-chat-deleted.png` |
 | K4 | PASS | Send with an empty box → "Please type a message first.", 0 requests (three browsers). | `pv-K4-empty-send.png` |
-| M1 | BLOCKED | Unchanged; pictures not available. | `pv-M1-*-current.png` |
+| M1 | Messages PASS; Profile left to the client | Messages shows the client's phone picture (phone and desktop). The Profile picture supplied shows people and is not used. | `pv-M1-messages.png`, `cm-messages-*.png` |
 | M2 | PASS | "Change Password / Change your current password". | `pv-M2-profile-menu.png` |
 | O1 | PASS | Password changed → signed out at `/intro`; the new password signs in. Suite A (A-10b) and the ten-change suite (9-f, answer lost) agree. | `pv-O1-back-to-start.png` |
 | Q1 | PASS | Renewal answered 500 → signed out to `/intro`, tokens cleared, no Connection Problem window. Unit tests also cover 500 and 401. | `pv-Q1-signed-out.png` |
