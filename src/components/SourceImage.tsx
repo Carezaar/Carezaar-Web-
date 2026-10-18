@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { DesignNode, Paint } from "../design/types";
+import { SCENE_IMAGE_REPLACEMENTS } from "../ui/Icon";
 /** Figma crop matrices map frame-normalized coordinates into the source image. */
 export function SourceImage({
   node,
@@ -45,7 +46,7 @@ export function SourceImage({
         pointerEvents: "none",
       }}
     >
-      <img alt="" src={`/assets/${paint.asset}`} style={style} />
+      <img alt="" src={`/assets/${SCENE_IMAGE_REPLACEMENTS[paint.asset ?? ""] ?? paint.asset}`} style={style} />
     </span>
   );
 }

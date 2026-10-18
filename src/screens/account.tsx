@@ -169,7 +169,7 @@ export function HelpCenterScreen() {
         {t("profile_delete_account_title", "Delete Account")}
       </Button>}>
       <div className="stack">
-        <div className="center"><Icon name="ic_support" size={96} tint="var(--primary-dark)" />
+        <div className="center"><Icon name="ic_message" size={96} tint="var(--primary-dark)" />
           <h2 className="title">{t("contact_support_subtitle", "We are here to help")}</h2>
           <p className="muted">{t("contact_support_description", "")}</p></div>
         <a className="menu-row card" href="mailto:support@carezaar.com">

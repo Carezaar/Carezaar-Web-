@@ -7,6 +7,7 @@ import { rgba, type DesignNode } from "../design/types";
 import { SourceText, measureText } from "./SourceText";
 import { SourceVector } from "./SourceVector";
 import { SourceImage } from "./SourceImage";
+import { OMITTED_SCENE_IMAGES } from "../ui/Icon";
 function accessibleLabel(n: DesignNode, translate?: (n: DesignNode) => string | undefined): string {
   return (n.text !== undefined ? translate?.(n) ?? n.text : "")
     || n.children.map((c) => accessibleLabel(c, translate)).filter(Boolean).join(" ");
@@ -203,7 +204,7 @@ export function DesignElement({
           <SourceGradient key={"gradient" + i} paint={p} />
         ))}
       {n.fills
-        .filter((p) => p.type === "image" && p.asset)
+        .filter((p) => p.type === "image" && p.asset && !OMITTED_SCENE_IMAGES.has(p.asset))
         .map((p, i) => (
           <SourceImage key={"image" + i} node={n} paint={p} />
         ))}

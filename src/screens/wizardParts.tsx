@@ -160,9 +160,7 @@ export function WizardIntro({ title, description, caregiver = false, onStart }: 
     // The caregiver frame (715:11684) shows its own skills illustration.
     isHidden: (n) => caregiver && CLIENT_ILLUSTRATIONS.has(n.id),
   }), [goBack, onStart, title, description, caregiver]);
-  return <FigmaScreen sceneKey="v2-65-19934" binder={binder} overlays={caregiver ? [
-    { x: 94, y: 110, width: 224, height: 238, content: <img src="/assets/mobile-match-skills-illustration.png" alt="" width="100%" height="100%" /> },
-  ] : []} />;
+  return <FigmaScreen sceneKey="v2-65-19934" binder={binder} />;
 }
 
 /* --------------------------------------------------------------- engine */
