@@ -11,12 +11,20 @@ export interface SceneBinder {
   /** Return true when handled; otherwise the tap is ignored. */
   handle?: (node: DesignNode) => boolean;
   text?: (node: DesignNode) => string | undefined;
+  /** Meaningful name for a known action whose scene has no visible text. */
+  accessibilityLabel?: (node: DesignNode) => string | undefined;
   isHidden?: (node: DesignNode) => boolean;
   opacity?: (node: DesignNode) => number | undefined;
   isEnabled?: (node: DesignNode) => boolean;
   isSelected?: (node: DesignNode) => boolean | undefined;
   /** Overrides an input node's type, e.g. "text" while a password is revealed. */
   inputType?: (node: DesignNode) => string | undefined;
+  /** Explicit HTML associations for a scene's visible field labels and inputs. */
+  inputId?: (node: DesignNode) => string | undefined;
+  labelFor?: (node: DesignNode) => string | undefined;
+  isRequired?: (node: DesignNode) => boolean | undefined;
+  /** Give a known scene title heading semantics without changing its geometry. */
+  headingLevel?: (node: DesignNode) => 1 | 2 | 3 | undefined;
   /** Moves a node vertically by this many frame points, e.g. to close the gap left by a
    *  field the product removed from a designed frame. */
   offsetY?: (node: DesignNode) => number | undefined;

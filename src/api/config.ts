@@ -16,7 +16,10 @@ export const INTRODUCTION_MAX_LENGTH = 1000;
 /** The Terms of Use and the Privacy Policy opened from Create Account, as supplied by the
  *  client (17 October 2026). `content` is the document's text, converted from the PDF and
  *  checked character for character against it (shown in the app); `pdf` is the original. */
-export const LEGAL_DOCUMENTS: Record<"terms" | "privacy", { content: string; pdf: string }> = {
-  terms: { content: "/legal/terms-of-use.json", pdf: "/legal/terms-of-use.pdf" },
-  privacy: { content: "/legal/privacy-policy.json", pdf: "/legal/privacy-policy.pdf" },
+export const LEGAL_DOCUMENTS: Record<"terms" | "privacy", { content: string; pdf: string; remote?: string }> = {
+  terms: { content: "/legal/terms-of-use.json", pdf: "/legal/terms-of-use.pdf", remote: import.meta.env?.VITE_CAREZAAR_TERMS_OF_USE_URL as string | undefined },
+  privacy: { content: "/legal/privacy-policy.json", pdf: "/legal/privacy-policy.pdf", remote: import.meta.env?.VITE_CAREZAAR_PRIVACY_POLICY_URL as string | undefined },
 };
+
+// Until client server URLs are supplied, missing remote configuration uses only the
+// supplied copy above. A configured remote failure never falls back to stale content.

@@ -53,6 +53,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [cameraOpen, setCameraOpen] = useState(false);
   const galleryInput = useRef<HTMLInputElement>(null);
+  const edited = useRef(false);
 
   useEffect(() => {
     if (mode === "signup" && !signUp.email) navigate("/intro", { replace: true });
@@ -65,13 +66,12 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   }, [mode]);
 
   useEffect(() => {
-    if (mode === "edit" && user) {
+    if (mode === "edit" && user && !edited.current) {
       setFirstName(user.first_name ?? ""); setLastName(user.last_name ?? "");
       setGenderId(user.gender_id); setDob(toInputDate(user.date_of_birth)); setBio(user.bio ?? "");
-      setPreview((p) => (photo ? p : user.photo));
+      setPreview(user.photo);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refill the form only when the user record changes
-  }, [user]);
+  }, [mode, user]);
 
   // A freshly picked photo waits for the square crop, as on Android.
   const [cropping, setCropping] = useState<File | null>(null);
@@ -94,6 +94,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
     image.src = url;
   };
   const cropped = (file: File) => {
+    edited.current = true;
     setCropping(null);
     setPhoto(file);
     setPreview(URL.createObjectURL(file));
@@ -117,25 +118,28 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
     setErrors(next);
     if (Object.keys(next).length) return;
     const email = mode === "signup" ? signUp.email : user?.email ?? "";
-    // A save without a photo removes the current one, so keep it unless the user removed it.
-    let photoToSend = photo;
-    if (mode === "edit" && !photo && preview && preview === user?.photo) {
-      try {
-        photoToSend = await userService.currentPhotoFile(preview);
-      } catch {
-        toast(t("profile_edit_photo_keep_failed", "Your current photo couldn't be kept. Choose it again or remove it, then save."));
-        return;
-      }
-    }
     try {
       const saved = await act(
         mode === "signup" ? t("loading_auth_register", "Registering") : t("loading_profile_set", "Updating profile"),
-        () => userService.setProfile({
-          email, genderId, firstName: firstName.trim(), lastName: lastName.trim(),
-          bio: bio.trim() || null, dateOfBirth: new Date(`${dob}T00:00:00`), photo: photoToSend,
-          anonymous: mode === "signup",
-        }),
+        async () => {
+          // Keeping the photo belongs to the same progress/duplicate-action lock as Save.
+          let photoToSend = photo;
+          if (mode === "edit" && !photo && preview && preview === user?.photo) {
+            try {
+              photoToSend = await userService.currentPhotoFile(preview);
+            } catch {
+              toast(t("profile_edit_photo_keep_failed", "Your current photo couldn't be kept. Choose it again or remove it, then save."));
+              return null;
+            }
+          }
+          return userService.setProfile({
+            email, genderId, firstName: firstName.trim(), lastName: lastName.trim(),
+            bio: bio.trim() || null, dateOfBirth: new Date(`${dob}T00:00:00`), photo: photoToSend,
+            anonymous: mode === "signup",
+          });
+        },
       );
+      if (!saved) return;
       if (mode === "signup") {
         update({ userId: saved.id });
         navigate(signUp.role === "client" ? "/onboarding/client" : "/onboarding/caregiver");
@@ -149,13 +153,15 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
       // wrongly tell the user their email is bad, so the general message is shown instead.
       if (mode === "edit" && e instanceof ApiError && /email/i.test(e.message) && !e.fieldError("first_name")) {
         toast(t("general_error_general", "Something went wrong. Please try again."));
-      } else if (e instanceof ApiError && e.kind === "validation") {
+      } else if (e instanceof ApiError && e.kind === "validation" && !e.isTechnical) {
         setErrors(Object.fromEntries(Object.entries(e.fields).map(([k, v]) => [k, v[0]])));
       } else toast(messageOf(e));
     }
   };
 
   const gender = genders.find((g) => g.id === genderId);
+  const genderQuestion = t("profile_edit_gender", "What is your gender?");
+  const genderValue = gender ? label(gender) : t("profile_edit_gender_placeholder", "Select your gender");
   return (
     <Page header={<BackHeader />} footer={
       <Button trailingIcon="ic_arrow_forward" disabled={!valid} onClick={() => void submit()}>
@@ -164,7 +170,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
     }>
       <div className="stack">
         <div>
-          <h2 className="title">{t("signup_form_client_tell_us_about_yourself", "Tell us about yourself")}</h2>
+          <h1 className="title">{t("signup_form_client_tell_us_about_yourself", "Tell us about yourself")}</h1>
           <p className="muted">{t("signup_form_client_about_yourself_description", "This helps us match you with the right caregiver.")}</p>
         </div>
         <Field label={t("profile_edit_profile_picture", "Profile Picture (optional)")}>
@@ -176,7 +182,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
               <strong>{t("profile_edit_upload_profile_picture", "Upload a profile picture")}</strong>
               <span className="muted small">{t("profile_edit_profile_picture_description", "This helps caregivers get to know you.")}</span>
               {preview ? (
-                <Button variant="danger" icon="ic_clear" onClick={() => { setPhoto(null); setPreview(null); }}>
+                <Button variant="danger" icon="ic_clear" onClick={() => { edited.current = true; setPhoto(null); setPreview(null); }}>
                   {t("profile_edit_remove_photo", "Remove Photo")}
                 </Button>
               ) : (
@@ -193,17 +199,18 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
         {cropping && <PhotoCropper file={cropping} onDone={cropped} onCancel={() => setCropping(null)} />}
         <div className="grid-2">
           <TextField label={t("profile_edit_first_name", "First name")} required autoComplete="given-name"
-            value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errors.first_name}
+            value={firstName} onChange={(e) => { edited.current = true; setFirstName(e.target.value); }} error={errors.first_name}
             placeholder={t("profile_edit_enter_first_name", "Enter your first name")} />
           <TextField label={t("profile_edit_last_name", "Last name")} required autoComplete="family-name"
-            value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.last_name}
+            value={lastName} onChange={(e) => { edited.current = true; setLastName(e.target.value); }} error={errors.last_name}
             placeholder={t("profile_edit_enter_last_name", "Enter your last name")} />
         </div>
-        <div className="grid-2">
-          <Field label={t("profile_edit_gender", "What is your gender?")} required error={errors.gender_id}
+        <div className="grid-2 profile-demographics">
+          <Field label={genderQuestion} required error={errors.gender_id}
             icon={gender?.icon ?? undefined}>
-            <button type="button" className="select-button" onClick={() => setGenderOpen(true)}>
-              <span className={gender ? "" : "placeholder"}>{gender ? label(gender) : t("profile_edit_gender_placeholder", "Select your gender")}</span>
+            <button type="button" className="select-button" onClick={() => setGenderOpen(true)}
+              aria-label={`${genderQuestion} ${genderValue}`} aria-haspopup="dialog" aria-expanded={genderOpen}>
+              <span className={gender ? "" : "placeholder"}>{genderValue}</span>
               <Icon name="ic_chevron_down" size={20} tint="var(--text-secondary)" />
             </button>
           </Field>
@@ -213,10 +220,10 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
             hint={<span title={t("profile_edit_age_requirement", "You must be 18 years or older.")}>
               <Icon name="ic_info_circle" size={20} tint="var(--primary)" /></span>}>
             <input type="date" aria-label={t("profile_edit_date_of_birth", "Date of birth")} value={dob}
-              max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDob(e.target.value)} />
+              max={new Date().toISOString().slice(0, 10)} onChange={(e) => { edited.current = true; setDob(e.target.value); }} />
           </Field>
         </div>
-        <TextArea label={t("profile_edit_bio", "Bio (optional)")} value={bio} onChange={(e) => setBio(e.target.value)}
+        <TextArea label={t("profile_edit_bio", "Bio (optional)")} value={bio} onChange={(e) => { edited.current = true; setBio(e.target.value); }}
           placeholder={t("profile_edit_bio_placeholder", "Tell us a little about yourself.")} />
       </div>
 
@@ -234,7 +241,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
         <div className="stack-sm">
           {genders.map((g) => (
             <button key={g.id} type="button" className={`option-row ${g.id === genderId ? "on" : ""}`}
-              onClick={() => { setGenderId(g.id); setGenderOpen(false); }}>
+              onClick={() => { edited.current = true; setGenderId(g.id); setGenderOpen(false); }}>
               <Icon name={g.icon} size={26} tint="var(--text)" /><span>{label(g)}</span>
             </button>
           ))}

@@ -7,6 +7,9 @@ import { resolve } from "node:path";
 const uploads = { "/uploads": { target: "https://new.carezaar.com", changeOrigin: true } };
 
 export default defineConfig({
+  // Remove third-party diagnostic calls from shipped chunks too. Pure calls
+  // preserve any argument side effects; production errors/warnings remain.
+  esbuild: { pure: ["console.log", "console.debug", "console.info"], drop: ["debugger"] },
   server: { proxy: uploads },
   preview: { proxy: uploads },
   build: {

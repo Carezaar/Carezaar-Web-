@@ -1,0 +1,52 @@
+/** Built-app synthetic notification response ownership. Real cross-tab storage and UI; no account/API writes. */
+const names=['careconditions','caredays','carespecials','certifications','clienttypes','commutes','contents','countries','experiences','genders','issuetypes','languageskills','reasons','roles','shifts','subjects','worktypes'];
+const cache={tsCache:10,tables:Object.fromEntries(names.map(n=>[n,[{id:1,code:'synthetic',translations:[]}]])),extras:Object.fromEntries(['states','media','faqs','faq_categories'].map(n=>[n,[]])),languages:[{id:1,code:'en',name:'English',is_default:true,is_rtl:false}]};
+const old={access_token:'synthetic-notify-old',refresh_token:'synthetic-notify-refresh-old'},newer={access_token:'synthetic-notify-new',refresh_token:'synthetic-notify-refresh-new'};
+export async function runNotificationPollOwnership(browser,{engine,width,transition,origin='http://localhost:4419',api='https://new.carezaar.com',onUpdate=()=>{},onScreenshot}={}){
+ let context,page,release,timer,heldOldRequest;const followupRequests=new Set();let completedFollowups=0;const r={engine,version:browser.version(),width,transition,status:'IN PROGRESS',checks:[],counts:{oldInfo:0,newInfo:0,oldPoll:0,newPoll:0,lists:0,notificationList:0},unknownRequests:0,unexpectedMutations:0,callbackErrors:0,pageErrors:0,consoleErrors:0,realApiForwarded:0,contextClosed:false,browserClosed:false};
+ const save=()=>onUpdate(r),need=(ok,code)=>{if(!ok){const e=Error(code);e.qaCode=code;throw e;}},add=(name,predicates)=>{r.checks.push({case:name,predicates,status:Object.values(predicates).every(Boolean)?'PASS':'FAIL'});save();};save();
+ try{
+  context=await browser.newContext({viewport:{width,height:1000},storageState:{cookies:[],origins:[{origin,localStorage:[{name:'carezaar.accessToken',value:old.access_token},{name:'carezaar.refreshToken',value:old.refresh_token},{name:'carezaar.sessionOwner',value:'synthetic-notify-old-owner'},{name:'carezaar.baseData.v3',value:JSON.stringify(cache)},{name:'carezaar.languageId',value:'1'},{name:'carezaar.languageCode',value:'en'},{name:'carezaar.notificationCount',value:'0'},{name:'carezaar.notificationsCheckedAt',value:'0'}]}]}});
+  const held=new Promise(resolve=>{release=resolve;});
+  const fulfill=(route,result,meta=null)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify({result,message:'Synthetic response',errors:null,meta})});
+  const user=who=>({id:'synthetic-notify-'+who,role:'client',first_name:'Synthetic',last_name:who,email:who+'@example.test',photo:null,date_of_birth:null});
+  const paths=['/api/base/info','/api/auth/info','/api/clients/matches','/api/users/notifications/count','/api/users/notifications'];
+  await context.route('**/*',async route=>{try{
+   const q=route.request(),u=new URL(q.url()),method=q.method(),bearer=q.headers().authorization;
+   if(u.origin===origin&&u.pathname==='/__qa_notification_owner__'&&method==='GET')return route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Synthetic storage owner</title>'});
+   if(u.origin===origin&&!u.pathname.startsWith('/api/')&&['GET','HEAD'].includes(method))return route.continue();
+   if(u.origin===api&&method==='OPTIONS'&&paths.includes(u.pathname))return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-methods':'GET,OPTIONS','access-control-allow-headers':'authorization,accept,accept-language,content-type'}});
+   if(method!=='GET'){r.unexpectedMutations++;save();return route.abort('blockedbyclient');}
+   if(u.origin===api){
+    if(u.pathname==='/api/base/info'&&!bearer&&u.search==='?ts_cache=0')return fulfill(route,{ts_cache:10});
+    const who=bearer==='Bearer '+old.access_token?'old':bearer==='Bearer '+newer.access_token?'new':null;
+    if(who){
+     if(u.pathname==='/api/auth/info'&&!u.search&&r.counts[who+'Info']===0){r.counts[who+'Info']++;save();return fulfill(route,user(who));}
+     if(u.pathname==='/api/clients/matches'&&u.searchParams.get('page')==='1'&&u.searchParams.get('perPage')==='10'&&u.searchParams.get('sort')==='distance'&&[...u.searchParams.keys()].length===3&&r.counts.lists<4){r.counts.lists++;save();return fulfill(route,[],{current_page:1,last_page:1,per_page:10,total:0});}
+     if(u.pathname==='/api/users/notifications/count'&&u.searchParams.has('checked_at')&&[...u.searchParams.keys()].length===1&&r.counts[who+'Poll']<(who==='old'&&transition==='checked'?3:1)){r.counts[who+'Poll']++;save();if(who==='old'&&r.counts.oldPoll===1){heldOldRequest=q;await held;return fulfill(route,7);}if(who==='old')followupRequests.add(q);return fulfill(route,who==='old'?0:2);}
+     if(u.pathname==='/api/users/notifications'&&transition==='checked'&&u.searchParams.get('page')==='1'&&u.searchParams.get('perPage')==='10'&&[...u.searchParams.keys()].length===2&&r.counts.notificationList===0){r.counts.notificationList++;save();return fulfill(route,[],{current_page:1,last_page:1,per_page:10,total:0});}
+    }
+   }
+   r.unknownRequests++;(r.unknownShapes??=[]).push({path:u.pathname,keys:[...u.searchParams.keys()],syntheticOwner:bearer==='Bearer '+old.access_token?'old':bearer==='Bearer '+newer.access_token?'new':'none'});save();return route.abort('blockedbyclient');
+  }catch{r.callbackErrors++;save();try{await route.abort('failed');}catch{/* sanitized only */}}});
+  page=await context.newPage();page.on('response',async res=>{if(followupRequests.has(res.request())){try{if(await res.finished()===null)completedFollowups++;}catch{/* observed by completion prerequisite */}}});page.setDefaultTimeout(6000);page.on('pageerror',()=>{r.pageErrors++;save();});page.on('console',m=>{if(m.type()==='error'){r.consoleErrors++;save();}});
+  await page.addInitScript(()=>{window.__qaNotificationStorageEvents=0;window.addEventListener('storage',e=>{if(e.isTrusted&&e.key==='carezaar.accessToken')window.__qaNotificationStorageEvents++;});});
+  await page.goto(origin+'/main/matches',{waitUntil:'domcontentloaded'});await page.locator('.main-shell').waitFor();await page.locator('.busy-scrim').waitFor({state:'hidden'});
+  for(let i=0;i<100&&r.counts.oldPoll!==1;i++)await page.waitForTimeout(50);need(r.counts.oldPoll===1,'OLD_NOTIFICATION_POLL_REQUIRED');timer=setTimeout(()=>{r.safetyRelease=true;release();},20000);
+  if(transition==='checked'){
+   await page.getByRole('button',{name:'Notifications',exact:true}).filter({visible:true}).click();await page.waitForURL('**/notifications');await page.locator('.busy-scrim').waitFor({state:'hidden'});await page.getByRole('button',{name:'Back',exact:true}).click();await page.waitForURL('**/main/matches');
+   need(await page.evaluate(()=>Number(localStorage.getItem('carezaar.notificationsCheckedAt'))>0),'REAL_NOTIFICATIONS_EXIT_MARK_REQUIRED');
+  }else if(transition!=='healthy'){
+   const other=await context.newPage();await other.goto(origin+'/__qa_notification_owner__');
+   await other.evaluate(({transition,newer})=>{if(transition==='clear'){localStorage.removeItem('carezaar.sessionOwner');localStorage.removeItem('carezaar.refreshToken');localStorage.removeItem('carezaar.accessToken');}else{localStorage.setItem('carezaar.sessionOwner','synthetic-notify-new-owner');localStorage.setItem('carezaar.refreshToken',newer.refresh_token);localStorage.setItem('carezaar.accessToken',newer.access_token);}}, {transition,newer});
+   await page.waitForFunction(()=>window.__qaNotificationStorageEvents>=1);if(transition==='clear')await page.waitForURL('**/intro');else{await page.waitForFunction(()=>document.querySelector('.main-shell')!==null);for(let i=0;i<100&&r.counts.newInfo!==1;i++)await page.waitForTimeout(50);need(r.counts.newInfo===1,'REPLACEMENT_IDENTITY_REQUIRED');}await other.close();
+  }
+  await page.locator('.busy-scrim').waitFor({state:'hidden'});await page.waitForTimeout(250);for(let i=0;i<100&&completedFollowups!==followupRequests.size;i++)await page.waitForTimeout(50);need(completedFollowups===followupRequests.size,'FOLLOWUP_ZERO_RESPONSES_COMPLETE_BEFORE_OLD_RELEASE');r.followupZeroResponsesCompleted=completedFollowups;need(!r.safetyRelease,'HELD_NOTIFICATION_NOT_EXPIRED');
+  const responseWait=page.waitForResponse(res=>res.request()===heldOldRequest,{timeout:6000}).catch(()=>null);release();clearTimeout(timer);timer=null;const answer=await responseWait;need(answer&&answer.status()===200&&await answer.finished()===null,'OLD_NOTIFICATION_RESPONSE_COMPLETED');await page.waitForTimeout(750);
+  const snapshot=await page.evaluate(()=>({stored:Number(localStorage.getItem('carezaar.notificationCount')),badges:[...document.querySelectorAll('.badge-host .badge')].map(e=>e.textContent),events:window.__qaNotificationStorageEvents,access:localStorage.getItem('carezaar.accessToken')}));
+  add('Completed old poll cannot overwrite current notification state',{old200Completed:true,followupZeroResponsesAlreadyComplete:completedFollowups===followupRequests.size,boundedOldPolls:transition==='checked'?r.counts.oldPoll<=3:r.counts.oldPoll===1,noStaleSeven:transition==='healthy'||snapshot.stored!==7&&!snapshot.badges.includes('7'),currentStoredCount: snapshot.stored===(transition==='replacement'?2:transition==='healthy'?7:0),currentBadge:transition==='clear'?snapshot.badges.length===0:transition==='checked'?snapshot.badges.length===0:snapshot.badges.length>0&&snapshot.badges.every(v=>v===(transition==='healthy'?'7':'2')),newOwnerPolled:transition!=='replacement'||r.counts.newPoll===1,sessionRetained:transition==='clear'?snapshot.access===null:snapshot.access===(transition==='replacement'?newer.access_token:old.access_token),realInteraction:transition==='healthy'?true:transition==='checked'?r.counts.notificationList===1:snapshot.events>=1,noSafetyRelease:!r.safetyRelease});
+  add('Strict synthetic runtime guards',{noUnknown:r.unknownRequests===0,noMutation:r.unexpectedMutations===0,noErrors:r.callbackErrors===0&&r.pageErrors===0&&r.consoleErrors===0,noForward:r.realApiForwarded===0});
+  if(onScreenshot)r.screenshot=await onScreenshot(page,{engine,width,transition});r.status=r.checks.every(c=>c.status==='PASS')?'PASS':'FAIL';save();
+ }catch(e){r.errorName=['Error','TimeoutError','TypeError'].includes(e?.name)?e.name:'OtherError';r.interruptionCode=/^[A-Z0-9_]+$/.test(e?.qaCode||'')?e.qaCode:'SANITIZED_HARNESS_INTERRUPTION';save();}
+ finally{release?.();if(timer)clearTimeout(timer);if(context){await context.close();r.contextClosed=true;}if(r.unknownRequests||r.unexpectedMutations)r.status='FAIL';save();}return r;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { DesignElement } from "../components/DesignElement";
 import type { DesignNode } from "../design/types";
 import { useI18n } from "../app/i18n";
@@ -15,12 +15,28 @@ export interface SceneOverlay {
   x: number; y: number; width: number; height: number; content: ReactNode;
 }
 
+/** One request per scene file: a screen mounted twice in quick succession (frames
+ *  swapping on sign-out, for example) shares it instead of cancelling and repeating
+ *  it. A failed load is forgotten so Try Again asks again. */
+const scenes = new Map<string, Promise<DesignNode>>();
+function loadScene(sceneKey: string): Promise<DesignNode> {
+  let scene = scenes.get(sceneKey);
+  if (!scene) {
+    scene = fetch(`/scenes/${sceneKey}.json`)
+      .then((r) => { if (!r.ok) throw new Error("This screen could not be loaded."); return r.json() as Promise<DesignNode>; });
+    scene.catch(() => scenes.delete(sceneKey));
+    scenes.set(sceneKey, scene);
+  }
+  return scene;
+}
+
 export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
   sceneKey: string; binder: SceneBinder; overlays?: SceneOverlay[]; children?: ReactNode;
 }) {
-  const { translateEnglish, isRtl } = useI18n();
+  const { t, translateEnglish, isRtl } = useI18n();
   const [node, setNode] = useState<DesignNode | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(false);
+  const [retryRevision, setRetryRevision] = useState(0);
   // Sized from the container, not the window: the same scene sits in the phone
   // column on mobile and inside the sign-in card on desktop.
   const host = useRef<HTMLDivElement>(null);
@@ -37,13 +53,12 @@ export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
   }, [node]);
 
   useEffect(() => {
-    const ctrl = new AbortController();
-    fetch(`/scenes/${sceneKey}.json`, { signal: ctrl.signal })
-      .then((r) => { if (!r.ok) throw new Error("This screen could not be loaded."); return r.json(); })
-      .then(setNode)
-      .catch((e: Error) => { if (e.name !== "AbortError") setError(e.message); });
-    return () => ctrl.abort();
-  }, [sceneKey]);
+    let active = true;
+    loadScene(sceneKey)
+      .then((value) => { if (active) setNode(value); })
+      .catch(() => { if (active) setError(true); });
+    return () => { active = false; };
+  }, [sceneKey, retryRevision]);
 
   const localised = useMemo<SceneBinder>(() => ({
     ...binder,
@@ -51,16 +66,19 @@ export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
     text: (n) => binder.text?.(n) ?? (n.text ? translateEnglish(n.text) ?? undefined : undefined),
   }), [binder, translateEnglish, isRtl]);
 
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState message={t("general_error_general", "Something went wrong. Please try again.")}
+    retryLabel={t("general_try_again", "Try Again")}
+    onRetry={() => { setError(false); setNode(null); setRetryRevision((value) => value + 1); }} />;
   if (!node) return <div ref={host}><Spinner /></div>;
   const scale = width / node.width;
   return (
     <SceneBinderContext.Provider value={localised}>
       <div ref={host} className="figma-screen" dir="ltr" style={{ height: node.height * scale }}>
         <div style={{
+          "--scene-touch-min": `${44 / scale}px`,
           position: "relative", width: node.width, height: node.height,
           transform: `scale(${scale})`, transformOrigin: "top left",
-        }}>
+        } as CSSProperties}>
           <DesignElement node={node} parentWidth={node.width} />
           {overlays.map((o, i) => (
             <div key={i} className="scene-overlay"

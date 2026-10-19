@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "../api/errors";
 import { useParams } from "react-router-dom";
 import { userService } from "../api/services";
@@ -27,7 +27,7 @@ function chronological(chat: ChatFull): ChatFull {
  *  is replaced from the response rather than optimistically appended. */
 export function ChatScreen() {
   const { chatId = "" } = useParams();
-  const { role } = useSession();
+  const { role, user } = useSession();
   const { t } = useI18n();
   const { run, toast, messageOf } = useFeedback();
   const [chat, setChat] = useState<ChatFull | null>(null);
@@ -44,12 +44,25 @@ export function ChatScreen() {
   // then; someone reading older messages keeps their place.
   const stick = useRef(true);
   const desktop = useIsDesktop();
+  const scope = useRef(0);
+  // Reset conversation-owned state before paint without remounting the desktop
+  // list. Resizing the same conversation retains its draft and reply.
+  useLayoutEffect(() => {
+    const invalidate = () => { scope.current++; };
+    invalidate();
+    setChat(null); setError(null); setDraft(""); setReplyTo(null); setMenuFor(null);
+    sendingRef.current = false; setSending(false); stick.current = true;
+    return invalidate;
+  }, [chatId, user?.id]);
 
   const load = useCallback(() => {
+    if (!user?.id) return;
+    const owner = scope.current;
     setError(null);
     run(t("loading_chat_get_one", "Getting chat details"), () => userService.chat(Number(chatId)))
-      .then((c) => setChat(chronological(c))).catch(setError);
-  }, [chatId, run, t]);
+      .then((c) => { if (scope.current === owner) setChat(chronological(c)); })
+      .catch((e) => { if (scope.current === owner) setError(e); });
+  }, [chatId, user?.id, run, t]);
   useEffect(load, [load]);
   const hasChat = chat !== null;
   useEffect(() => {
@@ -85,10 +98,13 @@ export function ChatScreen() {
   const chatRef = useRef(chat);
   chatRef.current = chat;
   useEffect(() => {
+    let active = true;
+    const owner = scope.current;
     const signature = (c: ChatFull) => c.messages.map((m) => `${m.id}:${m.seen_at ?? ""}`).join(",");
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
       userService.chat(Number(chatId)).then((fresh) => {
+        if (!active || scope.current !== owner) return;
         const current = chatRef.current;
         if (current && signature(current) === signature(chronological(fresh))) return;
         setChat(chronological(fresh));
@@ -98,8 +114,8 @@ export function ChatScreen() {
     };
     const timer = window.setInterval(refresh, CHAT_POLL_MS);
     window.addEventListener("focus", refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
-  }, [chatId]);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [chatId, user?.id]);
 
   const partnerEntity = role === "client" ? chat?.caregiver : chat?.client;
   const partner = partnerEntity?.user;
@@ -116,31 +132,37 @@ export function ChatScreen() {
   const chatMessage = (e: unknown) => (e instanceof ApiError && e.status === 400 && /unauthori[sz]ed/i.test(e.message)
     ? t("chat_screen_match_check", "You can only send messages to your current matches.") : messageOf(e));
   const mine = (m: ChatMessage) => (role === "caregiver" ? m.is_from_caregiver : !m.is_from_caregiver);
+  const composerUnavailable = !chat || Boolean(error);
 
   // One send at a time: the text stays in the box (read-only) until the server confirms
   // it, so a double click, Enter held down or a slow connection can't send it twice, and
   // a failed send leaves the text there to try again. A send is never repeated
   // automatically: it may have reached the server.
   const send = async () => {
-    if (sendingRef.current || closedNote) return;
+    if (sendingRef.current || closedNote || composerUnavailable) return;
     const text = draft.trim();
     // Send stays active with an empty box and says why nothing was sent (K4).
     if (!text) { toast(t("chat_screen_message_required", "Please type a message first.")); return; }
+    const owner = scope.current;
     sendingRef.current = true;
     setSending(true);
     try {
-      const updated = await userService.sendMessage(Number(chatId), text, replyTo?.id ?? null);
+      const updated = await run(t("loading_chat_send", "Sending a new message"),
+        () => userService.sendMessage(Number(chatId), text, replyTo?.id ?? null));
+      if (scope.current !== owner) return;
       stick.current = true;
       setChat(chronological(updated));
       setDraft(""); setReplyTo(null);
       window.dispatchEvent(new Event(CHATS_CHANGED));
     } catch (e) {
+      if (scope.current !== owner) return;
       // No answer: the message may have been delivered. It is not sent again; the
       // conversation is read, and if the message is there it counts as sent.
       if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
         const known = new Set((chat?.messages ?? []).map((m) => m.id));
         try {
           const fresh = chronological(await userService.chat(Number(chatId)));
+          if (scope.current !== owner) return;
           setChat(fresh);
           if (fresh.messages.some((m) => !known.has(m.id) && mine(m) && m.message.trim() === text)) {
             stick.current = true;
@@ -150,10 +172,13 @@ export function ChatScreen() {
           }
         } catch { /* still unknown: say so below, keep the text */ }
       }
+      if (scope.current !== owner) return;
       toast(chatMessage(e));
     } finally {
-      sendingRef.current = false;
-      setSending(false);
+      if (scope.current === owner) {
+        sendingRef.current = false;
+        setSending(false);
+      }
     }
   };
 
@@ -171,11 +196,11 @@ export function ChatScreen() {
       )}
       <div className="composer-row">
         <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={sending} aria-busy={sending}
-          disabled={closedNote !== null}
+          disabled={closedNote !== null || composerUnavailable}
           placeholder={t("chat_screen_message_placeholder", "Type a message...")} aria-label={t("chat_screen_message_placeholder", "Type a message...")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} />
         <button type="button" className={`send-btn ${closedNote ? "closed" : ""}`} onClick={() => void send()}
-          disabled={sending || closedNote !== null}
+          disabled={sending || closedNote !== null || composerUnavailable}
           aria-label={sending ? t("loading_chat_send", "Sending a new message") : "Send"}>
           {sending ? <span className="spinner small" aria-hidden="true" /> : <Icon name="ic_send" size={22} tint="#fff" className="flip-rtl" />}
         </button>

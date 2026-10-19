@@ -81,7 +81,7 @@ export function signUpErrors(f: SignUpFields, t: (slug: string, fallback: string
       : unmet ? t(`signup_credentials_password_validation_${unmet.id}`, unmet.label) : undefined,
     confirmation: f.confirmation === "" ? required
       : f.confirmation !== f.password ? t("signup_credentials_password_match", "Passwords do not match.") : undefined,
-    accepted: f.accepted ? undefined : t("signup_credentials_accept_required", "Please accept the license agreement to continue."),
+    accepted: f.accepted || email === "" || validateEmail(email) || unmet || f.confirmation === "" || f.confirmation !== f.password ? undefined : t("signup_credentials_accept_required", "Please accept the license agreement to continue."),
   };
 }
 

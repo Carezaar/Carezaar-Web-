@@ -37,7 +37,8 @@ export class ApiError extends Error {
   /** True when the server's message is an implementation detail (a PHP notice, a
    *  missing route, a stack frame) rather than something written for people. */
   get isTechnical(): boolean {
-    return /undefined (array key|index|offset|variable|property)|array key|exception|sqlstate|stack trace|call to (a )?(member|undefined)|route .* could not be found|method is not supported|\.php|symfony|laravel|syntax error|null given/i.test(this.message);
+    const details = [this.message, ...Object.values(this.fields).flat()].join("\n");
+    return /undefined (array key|index|offset|variable|property)|array key|exception|sqlstate|stack trace|call to (a )?(member|undefined)|route .* could not be found|method is not supported|\.php|symfony|laravel|syntax error|null given/i.test(details);
   }
 
   /** The server could not perform the action at all (missing route, crash), as

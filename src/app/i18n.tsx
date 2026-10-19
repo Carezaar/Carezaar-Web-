@@ -1,7 +1,7 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
 } from "react";
-import { appLanguage } from "../api/language";
+import { appLanguage, documentLanguageTag } from "../api/language";
 import type { BaseItem, Language } from "../api/types";
 import { webContent } from "./webContent";
 
@@ -72,7 +72,7 @@ export function I18nProvider({
 
   useEffect(() => {
     document.documentElement.dir = isRtl ? "rtl" : "ltr";
-    document.documentElement.lang = languageCode;
+    document.documentElement.lang = documentLanguageTag(languageCode);
   }, [isRtl, languageCode]);
 
   const t = useCallback((slug: string, fallback?: string) => {

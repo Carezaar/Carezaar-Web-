@@ -89,7 +89,9 @@ export function usePaged<T>(
    *  loaded after the fresh first page, so the list doesn't shrink under the reader. */
   const refreshRunning = useRef(false);
   const refresh = useCallback(async ({ keepMore = false }: { keepMore?: boolean } = {}) => {
-    if (refreshRunning.current) return;
+    // Periodic refresh yields to an explicit page load/retry. It must not advance
+    // the generation and discard that page's eventual successful response.
+    if (refreshRunning.current || (keepMore && inFlight.current)) return;
     refreshRunning.current = true;
     setLoading(false);
     const gen = ++generation.current;
@@ -123,6 +125,13 @@ export function usePaged<T>(
     void load(current + 1);
   }, [error, load]);
 
+  /** An explicit retry resumes the failed page without discarding loaded rows.
+   * Scroll callbacks remain paused until the user chooses to retry. */
+  const retry = useCallback(() => {
+    if (inFlight.current || !error) return;
+    return load(loaded.current.page + 1);
+  }, [error, load]);
+
   /** Optimistic local edit (e.g. a bookmark toggled on a card). */
   const mutate = useCallback((fn: (all: T[]) => T[]) => {
     setItems((all) => {
@@ -132,5 +141,5 @@ export function usePaged<T>(
     });
   }, []);
 
-  return { items, total, page, loading, refreshing, error, hasMore, loadMore, reload, refresh, mutate };
+  return { items, total, page, loading, refreshing, error, hasMore, loadMore, retry, reload, refresh, mutate };
 }

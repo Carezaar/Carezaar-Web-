@@ -8,6 +8,12 @@
 const CODE_KEY = "carezaar.languageCode";
 const ID_KEY = "carezaar.languageId";
 
+/** The API uses legacy codes for Spanish, Hindi and Chinese. HTML language
+ * declarations use standard language tags without changing that API contract. */
+export function documentLanguageTag(apiCode: string): string {
+  return ({ sp: "es", in: "hi", cn: "zh" } as Record<string, string>)[apiCode] ?? apiCode;
+}
+
 export const appLanguage = {
   get code(): string {
     try {

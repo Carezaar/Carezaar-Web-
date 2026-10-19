@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
 import { authService, userService } from "../api/services";
@@ -17,7 +17,7 @@ import { semanticLabel, type SceneBinder } from "../figma/binder";
 import type { DesignNode } from "../design/types";
 import { BackHeader, Page } from "../ui/layout";
 import { useIsWide } from "../ui/frames";
-import { IntroCard, SignInCard, SignUpCard } from "./authCards";
+import { IntroCard, SignInCard, SignUpCard, SignUpConfirmation } from "./authCards";
 import { ConsentText, LegalDocumentDialog, type LegalDocument } from "./legal";
 import { Button, Checkbox, Dialog, TextField } from "../ui/kit";
 import { assetUrl, Icon } from "../ui/Icon";
@@ -131,6 +131,7 @@ function IntroScene({ intro }: { intro: IntroModel }) {
     // The language pill and the "Sign in" link are real controls placed over the
     // frame: the link's 59px group cannot hold longer translations.
     isHidden: (n) => n.name === "Lanuage" || n.name === "Group 1",
+    headingLevel: (n) => n.id === "18:8367" ? 1 : undefined,
     offsetX: (n) => (TRUST_REST.has(n.id) ? TRUST_SHIFT : undefined),
     // The server's English for this slug is empty, so the reverse lookup from the
     // scene copy can't find it; map it explicitly.
@@ -220,8 +221,7 @@ function useSignInForm() {
         navigate("/sign-up/profile");
         return;
       }
-      toast(e instanceof ApiError && e.kind === "validation"
-        ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
+      toast(messageOf(e));
     } finally {
       setBusy(false);
     }
@@ -248,11 +248,17 @@ export function SignInScreen() {
 /** The phone frame. "Forgot Password" and "Sign Up", which the Android app has but the
  *  frame does not, are placed in the frame's own gaps. */
 function SignInScene({ form }: { form: SignInForm }) {
+  const fieldPrefix = useId();
   const { t, languageId } = form.i18n;
   const { email, setEmail, password, setPassword, canSubmit, submit, goBack } = form;
   const [revealed, setRevealed] = useState(false);
 
   const binder = useMemo<SceneBinder>(() => ({
+    accessibilityLabel: (n) => n.name === "Header" || n.name === "Back" ? "Back" : undefined,
+    inputId: (n) => n.id === "40:8712" ? `${fieldPrefix}-email` : n.id === "40:8485" ? `${fieldPrefix}-password` : undefined,
+    isRequired: (n) => n.id === "40:8712" || n.id === "40:8485" || undefined,
+    labelFor: (n) => n.id === "40:9033" ? `${fieldPrefix}-email` : n.id === "40:8481" ? `${fieldPrefix}-password` : undefined,
+    headingLevel: (n) => n.id === "51:5280" ? 1 : undefined,
     binding: (n) => n.inputType === "email" ? { value: email, onChange: setEmail }
       : n.inputType === "password" ? { value: password, onChange: setPassword } : undefined,
     // The content table has no translation for this subtitle; show it in English only.
@@ -265,7 +271,7 @@ function SignInScene({ form }: { form: SignInForm }) {
     isEnabled: (n) => (n.name === "Button" ? canSubmit : true),
     opacity: (n) => (n.name === "Button" && !canSubmit ? 0.45 : undefined),
     inputType: (n) => (n.inputType === "password" && revealed ? "text" : undefined),
-  }), [email, setEmail, password, setPassword, submit, canSubmit, goBack, languageId, revealed]);
+  }), [email, setEmail, password, setPassword, submit, canSubmit, goBack, languageId, revealed, fieldPrefix]);
 
   // The frame has no <form>, so Enter in either field would otherwise do nothing.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -319,7 +325,7 @@ function useSignUpForm() {
   const rules = useMemo(() => passwordRules(password), [password]);
   // Editing a field clears its own message; the rest stay until the next Continue.
   const setEmail = useCallback((v: string) => { setEmailState(v); setErrors((e) => ({ ...e, email: undefined })); }, []);
-  const setPassword = useCallback((v: string) => { setPasswordState(v); setErrors((e) => ({ ...e, password: undefined })); }, []);
+  const setPassword = useCallback((v: string) => { setPasswordState(v); setErrors((e) => ({ ...e, password: undefined, confirmation: undefined })); }, []);
   const setConfirmation = useCallback((v: string) => { setConfirmationState(v); setErrors((e) => ({ ...e, confirmation: undefined })); }, []);
   const setAccepted = useCallback((v: boolean) => { setAcceptedState(v); setErrors((e) => ({ ...e, accepted: undefined })); }, []);
 
@@ -327,9 +333,12 @@ function useSignUpForm() {
    *  each problem under its own field (parity review v4.0, C2). */
   const proceed = useCallback(() => {
     const next = signUpErrors({ email, password, confirmation, accepted }, t);
-    setErrors(next);
-    if (!Object.values(next).some(Boolean)) setConfirming(true);
-  }, [email, password, confirmation, accepted, t]);
+    const { accepted: agreement, ...fields } = next;
+    setErrors(fields);
+    if (Object.values(fields).some(Boolean)) return;
+    if (agreement) { toast(agreement); return; }
+    setConfirming(true);
+  }, [email, password, confirmation, accepted, t, toast]);
 
   const confirm = useCallback(async () => {
     setConfirming(false);
@@ -351,7 +360,7 @@ function useSignUpForm() {
         navigate("/otp", { state: { codeNotSent: true } });
         return;
       }
-      if (e instanceof ApiError && e.kind === "validation") {
+      if (e instanceof ApiError && e.kind === "validation" && !e.isTechnical) {
         const email = e.fieldError("email");
         const password = e.fieldError("password");
         setErrors({ email, password: password ?? (email ? undefined : e.message) });
@@ -388,36 +397,49 @@ const SIGNUP_CONTINUE_SHIFT = 66;
 /** "Passwords do not match." while the two passwords differ, before any Continue (as
  *  the desktop card and Set Up Password do), or Continue's message for the field. */
 function confirmationMessage(form: SignUpForm): string | undefined {
-  return form.errors.confirmation ?? (form.confirmation !== "" && form.confirmation !== form.password
-    ? form.i18n.t("signup_credentials_password_match", "Passwords do not match.") : undefined);
+  return form.errors.confirmation;
 }
 
 /** The phone frame, which contains the full form and the "Are you sure?" dialog. The
  *  dialog nodes stay hidden until Continue. */
 function SignUpScene({ form }: { form: SignUpForm }) {
+  const fieldPrefix = useId();
   const { t, languageId } = form.i18n;
   const {
     email, setEmail, password, setPassword, confirmation, setConfirmation, accepted, setAccepted,
-    confirming, setConfirming, errors, rules, goBack, proceed, confirm,
+    errors, rules, goBack, proceed,
   } = form;
   const [revealPassword, setRevealPassword] = useState(false);
   const [revealConfirm, setRevealConfirm] = useState(false);
   const confirmError = confirmationMessage(form);
+  const [consentHeight, setConsentHeight] = useState(44);
+  const consentObserver = useRef<ResizeObserver | null>(null);
+  const attachConsent = useCallback((node: HTMLDivElement | null) => {
+    consentObserver.current?.disconnect();
+    consentObserver.current = null;
+    if (!node) return;
+    const measure = () => setConsentHeight(node.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    consentObserver.current = observer;
+    observer.observe(node);
+  }, []);
 
   const binder = useMemo<SceneBinder>(() => {
     const isDialogNode = (n: DesignNode) => n.name === "Dialog" || n.name === "Rectangle 2931";
     return {
+      inputId: (n) => n.id === "40:8712" ? `${fieldPrefix}-email` : n.id === "40:8485" ? `${fieldPrefix}-password` : undefined,
+      isRequired: (n) => n.id === "40:8712" || n.id === "40:8485" || undefined,
+      labelFor: (n) => n.id === "40:9033" ? `${fieldPrefix}-email` : n.id === "40:8481" ? `${fieldPrefix}-password` : n.id === "56:84393" ? `${fieldPrefix}-confirmation` : undefined,
+      headingLevel: (n) => n.id === "56:84379" ? 1 : undefined,
       binding: (n) => n.inputType === "email" ? { value: email, onChange: setEmail }
         : n.inputType === "password" ? { value: password, onChange: setPassword } : undefined,
       handle: (n) => {
-        const text = semanticLabel(n);
         if (n.name === "Header" || n.name === "Back") { goBack(); return true; }
-        if (n.name === "Button" && text.includes("edit")) { setConfirming(false); return true; }
-        if (n.name === "Button" && text.includes("confirm")) { void confirm(); return true; }
         if (n.name === "Button") { proceed(); return true; }
         return false;
       },
-      isHidden: (n) => (isDialogNode(n) && !confirming)
+      isHidden: (n) => isDialogNode(n)
         || n.id === RULE_CHIP_ROW
         // Two lines with the values in blue, drawn as an overlay below.
         || n.name === "Credentials"
@@ -427,26 +449,16 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         || n.text === "Confirm your password..."
         // No translation exists for this hint; the rule chips carry the same rules.
         || (languageId !== 1 && Boolean(n.text?.startsWith("Use 8 or more characters"))),
-      offsetY: (n) => (n.id === SIGNUP_CONTINUE ? SIGNUP_CONTINUE_SHIFT : undefined),
-      text: (n) => {
-        if (n.text?.startsWith("Please review the details below")) {
-          return t("signup_credentials_confirm_dialog_description", "Please review the details below. The email address will be used to continue.");
-        }
-        return undefined;
-      },
+      // The source button starts at y601; leave24 scene points after the
+      // measured agreement, including enlarged phone link targets.
+      offsetY: (n) => (n.id === SIGNUP_CONTINUE ? Math.max(SIGNUP_CONTINUE_SHIFT, consentHeight + 17) : undefined),
       inputType: (n) => (n.inputType === "password" && revealPassword ? "text" : undefined),
     };
-  }, [email, setEmail, password, setPassword, confirming, setConfirming, t, goBack, proceed, confirm, languageId, revealPassword]);
+  }, [email, setEmail, password, setPassword, goBack, proceed, languageId, revealPassword, fieldPrefix, consentHeight]);
 
   return (
+    <>
     <FigmaScreen sceneKey="v2-56-84378" binder={binder} overlays={[
-      // Overlays sit above the frame, which moved the lower fields into the dialog's area:
-      // while it's open, show only its email line (the form keeps the values for Edit).
-      ...(confirming ? [{ x: 58, y: 460, width: 296, height: 24, content: (
-        <div className="dialog-credentials">
-          <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{email}</b></span>
-        </div>
-      ) }] : [
         ...(errors.email ? [{ x: 20, y: 266, width: 372, height: 18, content: (
           <p className="field-message" role="alert">{errors.email}</p>
         ) }] : []),
@@ -458,7 +470,8 @@ function SignUpScene({ form }: { form: SignUpForm }) {
           <PasswordToggle revealed={revealPassword} onToggle={() => setRevealPassword((r) => !r)} />
         ) },
         { x: 68, y: 513, width: 278, height: 56, content: (
-          <input className="scene-input" aria-label={t("signup_credentials_confirm_password", "Confirm Password")}
+          <input id={`${fieldPrefix}-confirmation`} className="scene-input"
+            aria-required="true"
             type={revealConfirm ? "text" : "password"} value={confirmation}
             placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")}
             onChange={(e) => setConfirmation(e.target.value)} autoComplete="new-password" />
@@ -469,16 +482,19 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         ...(confirmError ? [{ x: 20, y: 572, width: 372, height: 18, content: (
           <p className="field-message" role="alert">{confirmError}</p>
         ) }] : []),
-        { x: 20, y: 594, width: 372, height: 44, content: (
+        { x: 20, y: 594, width: 372, height: consentHeight, content: (
+          <div ref={attachConsent} style={{ width: "100%" }}>
           <Checkbox checked={accepted} onChange={setAccepted}>
             <ConsentText onOpen={form.setLegalDocument} />
           </Checkbox>
+          </div>
         ) },
         ...(errors.accepted ? [{ x: 20, y: 640, width: 372, height: 18, content: (
           <p className="field-message" role="alert">{errors.accepted}</p>
         ) }] : []),
-      ]),
     ]} />
+    <SignUpConfirmation form={form} />
+    </>
   );
 }
 
@@ -538,9 +554,8 @@ export function OtpScreen() {
   const { act, toast, messageOf } = useFeedback();
   const { state: signUp } = useSignUp();
   const [code, setCode] = useState("");
-  // Opened although the code couldn't be sent (C5): asking again needs no wait.
-  const codeNotSent = (useLocation().state as { codeNotSent?: boolean } | null)?.codeNotSent === true;
-  const { left, mmss, restart } = useCountdown(120, codeNotSent ? 0 : 120);
+  // Android starts the same two-minute wait even if the first send failed.
+  const { left, mmss, restart } = useCountdown(120);
 
   useEffect(() => { if (!signUp.email) navigate("/intro", { replace: true }); }, [signUp.email, navigate]);
 

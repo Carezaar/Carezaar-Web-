@@ -107,13 +107,13 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
   };
   const titles = {
     request: ["match_match_button", "Request a Match"], accept: ["match_accept_title", "Accept"],
-    reject: ["match_reject_title", "Reject"], withdraw: ["match_withdraw_title", "Cancel"],
+    reject: ["match_reject_title", "Reject"], withdraw: ["general_cancel", "Cancel"],
     unmatch: ["match_unmatch_title", "Unmatch"],
   } as const;
   /** The confirming button is named after the action itself, never "Confirm". */
   const actions = {
     request: ["match_match_title", "Match"], accept: ["match_accept_title", "Accept"],
-    reject: ["match_reject_title", "Reject"], withdraw: ["match_withdraw_title", "Cancel"],
+    reject: ["match_reject_title", "Reject"], withdraw: ["general_cancel", "Cancel"],
     unmatch: ["match_unmatch_title", "Unmatch"],
   } as const;
   const messages = {
@@ -154,7 +154,7 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
             <Button disabled={match.busy} onClick={() => mainAction("accept")}>{t("match_accept_title", "Accept")}</Button>
           </> : match.action === "withdraw" ? <>
             <span className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</span>
-            <Button disabled={match.busy} variant="outline" onClick={() => mainAction("withdraw")}>{t("match_withdraw_title", "Cancel")}</Button>
+            <Button disabled={match.busy} variant="outline" onClick={() => mainAction("withdraw")}>{t("general_cancel", "Cancel")}</Button>
           </> : match.action === "unmatch" ? <Button disabled={match.busy} variant="danger" icon="ic_match_off" onClick={() => mainAction("unmatch")}>{t("match_unmatch_title", "Unmatch")}</Button>
           : <Button disabled={match.busy} icon="ic_match_on" onClick={() => mainAction("request")}>{t("match_match_button", "Request a Match")}</Button>}
       </div>
@@ -174,9 +174,9 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
         </div>
       </section>
       <section className="detail-pair">
-        <div><h3>{isCaregiver ? t("caregiver_details_maximum_commute_distance", "Maximum Commute Distance") : t("client_details_max_commute", "Max Commute")}</h3>
+        <div><h2>{isCaregiver ? t("caregiver_details_maximum_commute_distance", "Maximum Commute Distance") : t("client_details_max_commute", "Max Commute")}</h2>
           <p>{isCaregiver ? label(find("commutes", cg.commute_id)) : labels("commutes", cl.commute_ids).map(label).join(", ")}</p></div>
-        <div><h3>{isCaregiver ? t("caregiver_details_work_type", "Work Type") : t("client_details_work_types", "Work Types")}</h3>
+        <div><h2>{isCaregiver ? t("caregiver_details_work_type", "Work Type") : t("client_details_work_types", "Work Types")}</h2>
           <p>{isCaregiver ? label(find("worktypes", cg.worktype_id)) : labels("worktypes", cl.worktype_ids).map(label).join(", ")}</p></div>
       </section>
       {partner.bio && <blockquote className="bio"><Icon name="ic_quote" size={30} tint="var(--primary-dark)" /><p dir="auto">{partner.bio}</p></blockquote>}

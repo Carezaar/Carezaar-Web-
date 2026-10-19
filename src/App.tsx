@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { SessionProvider, useSession } from "./auth/SessionContext";
 import type { UserRole } from "./api/types";
+import { tokenStore } from "./api/session";
 import { BaseDataProvider, useBaseData } from "./app/baseData";
 import { I18nProvider } from "./app/i18n";
 import { FeedbackProvider } from "./app/feedback";
@@ -31,7 +32,7 @@ import { peekReturnTo, rememberReturnTo, takeReturnTo } from "./navigation/retur
 /** Splash decides, as on Android: cache warm-up and session restore first, then the
  *  authenticated or unauthenticated graph. */
 function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out" | "any"; role?: UserRole }) {
-  const { state, retry } = useSession();
+  const { state, retry, hasSignedInThisPage } = useSession();
   const { ready } = useBaseData();
   const location = useLocation();
   if (state.status === "loading" || !ready) return <SplashScreen />;
@@ -40,7 +41,7 @@ function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out
   if (auth === "in" && !signedIn) {
     // Only a link opened directly (a fresh page load) is worth returning to after
     // sign-in; being signed out mid-session starts again from My Matches.
-    if (location.key === "default") rememberReturnTo(location.pathname + location.search);
+    if (location.key === "default" && !hasSignedInThisPage) rememberReturnTo(location.pathname + location.search);
     return <Navigate to="/intro" replace />;
   }
   if (auth === "out" && signedIn) return <EnterApp />;
@@ -57,7 +58,7 @@ function Frame() {
   // The splash (session check, base-data warm-up) is full-bleed, not framed.
   if (state.status === "loading" || state.status === "unreachable") return <Outlet />;
   const signedIn = state.status === "signedIn";
-  return signedIn ? <AppFrame><Outlet /></AppFrame> : <AuthFrame><Outlet /></AuthFrame>;
+  return signedIn ? <AppFrame key={`${tokenStore.owner}:${state.user.id}`}><Outlet /></AppFrame> : <AuthFrame><Outlet /></AuthFrame>;
 }
 
 /** Where a freshly signed-in user lands: the protected link they originally opened,

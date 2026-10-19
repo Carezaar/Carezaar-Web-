@@ -20,12 +20,12 @@ const TEXTS = {
 };
 const t = (slug, fallback) => TEXTS[slug] ?? fallback;
 
-test("C2: an empty form reports every field at once", () => {
+test("Web v5 C2: empty fields take priority over agreement", () => {
   assert.deepEqual(signUpErrors({ email: "", password: "", confirmation: "", accepted: false }, t), {
     email: "This field is required.",
     password: "This field is required.",
     confirmation: "This field is required.",
-    accepted: "Please accept the license agreement to continue.",
+    accepted: undefined,
   });
 });
 
@@ -77,3 +77,9 @@ test("C3: the client's Terms of Use and Privacy Policy are bundled, with their P
     assert.ok(statSync(new URL(`../public/legal/${name}.pdf`, import.meta.url)).size > 100000, `${name}.pdf`);
   }
 });
+
+ test("Web v5 C2: valid fields require agreement as the final gate", () => {
+ const e = signUpErrors({email:"test@example.com",password:"Abcdef1!",confirmation:"Abcdef1!",accepted:false},t);
+ assert.equal(e.accepted,"Please accept the license agreement to continue.");
+ assert.equal(e.email,undefined); assert.equal(e.password,undefined); assert.equal(e.confirmation,undefined);
+ });

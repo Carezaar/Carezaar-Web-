@@ -6,6 +6,9 @@ import { APP_VERSION } from "./config";
  *  Android app does. */
 const ACCESS = "carezaar.accessToken";
 const REFRESH = "carezaar.refreshToken";
+// Local bookkeeping only: renewal keeps this identity, a new login replaces it.
+const OWNER = "carezaar.sessionOwner";
+export type SessionOwner = string | null;
 
 function read(key: string): string | null {
   try {
@@ -34,11 +37,42 @@ export const tokenStore = {
     return read(ACCESS) !== null;
   },
   save(session: Session) {
+    const owner = crypto.randomUUID();
+    write(OWNER, owner);
+    // Do not install a new identity under an older marker when storage rejects
+    // this key (for example at quota). The caller must see a failed sign-in.
+    if (read(OWNER) !== owner) throw new Error("Session storage unavailable");
     write(ACCESS, session.access_token);
     write(REFRESH, session.refresh_token);
   },
+  /** Read the logical login identity without migrating storage during render. */
+  get owner(): SessionOwner {
+    return read(OWNER);
+  },
+  captureOwner(): SessionOwner {
+    if (!read(ACCESS)) return null;
+    // Existing installations have only the two token keys. Migrate on first use
+    // without changing credentials, reference data or the selected language.
+    if (!read(OWNER)) write(OWNER, crypto.randomUUID());
+    return read(OWNER);
+  },
+  owns(owner: SessionOwner): boolean {
+    return owner === null
+      ? read(ACCESS) === null && read(REFRESH) === null && read(OWNER) === null
+      : read(OWNER) === owner && read(ACCESS) !== null;
+  },
+  renew(session: Session, owner: SessionOwner, refresh: string): boolean {
+    if (!this.owns(owner) || read(REFRESH) !== refresh) return false;
+    write(ACCESS, session.access_token);
+    write(REFRESH, session.refresh_token);
+    return true;
+  },
+  clearOwned(owner: SessionOwner) {
+    if (this.owns(owner)) this.clear();
+  },
   clear() {
     try {
+      window.localStorage.removeItem(OWNER);
       window.localStorage.removeItem(ACCESS);
       window.localStorage.removeItem(REFRESH);
     } catch {

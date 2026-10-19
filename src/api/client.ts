@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "./config";
 import { ApiError } from "./errors";
 import { appLanguage } from "./language";
-import { tokenStore } from "./session";
+import { tokenStore, type SessionOwner } from "./session";
 import { APP_VERSION } from "./config";
 import { CONNECTION_RETRIES, RETRY_DELAYS_MS, isRetryableMethod } from "./retryPolicy";
 import type { ApiEnvelope, ApiMeta, Session } from "./types";
@@ -26,6 +26,17 @@ export interface RequestOptions {
   /** Defaults to true. False makes a refusal final, without renewing the sign-in: used
    *  for the request that replaces the session itself (a password change). */
   renew?: boolean;
+  /** Logout alone binds its dispatch/replay to the captured logical sign-in.
+   *  Undefined keeps the existing policy for other actions; null binds signed-out. */
+  sessionOwner?: SessionOwner;
+}
+
+export class SupersededSessionRequest extends Error {}
+
+function requireOwner(options: RequestOptions) {
+  if (options.sessionOwner !== undefined && !tokenStore.owns(options.sessionOwner)) {
+    throw new SupersededSessionRequest();
+  }
 }
 
 /** Dispatched when the session cannot be recovered, so the app can drop back to the
@@ -103,7 +114,10 @@ async function refreshSession(): Promise<RefreshOutcome> {
   refreshInFlight = (async (): Promise<RefreshOutcome> => {
     const refresh = tokenStore.refreshToken;
     if (!refresh) return "refused";
+    const owner = tokenStore.captureOwner();
     const replaced = () => tokenStore.refreshToken !== null && tokenStore.refreshToken !== refresh;
+    const superseded = (): RefreshOutcome | null => tokenStore.refreshToken === refresh && tokenStore.owns(owner)
+      ? null : replaced() ? "renewed" : "refused";
     let response: Response;
     try {
       // Only the app version: the backend requires it (422 "The version app field is
@@ -119,8 +133,10 @@ async function refreshSession(): Promise<RefreshOutcome> {
         body: encodeForm({ version_app: APP_VERSION }),
       }, false); // no automatic retry: a renewal that can't reach the server opens Connection Problem
     } catch {
-      return "unreachable";
+      return superseded() ?? "unreachable";
     }
+    const changed = superseded();
+    if (changed) return changed;
     // The server answered. Any error, a server error (5xx) included, ends the sign-in,
     // as on Android (parity review v4.0, Q1): Connection Problem is only for a server
     // that can't be reached at all. A new sign-in that replaced these tokens meanwhile
@@ -128,11 +144,12 @@ async function refreshSession(): Promise<RefreshOutcome> {
     if (!response.ok) return replaced() ? "renewed" : "refused";
     try {
       const envelope = (await response.json()) as ApiEnvelope<Session>;
+      const changed = superseded();
+      if (changed) return changed;
       if (!envelope.result?.access_token || !envelope.result.refresh_token) return "refused";
-      tokenStore.save(envelope.result);
-      return "renewed";
+      return tokenStore.renew(envelope.result, owner, refresh) ? "renewed" : superseded() ?? "refused";
     } catch {
-      return "refused";
+      return superseded() ?? "refused";
     }
   })();
   const result = await refreshInFlight;
@@ -146,6 +163,7 @@ function expireSession() {
 }
 
 async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
+  requireOwner(options);
   // The backend localises from Accept-Language and 500s on "*".
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -170,11 +188,13 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
     headers,
     body,
   }, retryable);
+  requireOwner(options);
 
   // Several write endpoints answer 204 (or 200) with an empty body instead of the
   // envelope. Reading text first also survives an HTML error page from the server.
   let text = "";
   try { text = await response.text(); } catch { /* treated as empty */ }
+  requireOwner(options);
   if (response.ok && text.trim() === "") {
     return { result: null, meta: null, message: null, errors: null };
   }
@@ -267,6 +287,7 @@ async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>>
   try {
     return await perform<T>(options);
   } catch (error) {
+    requireOwner(options);
     // As Android does: when the server refuses an action, for any reason, renew the
     // sign-in in the background and send the action once more. A refused request was
     // not carried out, so sending it again cannot duplicate it. The second answer is
@@ -277,6 +298,7 @@ async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>>
       // While Connection Problem is open, nothing makes another renewal attempt of its
       // own: only the window's Retry does.
       const outcome: RefreshOutcome = problemOpen ? "unreachable" : await refreshSession();
+      requireOwner(options);
       if (outcome === "unreachable") {
         // The server can't be reached to renew the sign-in: one Connection Problem window,
         // and this request fails now with the connection error. It is not held back and

@@ -47,10 +47,10 @@ export function ManageMatchesScreen() {
               const preview = requestPreview(m.introduction ?? "");
               return (
                 <li key={m.id}>
-                  <article className="match-row" {...cardLink(() => { if (partner) navigate(role === "client" ? `/caregivers/${partner.id}` : `/clients/${partner.id}`); }, personName(partner?.user, t))}>
+                  <div className="match-row" {...cardLink(() => { if (partner) navigate(role === "client" ? `/caregivers/${partner.id}` : `/clients/${partner.id}`); }, personName(partner?.user, t))}>
                     <Avatar src={partner?.user.photo} size={72} />
                     <div className="match-row-text">
-                      <h3>{personName(partner?.user, t)}</h3>
+                      <h2>{personName(partner?.user, t)}</h2>
                       <p className="muted">{t("match_start", "Start")}: {m.created_at}</p>
                       {m.finished_at && <p className="muted">{t("match_end", "End")}: {m.finished_at}</p>}
                       {stage === "pending" && role && awaitsPartner(m, role) && <p className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</p>}
@@ -69,14 +69,18 @@ export function ManageMatchesScreen() {
                         <span aria-hidden="true">💬 </span><span className="match-intro-text">{preview}</span>
                       </button>
                     )}
-                  </article>
+                  </div>
                 </li>
               );
             })}
           </ul>
         )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
+      {Boolean(list.error) && list.items.length > 0 && (
+        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
+          retryLabel={t("general_try_again", "Try Again")} />
+      )}
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
 
       <IntroductionDialog match={introFor} onClose={() => setIntroFor(null)} />
     </Page>

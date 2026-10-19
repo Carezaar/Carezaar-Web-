@@ -11,7 +11,7 @@ import { ConsentText } from "./legal";
 /** Text the frames draw in English whose content key has different casing. */
 const drawn = (translate: (english: string) => string | null, english: string) => translate(english) ?? english;
 
-function CardTop({ onBack, logo = false }: { onBack?: () => void; logo?: boolean }) {
+export function CardTop({ onBack, logo = false }: { onBack?: () => void; logo?: boolean }) {
   return (
     <div className="auth-top">
       {onBack && (
@@ -159,7 +159,6 @@ export function SignInCard({ form }: { form: SignInForm }) {
 
 export function SignUpCard({ form }: { form: SignUpForm }) {
   const { t, languageId } = form.i18n;
-  const mismatch = form.confirmation !== "" && form.confirmation !== form.password;
   return (
     <main className="auth-form">
       <CardTop onBack={form.goBack} logo />
@@ -182,7 +181,7 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
         <TextField label={t("signup_credentials_confirm_password", "Confirm Password")} required icon="ic_lock"
           type="password" autoComplete="new-password" value={form.confirmation}
           onChange={(e) => form.setConfirmation(e.target.value)}
-          error={form.errors.confirmation ?? (mismatch ? t("signup_credentials_password_match", "Passwords do not match.") : null)}
+          error={form.errors.confirmation}
           placeholder={t("signup_credentials_confirm_password_placeholder", "Confirm your password...")} />
         <div className="consent-field">
           <Checkbox checked={form.accepted} onChange={form.setAccepted}>
@@ -194,6 +193,15 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
           {t("signup_credentials_continue", "Continue")}
         </Button>
       </form>
+      <SignUpConfirmation form={form} />
+    </main>
+  );
+}
+
+/** One responsive, focus-managed confirmation for both phone and desktop. */
+export function SignUpConfirmation({ form }: { form: SignUpForm }) {
+  const { t } = form.i18n;
+  return (
       <Dialog open={form.confirming} onClose={() => form.setConfirming(false)} labelledBy="signup-confirm"
         title={t("signup_credentials_confirm_dialog_title", "Are You Sure?")}>
         <p>{t("signup_credentials_confirm_dialog_description", "Please review the details below. The email address will be used to continue.")}</p>
@@ -207,6 +215,5 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
           <Button onClick={() => void form.confirm()}>{t("signup_credentials_confirm_dialog_confirm_label", "Confirm")}</Button>
         </div>
       </Dialog>
-    </main>
   );
 }

@@ -1,4 +1,4 @@
-import { api, type FormValue } from "./client";
+import { api, REQUEST_TIMEOUT_MS, SupersededSessionRequest, type FormValue } from "./client";
 import { API_BASE_URL, DEFAULT_PAGE_SIZE } from "./config";
 import { loginDeviceFields, tokenStore } from "./session";
 import { asBaseItems, asCaregiverBriefs, asCaregiverFull, asClientBriefs, asClientFull, asLanguages, asMatch, asMatches, asSession, asUser } from "./schema";
@@ -7,13 +7,15 @@ import type { AppNotification, BaseInfo, CaregiverFull, ChatBrief, ChatFull, Cli
 /* ------------------------------------------------------------------ auth/ */
 
 export const authService = {
-  async login(email: string, password: string): Promise<Session> {
+  async login(email: string, password: string, canInstall?: () => boolean): Promise<Session> {
     const session = asSession(await api.send<unknown>({
       method: "POST",
       path: "auth/login",
       auth: false,
       form: { email, password, ...loginDeviceFields() },
     }));
+    // The initiating screen can discard a login superseded while it was pending.
+    if (canInstall && !canInstall()) throw new SupersededSessionRequest();
     tokenStore.save(session);
     return session;
   },
@@ -33,13 +35,16 @@ export const authService = {
     return api.send<unknown>({ method: "GET", path: "auth/info" }).then(asUser);
   },
 
-  /** Clears the local session even if the call fails, so a dead token never traps
-   *  the user in a signed-in shell. */
+  /** Clears this sign-in even if the call fails. An older logout must leave a
+   *  newer sign-in alone, including when its refused request would be replayed. */
   async logout() {
+    const owner = tokenStore.captureOwner();
     try {
-      await api.sendIgnoringResult({ method: "DELETE", path: "auth/logout" });
+      await api.sendIgnoringResult({ method: "DELETE", path: "auth/logout", sessionOwner: owner });
+    } catch (error) {
+      if (!(error instanceof SupersededSessionRequest) || tokenStore.owns(owner)) throw error;
     } finally {
-      tokenStore.clear();
+      tokenStore.clearOwned(owner);
     }
   },
 };
@@ -80,9 +85,13 @@ export const baseService = {
   },
   list(table: ExtraTable, tsCache = 0) {
     return api.send<unknown>({ method: "GET", path: `base/${table}`, auth: false, query: { ts_cache: tsCache } })
-      .then((items) => (Array.isArray(items) ? items.filter((x) => typeof x === "object" && x !== null) : []));
+      .then(asExtraList);
   },
 };
+
+/** Decodes a list with its own shape (states, media, FAQs, FAQ categories). */
+export const asExtraList = (items: unknown): unknown[] =>
+  (Array.isArray(items) ? items.filter((x) => typeof x === "object" && x !== null) : []);
 
 /* ----------------------------------------------------------------- users/ */
 
@@ -157,11 +166,17 @@ export const userService = {
     if (source.origin !== new URL(API_BASE_URL).origin || !source.pathname.startsWith("/uploads/")) {
       throw new Error(`Unexpected photo location: ${source.origin}`);
     }
-    // Same-origin credentials, so a password-protected deployment (HTTP auth) can serve it too.
-    const res = await fetch(source.pathname, { credentials: "same-origin" });
-    const blob = await res.blob();
-    if (!res.ok || !blob.type.startsWith("image/")) throw new Error(`Photo unavailable (${res.status})`);
-    return new File([blob], source.pathname.split("/").pop() ?? "photo", { type: blob.type });
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      // Keep the deadline active while reading the image body as well as its headers.
+      const res = await fetch(source.pathname, { credentials: "same-origin", signal: controller.signal });
+      const blob = await res.blob();
+      if (!res.ok || !blob.type.startsWith("image/")) throw new Error(`Photo unavailable (${res.status})`);
+      return new File([blob], source.pathname.split("/").pop() ?? "photo", { type: blob.type });
+    } finally {
+      window.clearTimeout(timer);
+    }
   },
 
   /** Android's delete call takes a non-optional reason id, so a reason is required

@@ -1,0 +1,8 @@
+<!doctype html><html><head><title>Private feedback component fixture</title></head><body><div id="root"></div><script>
+const active4500=new Map(),history4500=[];
+const originalSet=window.setTimeout.bind(window),originalClear=window.clearTimeout.bind(window);
+window.setTimeout=(fn,delay,...args)=>{let id;id=originalSet(()=>{active4500.delete(id);fn(...args);},delay);if(delay===4500){active4500.set(id,true);history4500.push(()=>fn(...args));}return id;};
+window.clearTimeout=id=>{active4500.delete(id);originalClear(id);};
+window.__qaTimers=()=>active4500.size;
+window.__qaOldTimer=()=>history4500[0]?.();window.__qaTimerHistory=()=>history4500.length;window.__qaInvokeTimer=index=>history4500[index]?.();
+</script><script src="fixture.js"></script></body></html>

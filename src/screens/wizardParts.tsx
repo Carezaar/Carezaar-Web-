@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import type { BaseItem } from "../api/types";
 import { useFeedback } from "../app/feedback";
@@ -8,6 +9,8 @@ import type { SceneBinder } from "../figma/binder";
 import { BackHeader, Page } from "../ui/layout";
 import { Button, CheckChip, Field, Stepper } from "../ui/kit";
 import { Icon } from "../ui/Icon";
+import { useIsWide } from "../ui/frames";
+import { CardTop } from "./authCards";
 import type { LatLng } from "./LocationPicker";
 import { parsePay } from "../validation/validation";
 
@@ -24,7 +27,7 @@ const CARE_TYPE_DESCRIPTION: Record<string, string> = {
 export function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <section className="pref-card">
-      <header><h3>{title}</h3>{hint && <span className="muted small">{hint}</span>}</header>
+      <header><h2>{title}</h2>{hint && <span className="muted small">{hint}</span>}</header>
       {children}
     </section>
   );
@@ -137,7 +140,7 @@ export function LocationField({ value, onPick }: { value: LatLng | null; onPick:
 export function ReviewRow({ title, values }: { title: string; values: string[] }) {
   return (
     <div className="review-row">
-      <h4>{title}</h4>
+      <h2>{title}</h2>
       <div className="chip-wrap">{values.map((v) => <span key={v} className="review-chip">{v}</span>)}</div>
     </div>
   );
@@ -150,6 +153,8 @@ export function WizardIntro({ title, description, caregiver = false, onStart }: 
   title?: string; description?: string; caregiver?: boolean; onStart: () => void;
 }) {
   const goBack = useGoBack("/main/matches");
+  const isWide = useIsWide();
+  const { t } = useI18n();
   const binder = useMemo<SceneBinder>(() => ({
     handle: (n) => {
       if (n.name === "Back" || n.name === "Header") { goBack(); return true; }
@@ -160,6 +165,16 @@ export function WizardIntro({ title, description, caregiver = false, onStart }: 
     // The caregiver frame (715:11684) shows its own skills illustration.
     isHidden: (n) => caregiver && CLIENT_ILLUSTRATIONS.has(n.id),
   }), [goBack, onStart, title, description, caregiver]);
+  if (isWide) {
+    return (
+      <main className="auth-form wizard-intro-web">
+        <CardTop onBack={goBack} logo />
+        <h1>{title ?? t("signup_form_client_find_ideal_caregiver", "Find Your Ideal Caregiver")}</h1>
+        <p className="auth-sub">{description ?? t("signup_form_client_intro_description", "Tell us your preferences and we will recommend caregivers that best match your needs.")}</p>
+        <Button onClick={onStart}>{t("signup_form_client_get_started", "Get Started")}</Button>
+      </main>
+    );
+  }
   return <FigmaScreen sceneKey="v2-65-19934" binder={binder} />;
 }
 
@@ -173,13 +188,35 @@ export interface StepDef {
   problem: () => string | null;
 }
 
-export function Wizard({ steps, review, reviewTitle, saveLabel, onSave, onExit }: {
+export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, review, reviewTitle, saveLabel, onSave, onExit }: {
   steps: StepDef[]; review: ReactNode; reviewTitle: string; saveLabel: string;
+  index: number; onStepChange: (index: number) => void; historyScope: string;
   onSave: () => Promise<void>; onExit: () => void;
 }) {
   const { t } = useI18n();
   const { toast } = useFeedback();
-  const [index, setIndex] = useState(0);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const state = useMemo(() => location.state && typeof location.state === "object" ? location.state : {}, [location.state]);
+  const marker = state.carezaarWizard as { scope?: string; step?: number; depth?: number } | undefined;
+  const matching = marker?.scope === historyScope && Number.isSafeInteger(marker.step)
+    && marker.step! >= 0 && marker.step! <= steps.length && Number.isSafeInteger(marker.depth) && marker.depth! >= 0;
+  const index = matching ? marker.step! : Math.max(0, Math.min(savedIndex, steps.length));
+  const depth = matching ? marker.depth! : 0;
+  const destination = `${location.pathname}${location.search}${location.hash}`;
+  // Each completed step gets an actual browser-history entry. Restored signup
+  // choices remain in the existing tab draft; history only records navigation.
+  useEffect(() => {
+    if (!matching) navigate(destination, { replace: true, state: { ...state,
+      carezaarWizard: { scope: historyScope, step: index, depth: 0 } } });
+    if (savedIndex !== index) onStepChange(index);
+  }, [matching, destination, historyScope, index, savedIndex, onStepChange, navigate, state]);
+  const move = (step: number, replace = false) => {
+    onStepChange(step);
+    navigate(destination, { replace, state: { ...state,
+      carezaarWizard: { scope: historyScope, step, depth: replace ? 0 : depth + 1 } } });
+    window.scrollTo({ top: 0 });
+  };
   const total = steps.length + 1;
   const onReview = index === steps.length;
   const current = steps[index];
@@ -187,12 +224,15 @@ export function Wizard({ steps, review, reviewTitle, saveLabel, onSave, onExit }
   const next = () => {
     const problem = current?.problem();
     if (problem) { toast(problem); return; }
-    setIndex((i) => i + 1);
-    window.scrollTo({ top: 0 });
+    move(index + 1);
   };
 
   return (
-    <Page header={<BackHeader onBack={() => (index === 0 ? onExit() : setIndex((i) => i - 1))} />}
+    <Page header={<BackHeader onBack={() => {
+      if (index === 0) onExit();
+      else if (depth > 0) navigate(-1);
+      else move(index - 1, true);
+    }} />}
       footer={
         <div className="stack-sm">
           <Button trailingIcon="ic_arrow_forward" onClick={() => (onReview ? void onSave() : next())}>
@@ -204,7 +244,7 @@ export function Wizard({ steps, review, reviewTitle, saveLabel, onSave, onExit }
       }>
       <Stepper step={index + 1} total={total} label={t("step_wizard_step", "Step").toUpperCase()} />
       <div className="wizard-head">
-        <h2>{onReview ? reviewTitle : current.title}</h2>
+        <h1>{onReview ? reviewTitle : current.title}</h1>
       </div>
       {onReview ? review : (
         <>

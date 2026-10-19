@@ -1,5 +1,5 @@
 import {
-  createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from "react";
 import { ApiError } from "../api/errors";
 import { Icon } from "../ui/Icon";
@@ -28,6 +28,18 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [labels, setLabels] = useState<{ id: number; label: string }[]>([]);
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const counter = useRef(0);
+  const toastTimers = useRef(new Map<string, { id: number; timer: number }>());
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    const timers = toastTimers.current;
+    return () => {
+      mounted.current = false;
+      for (const { timer } of timers.values()) window.clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   // Every common failure is shown with the app's managed texts, never the server's
   // text or a web-only string: refused → general_error_forbidden, missing →
@@ -61,9 +73,27 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   }, [t]);
 
   const toast = useCallback((message: string) => {
+    if (!mounted.current) return;
+    const previous = toastTimers.current.get(message);
+    if (previous) window.clearTimeout(previous.timer);
     const id = ++counter.current;
-    setToasts((all) => [...all, { id, message }]);
-    window.setTimeout(() => setToasts((all) => all.filter((x) => x.id !== id)), 4500);
+    // A joined action can have several callers. Refresh its feedback once rather
+    // than stacking identical alerts from each caller's error handler.
+    setToasts((all) => [...all.filter((x) => x.message !== message), { id, message }]);
+    const timer = window.setTimeout(() => {
+      if (toastTimers.current.get(message)?.id === id) toastTimers.current.delete(message);
+      setToasts((all) => all.filter((x) => x.id !== id));
+    }, 4500);
+    toastTimers.current.set(message, { id, timer });
+  }, []);
+
+  const dismissToast = useCallback((id: number, message: string) => {
+    const entry = toastTimers.current.get(message);
+    if (entry?.id === id) {
+      window.clearTimeout(entry.timer);
+      toastTimers.current.delete(message);
+    }
+    setToasts((all) => all.filter((x) => x.id !== id));
   }, []);
 
   const inFlight = useRef(new Map<string, Promise<unknown>>());
@@ -109,7 +139,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             <Icon name="ic_clear_circle" size={28} tint="var(--error)" />
             <span>{x.message}</span>
             <button type="button" aria-label="Dismiss"
-              onClick={() => setToasts((all) => all.filter((y) => y.id !== x.id))}>
+              onClick={() => dismissToast(x.id, x.message)}>
               <Icon name="ic_clear" size={16} tint="var(--error)" />
             </button>
           </div>

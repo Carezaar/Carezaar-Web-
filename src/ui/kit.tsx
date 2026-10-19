@@ -1,7 +1,7 @@
 import { ApiError } from "../api/errors";
 import {
-  useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes,
-  type ReactNode,
+  Children, cloneElement, isValidElement, useEffect, useId, useRef, useState,
+  type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactElement, type ReactNode,
 } from "react";
 import { assetUrl, Icon } from "./Icon";
 
@@ -30,17 +30,30 @@ export function Field({
   label?: string; required?: boolean; error?: string | null; icon?: string;
   trailing?: ReactNode; hint?: ReactNode; htmlFor?: string; children: ReactNode;
 }) {
+  const generatedId = useId();
+  const fieldChildren = Children.toArray(children);
+  // A field owns one direct native control. Associate its visible label even
+  // when a caller supplies a select, date input or textarea without an ID.
+  const controls = fieldChildren.filter((child): child is ReactElement<{ id?: string; "aria-required"?: boolean }> =>
+    isValidElement<{ id?: string; "aria-required"?: boolean }>(child) && typeof child.type === "string"
+      && ["input", "select", "textarea", "button"].includes(child.type));
+  const control = controls.length === 1 ? controls[0] : undefined;
+  const controlId = htmlFor ?? control?.props.id ?? generatedId;
   return (
     <div className={`field ${error ? "field-error" : ""}`}>
       {label && (
         <div className="field-label">
-          <label htmlFor={htmlFor}>{label}{required && <b className="req"> *</b>}</label>
+          <label htmlFor={control ? controlId : htmlFor}>{label}{required && <b className="req"> *</b>}</label>
           {hint}
         </div>
       )}
       <div className="field-box">
         {icon && <Icon name={icon} size={22} tint="var(--primary)" />}
-        {children}
+        {fieldChildren.map((child) => child === control ? cloneElement(control, {
+          id: controlId,
+          ...(required && typeof control.type === "string" && ["input", "select", "textarea"].includes(control.type)
+            ? { "aria-required": true } : {}),
+        }) : child)}
         {trailing}
       </div>
       {error && <p className="field-message" role="alert">{error}</p>}
@@ -143,7 +156,7 @@ export function EmptyState({ title, message, illustration = "illus_chat", tint }
         ? <img src="/assets/desktop-empty-message-illustration.jpg" alt="" width={150} height={157} className="empty-art" />
         : tint ? <span className="empty-icon"><Icon name={illustration} size={48} tint={tint} /></span>
         : <Icon name={illustration} size={140} />}
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       {message && <p>{message}</p>}
     </div>
   );

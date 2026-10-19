@@ -1,13 +1,12 @@
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
-import { ApiError } from "../api/errors";
 import { caregiverService, clientService, type BaseTable } from "../api/services";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
-import { useSignUp } from "../app/signup";
+import { useSignUp, useSignUpWizardValue } from "../app/signup";
 import { lazyWithReload } from "../app/recovery";
 import { Spinner } from "../ui/kit";
 import type { LatLng } from "./LocationPicker";
@@ -29,23 +28,24 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   const { state: signUp, reset, update } = useSignUp();
   const { signIn } = useSession();
 
-  const [started, setStarted] = useState(mode === "edit");
+  const [started, setStarted] = useSignUpWizardValue(mode, "client", "started", mode === "edit");
   const [picking, setPicking] = useState(false);
-  const [clienttype, setClienttype] = useState<number[]>([]);
-  const [conditions, setConditions] = useState<number[]>([]);
-  const [specials, setSpecials] = useState<number[]>([]);
-  const [experiences, setExperiences] = useState<number[]>([]);
-  const [roles, setRoles] = useState<number[]>([]);
-  const [certifications, setCertifications] = useState<number[]>([]);
-  const [languages, setLanguages] = useState<number[]>([]);
-  const [location, setLocation] = useState<LatLng | null>(null);
-  const [commutes, setCommutes] = useState<number[]>([]);
-  const [shifts, setShifts] = useState<number[]>([]);
-  const [days, setDays] = useState<number[]>([]);
-  const [worktypes, setWorktypes] = useState<number[]>([]);
-  const [genders, setGenders] = useState<number[]>([]);
-  const [salaryMin, setSalaryMin] = useState<number | null>(null);
-  const [salaryMax, setSalaryMax] = useState<number | null>(null);
+  const [step, setStep] = useSignUpWizardValue<number>(mode, "client", "step", 0);
+  const [clienttype, setClienttype] = useSignUpWizardValue<number[]>(mode, "client", "clienttype", []);
+  const [conditions, setConditions] = useSignUpWizardValue<number[]>(mode, "client", "conditions", []);
+  const [specials, setSpecials] = useSignUpWizardValue<number[]>(mode, "client", "specials", []);
+  const [experiences, setExperiences] = useSignUpWizardValue<number[]>(mode, "client", "experiences", []);
+  const [roles, setRoles] = useSignUpWizardValue<number[]>(mode, "client", "roles", []);
+  const [certifications, setCertifications] = useSignUpWizardValue<number[]>(mode, "client", "certifications", []);
+  const [languages, setLanguages] = useSignUpWizardValue<number[]>(mode, "client", "languages", []);
+  const [location, setLocation] = useSignUpWizardValue<LatLng | null>(mode, "client", "location", null);
+  const [commutes, setCommutes] = useSignUpWizardValue<number[]>(mode, "client", "commutes", []);
+  const [shifts, setShifts] = useSignUpWizardValue<number[]>(mode, "client", "shifts", []);
+  const [days, setDays] = useSignUpWizardValue<number[]>(mode, "client", "days", []);
+  const [worktypes, setWorktypes] = useSignUpWizardValue<number[]>(mode, "client", "worktypes", []);
+  const [genders, setGenders] = useSignUpWizardValue<number[]>(mode, "client", "genders", []);
+  const [salaryMin, setSalaryMin] = useSignUpWizardValue<number | null>(mode, "client", "salaryMin", null);
+  const [salaryMax, setSalaryMax] = useSignUpWizardValue<number | null>(mode, "client", "salaryMax", null);
 
   useEffect(() => {
     if (mode === "signup" && !signUp.userId) navigate("/intro", { replace: true });
@@ -175,7 +175,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         goBack();
       }
     } catch (e) {
-      toast(e instanceof ApiError && e.kind === "validation" ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
+      toast(messageOf(e));
     }
   };
 
@@ -183,7 +183,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   // The map opens over the wizard; unmounting the wizard would lose the current step.
   return (
     <>
-      <Wizard steps={steps} review={review} reviewTitle={t("signup_form_client_review", "Review Your Preferences")}
+      <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`client:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review} reviewTitle={t("signup_form_client_review", "Review Your Preferences")}
         saveLabel={mode === "signup" ? t("general_save", "Save") : t("profile_save", "Save")}
         onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
@@ -203,22 +203,23 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   const { state: signUp, reset, update } = useSignUp();
   const { signIn } = useSession();
 
-  const [started, setStarted] = useState(mode === "edit");
+  const [started, setStarted] = useSignUpWizardValue(mode, "caregiver", "started", mode === "edit");
   const [picking, setPicking] = useState(false);
-  const [clienttypes, setClienttypes] = useState<number[]>([]);
-  const [conditions, setConditions] = useState<number[]>([]);
-  const [specials, setSpecials] = useState<number[]>([]);
-  const [experience, setExperience] = useState<number | null>(null);
-  const [role, setRole] = useState<number | null>(null);
-  const [certifications, setCertifications] = useState<number[]>([]);
-  const [languages, setLanguages] = useState<number[]>([]);
-  const [location, setLocation] = useState<LatLng | null>(null);
-  const [commute, setCommute] = useState<number | null>(null);
-  const [shifts, setShifts] = useState<number[]>([]);
-  const [days, setDays] = useState<number[]>([]);
-  const [worktype, setWorktype] = useState<number | null>(null);
-  const [salaryMin, setSalaryMin] = useState<number | null>(null);
-  const [salaryMax, setSalaryMax] = useState<number | null>(null);
+  const [step, setStep] = useSignUpWizardValue<number>(mode, "caregiver", "step", 0);
+  const [clienttypes, setClienttypes] = useSignUpWizardValue<number[]>(mode, "caregiver", "clienttypes", []);
+  const [conditions, setConditions] = useSignUpWizardValue<number[]>(mode, "caregiver", "conditions", []);
+  const [specials, setSpecials] = useSignUpWizardValue<number[]>(mode, "caregiver", "specials", []);
+  const [experience, setExperience] = useSignUpWizardValue<number | null>(mode, "caregiver", "experience", null);
+  const [role, setRole] = useSignUpWizardValue<number | null>(mode, "caregiver", "role", null);
+  const [certifications, setCertifications] = useSignUpWizardValue<number[]>(mode, "caregiver", "certifications", []);
+  const [languages, setLanguages] = useSignUpWizardValue<number[]>(mode, "caregiver", "languages", []);
+  const [location, setLocation] = useSignUpWizardValue<LatLng | null>(mode, "caregiver", "location", null);
+  const [commute, setCommute] = useSignUpWizardValue<number | null>(mode, "caregiver", "commute", null);
+  const [shifts, setShifts] = useSignUpWizardValue<number[]>(mode, "caregiver", "shifts", []);
+  const [days, setDays] = useSignUpWizardValue<number[]>(mode, "caregiver", "days", []);
+  const [worktype, setWorktype] = useSignUpWizardValue<number | null>(mode, "caregiver", "worktype", null);
+  const [salaryMin, setSalaryMin] = useSignUpWizardValue<number | null>(mode, "caregiver", "salaryMin", null);
+  const [salaryMax, setSalaryMax] = useSignUpWizardValue<number | null>(mode, "caregiver", "salaryMax", null);
 
   useEffect(() => {
     if (mode === "signup" && !signUp.userId) navigate("/intro", { replace: true });
@@ -345,7 +346,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         goBack();
       }
     } catch (e) {
-      toast(e instanceof ApiError && e.kind === "validation" ? Object.values(e.fields).flat()[0] ?? e.message : messageOf(e));
+      toast(messageOf(e));
     }
   };
 
@@ -354,7 +355,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
     description={t("signup_form_caregiver_match_description", "")} />;
   return (
     <>
-      <Wizard steps={steps} review={review}
+      <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`caregiver:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review}
         reviewTitle={t("signup_form_caregiver_review_title", "Review your skills and availability")}
         saveLabel={t("general_save", "Save")}
         onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />

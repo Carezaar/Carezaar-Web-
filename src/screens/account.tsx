@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { ApiError } from "../api/errors";
-import { authService, userService } from "../api/services";
+import { authService, caregiverService, clientService, userService } from "../api/services";
 import type { AppNotification, Faq, FaqCategory, Issue, User } from "../api/types";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
@@ -27,7 +27,7 @@ export function NotificationsScreen() {
   const navigate = useNavigate();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, messageOf } = useFeedback();
+  const { run, act, toast, messageOf } = useFeedback();
   const [selected, setSelected] = useState<AppNotification | null>(null);
   const list = usePaged(async (page) => {
     const work = userService.notifications(page);
@@ -38,11 +38,14 @@ export function NotificationsScreen() {
 
   // Tapping a notification opens its details; the related page opens only on Show.
   const open = (n: AppNotification) => {
-    if (!n.seen_at) {
-      list.mutate((all) => all.map((x) => (x.id === n.id ? { ...x, seen_at: "now" } : x)));
-      void userService.markNotificationSeen(n.id).catch(() => undefined);
-    }
     setSelected(n);
+    if (!n.seen_at) {
+      void act(t("loading_user_notifications_see", "Marking notification as seen"),
+        () => userService.markNotificationSeen(n.id))
+        .then((seen) => list.mutate((all) => all.map((x) =>
+          x.id === n.id ? { ...x, seen_at: seen.seen_at ?? "now" } : x)))
+        .catch((error) => toast(messageOf(error)));
+    }
   };
 
   /** Where Show leads, or null when the related person or chat no longer exists (then
@@ -92,7 +95,11 @@ export function NotificationsScreen() {
             ))}
           </ul>
         )}
-      <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
+      {Boolean(list.error) && list.items.length > 0 && (
+        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
+          retryLabel={t("general_try_again", "Try Again")} />
+      )}
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
       {/* The details: who, what, and Show. No date (it's on the row just tapped) and no
           Cancel: tapping outside or Escape closes it, leaving Show as the one action. */}
       <Dialog open={selected !== null} onClose={() => setSelected(null)} labelledBy="notification-text">
@@ -124,10 +131,24 @@ export function FavoritesScreen() {
     return page === 1 ? run(`${t("loading_favorite_get", "Getting favorites - Page")} ${page}`, () => work) : work;
   }, []);
   const remove = async (u: User) => {
+    const removeLocally = () => list.mutate((all) => all.filter((x) => x.id !== u.id));
     try {
       await act(t("loading_favorite_delete", "Removing from favorite list"), () => userService.removeBookmark(u.id));
-      list.mutate((all) => all.filter((x) => x.id !== u.id));
-    } catch (e) { toast(messageOf(e)); }
+      removeLocally();
+    } catch (e) {
+      // A lost answer may follow a successful removal. Read the exact person's
+      // current state, without replaying the mutation or hiding an unconfirmed row.
+      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
+        try {
+          const detail = u.role === "caregiver" ? await clientService.caregiver(u.id) : await caregiverService.client(u.id);
+          if (detail.user?.id === u.id && detail.user.is_favorite === false) {
+            removeLocally();
+            return;
+          }
+        } catch { /* Still uncertain: retain the card and report the original error. */ }
+      }
+      toast(messageOf(e));
+    }
   };
   return (
     <Page header={<BackHeader title={t("profile_favorites_title", "Favorites")} />}>
@@ -138,9 +159,9 @@ export function FavoritesScreen() {
           <ul className="card-list">
             {list.items.map((u) => (
               <li key={u.id}>
-                <article className="fav-card" {...cardLink(() => navigate(partnerPath(u)), personName(u, t))}>
+                <div className="fav-card" {...cardLink(() => navigate(partnerPath(u)), personName(u, t))}>
                   <Avatar src={u.photo} size={96} />
-                  <div className="fav-text"><h3>{personName(u, t)}</h3><p className="clamp-3" dir="auto">{u.bio}</p></div>
+                  <div className="fav-text"><h2>{personName(u, t)}</h2><p className="clamp-3" dir="auto">{u.bio}</p></div>
                   <div className="match-side">
                     <button type="button" className="icon-btn" aria-label="Remove from favorites"
                       onClick={(e) => { e.stopPropagation(); void remove(u); }}>
@@ -148,12 +169,16 @@ export function FavoritesScreen() {
                     </button>
                     <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                   </div>
-                </article>
+                </div>
               </li>
             ))}
           </ul>
         )}
-      <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
+      {Boolean(list.error) && list.items.length > 0 && (
+        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
+          retryLabel={t("general_try_again", "Try Again")} />
+      )}
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
     </Page>
   );
 }
@@ -264,7 +289,7 @@ export function ReportIssueScreen() {
           <ul className="card-list">
             {issues.map((i) => (
               <li key={i.id}><article className="issue-card">
-                <header><h3>{i.issuetype_id ? label(find("issuetypes", i.issuetype_id)) : i.title}</h3>
+                <header><h2>{i.issuetype_id ? label(find("issuetypes", i.issuetype_id)) : i.title}</h2>
                   <span className={`status-pill ${i.is_replied ? "replied" : "pending"}`}>
                     <Icon name={i.is_replied ? "ic_check_circle" : "ic_timer"} size={16} tint={i.is_replied ? "var(--success)" : "var(--primary)"} />
                     {i.is_replied ? t("report_an_issue_status_resolved", "Resolved") : t("report_an_issue_status_pending", "Pending")}
@@ -322,7 +347,7 @@ export function ChangeLanguageScreen() {
       <div className="stack">
         <div className="info-card"><Icon name="ic_language" size={34} tint="var(--primary-dark)" />
           <div><b>{t("settings_change_language_app_title", "App Language")}</b><p className="small">{t("settings_change_language_app_description", "")}</p></div></div>
-        <h3>{t("settings_change_language_available", "Available Languages")}</h3>
+        <h2 className="language-list-title">{t("settings_change_language_available", "Available Languages")}</h2>
         <ul className="menu-card" role="radiogroup">
           {languages.map((l) => (
             <li key={l.id}><button type="button" role="radio" aria-checked={choice === l.id} className="menu-row" onClick={() => setChoice(l.id)}>
@@ -338,7 +363,7 @@ export function ChangeLanguageScreen() {
 
 /* ---------------------------------------------------------- Change password */
 
-/** Calls `users/password/change` as Android does. The user stays signed in afterwards. */
+/** Changes the password, then returns to the signed-out start screen. */
 export function ChangePasswordScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();

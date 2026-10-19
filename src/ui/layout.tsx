@@ -46,7 +46,7 @@ export function BackHeader({ title, onBack }: { title?: ReactNode; onBack?: () =
       <button type="button" className="back-btn" onClick={onBack ?? (() => goBack())} aria-label="Back">
         <Icon name="ic_arrow_backward" size={22} tint="var(--text)" className="flip-rtl" />
       </button>
-      <h1>{title}</h1>
+      {title ? <h1>{title}</h1> : <span aria-hidden="true" />}
       <img src={assetUrl("logo")} alt="" width={48} height={48} className="back-header-logo" />
     </header>
   );

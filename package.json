@@ -5,14 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/base-seed.mjs dist",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "build:site": "bash scripts/build-site.sh",
+    "check:site": "node scripts/check-site.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "leaflet": "1.9",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.18.4"

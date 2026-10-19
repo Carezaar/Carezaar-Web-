@@ -1,5 +1,7 @@
 # Carezaar web: final delivery report (Android-parity round, 10 October 2026)
 
+> Historical report. For current results and the items still awaiting acceptance, use [the 19 October review status](docs/CURRENT_REVIEW_STATUS.md). Completion claims below apply only to this report's dated scope.
+
 This is the final report the specification asks for in section 25. Per-requirement detail and evidence are in `WEB_CLIENT_SPEC_IMPLEMENTATION_REPORT.md`; the web/Android differences are in `docs/WEB-VS-ANDROID.md`.
 
 ## A. Summary

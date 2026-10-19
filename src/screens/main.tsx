@@ -10,6 +10,7 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
+import { takeMatchesPrefetch } from "../app/matchesPrefetch";
 import { AppHeader, BottomNav, Hero } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, PhotoBox, Spinner } from "../ui/kit";
 import { Icon } from "../ui/Icon";
@@ -53,10 +54,15 @@ function MatchesTab() {
 
   const list = usePaged<Card>(async (page) => {
     const label = `${t("loading_matches", "Getting list of matches - Page")} ${page}`;
+    // A returning user's first page may already be on its way (matchesPrefetch.ts); if it
+    // fails, ask again normally.
+    const early = role ? takeMatchesPrefetch(role, sort, page) : null;
+    const clientPage = () => (early as ReturnType<typeof clientService.matches> | null)?.catch(() => clientService.matches(sort, page)) ?? clientService.matches(sort, page);
+    const caregiverPage = () => (early as ReturnType<typeof caregiverService.matches> | null)?.catch(() => caregiverService.matches(sort, page)) ?? caregiverService.matches(sort, page);
     const work: Promise<{ result: Card[]; meta: import("../api/types").ApiMeta | null }> = isClient
-      ? clientService.matches(sort, page).then(({ result, meta }) => ({
+      ? clientPage().then(({ result, meta }) => ({
           meta, result: result.map((c: CaregiverBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, isMatch: c.is_match === true })) }))
-      : caregiverService.matches(sort, page).then(({ result, meta }) => ({
+      : caregiverPage().then(({ result, meta }) => ({
           meta, result: result.map((c: ClientBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, clienttypeId: c.clienttype_id, isMatch: c.is_match === true })) }));
     return page === 1 ? run(label, () => work) : work;
   }, [sort, isClient]);
@@ -75,7 +81,9 @@ function MatchesTab() {
     const setFavorite = (value: boolean) => list.mutate((all) => all.map((c) => (c.id === card.id ? { ...c, user: { ...c.user, is_favorite: value } } : c)));
     setFavorite(!on);
     try {
-      await (on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id));
+      await run(on ? t("loading_favorite_delete", "Removing from favorite list")
+        : t("loading_favorite_create", "Adding to favorite list"),
+      () => on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id));
     } catch (e) {
       // No answer: the change may have gone through. It isn't sent again; the person's
       // profile is read to show what the server has.
@@ -132,11 +140,11 @@ function MatchesTab() {
         <ul className="card-list">
           {list.items.map((c) => (
             <li key={c.id}>
-              <article className="match-card" {...cardLink(() => navigate(isClient ? `/caregivers/${c.id}` : `/clients/${c.id}`), personName(c.user, t))}>
+              <div className="match-card" {...cardLink(() => navigate(isClient ? `/caregivers/${c.id}` : `/clients/${c.id}`), personName(c.user, t))}>
                 <PhotoBox className="match-photo" src={c.user.photo} />
                 <div className="match-body">
                   <div className="match-title">
-                    <h3>{personName(c.user, t)}</h3>
+                    <h2>{personName(c.user, t)}</h2>
                     {!isClient && c.min !== null && <span className="price"><bdi className="range">${c.min} - ${c.max}</bdi></span>}
                   </div>
                   <p className="meta"><Icon name="ic_distance" size={20} tint="var(--primary)" />
@@ -161,13 +169,17 @@ function MatchesTab() {
                   </button>
                   <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                 </div>
-              </article>
+              </div>
             </li>
           ))}
         </ul>
       )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
+      {Boolean(list.error) && list.items.length > 0 && (
+        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
+          retryLabel={t("general_try_again", "Try Again")} />
+      )}
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
       <Dialog open={sortOpen} onClose={() => setSortOpen(false)} title={t(`${prefix}_matches_sort`, "Sort")} labelledBy="sort-title">
         <div className="stack-sm">
           {(["distance", "pay"] as MatchSort[]).map((s) => (
@@ -289,7 +301,11 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
         </ul>
       )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      <InfiniteSentinel active={list.hasMore && !list.loading} onVisible={list.loadMore} />
+      {Boolean(list.error) && list.items.length > 0 && (
+        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
+          retryLabel={t("general_try_again", "Try Again")} />
+      )}
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
     </>
   );
 }

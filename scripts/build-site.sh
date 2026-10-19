@@ -24,6 +24,21 @@ done
 "$APP/node_modules/.bin/esbuild" "$OUT/main.js" --minify --target=es2020 --allow-overwrite --outfile="$OUT/main.js" --log-level=warning
 "$APP/node_modules/.bin/esbuild" "$OUT/styles.css" --minify --allow-overwrite --outfile="$OUT/styles.css" --log-level=warning
 
+# Keep vendor sources intact while removing debug logging from shipped copies.
+# Pure-call removal preserves argument side effects and leaves warnings/errors.
+node - "$OUT/vendor" "$APP" <<'NODE'
+const fs = require("fs"), path = require("path");
+const { transformSync } = require(path.join(process.argv[3], "node_modules/esbuild"));
+for (const name of fs.readdirSync(process.argv[2]).filter((name) => name.endsWith(".js"))) {
+  const file = path.join(process.argv[2], name);
+  const { code } = transformSync(fs.readFileSync(file, "utf8"), {
+    minify: true, target: "es2020", legalComments: "inline",
+    pure: ["console.log", "console.debug", "console.info"],
+  });
+  fs.writeFileSync(file, code);
+}
+NODE
+
 # On the combined site the landing gets the app ready while the visitor reads:
 # prefetch the app's code, and (when idle) warm its lookup-table cache via assets/warm.js.
 [ -f "$OUT/assets/warm.js" ] || { echo "assets/warm.js missing from the app build" >&2; exit 1; }
@@ -52,13 +67,24 @@ NODE
 # "/" is the landing page; every other path without a file extension is an app route.
 # Vercel config: routing, caching and security headers. The CSP allows the landing's two
 # inline scripts by hash, so the hashes are computed from the finished pages.
-node - "$OUT" <<'NODE'
+node - "$OUT" "$APP" <<'NODE'
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const out = process.argv[2];
 const hashes = new Set();
 for (const page of ["index.html", "app.html"]) {
   const html = fs.readFileSync(path.join(out, page), "utf8");
   for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) hashes.add(`'sha256-${crypto.createHash("sha256").update(m[1]).digest("base64")}'`);
+}
+// Match Vite's .env/production precedence without allowing arbitrary CSP text.
+import(require("url").pathToFileURL(path.join(process.argv[3], "node_modules/vite/dist/node/index.js")).href).then(({ loadEnv }) => {
+const legalEnv = { ...loadEnv("production", process.argv[3], "VITE_"), ...process.env };
+const legalOrigins = new Set();
+for (const key of ["VITE_CAREZAAR_TERMS_OF_USE_URL", "VITE_CAREZAAR_PRIVACY_POLICY_URL"]) {
+  const raw = legalEnv[key]?.trim();
+  if (!raw) continue;
+  const url = new URL(raw);
+  if (url.protocol !== "https:" || url.username || url.password) throw new Error(`${key} must use HTTPS without credentials`);
+  legalOrigins.add(url.origin);
 }
 const csp = [
   "default-src 'self'",
@@ -67,7 +93,7 @@ const csp = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob:",
   "font-src 'self'",
-  "connect-src 'self' blob: https://new.carezaar.com",
+  `connect-src 'self' blob: https://new.carezaar.com ${[...legalOrigins].join(" ")}`.trim(),
   "manifest-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -98,5 +124,6 @@ const config = {
 };
 fs.writeFileSync(path.join(out, "vercel.json"), JSON.stringify(config, null, 2) + "\n");
 console.log(`vercel.json: CSP with ${hashes.size} inline-script hash(es)`);
+}).catch((error) => { console.error(error.message); process.exitCode = 1; });
 NODE
 echo "built $OUT"

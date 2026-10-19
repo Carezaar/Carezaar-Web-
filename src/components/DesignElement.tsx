@@ -125,6 +125,7 @@ export function DesignElement({
     }
   }
   const placeholderText = n.inputType ? (override ?? n.text) : n.text;
+  const inputId = binder?.inputId?.(n);
   const enabled = binder?.isEnabled?.(n) ?? true;
   const isText = n.text !== undefined,
     vector = n.kind === "vector" || n.kind === "line";
@@ -142,6 +143,7 @@ export function DesignElement({
   const mirrored = binder?.rtl && parentWidth !== undefined && !noMirror;
   const insideLogo = noMirror || /logo/i.test(n.name);
   const style: CSSProperties = {
+    ["--scene-node-width" as string]: `${n.width + widened}px`,
     position: "absolute",
     left: mirrored ? parentWidth - n.x - n.width - widened - (binder?.offsetX?.(n) ?? 0) : n.x + (binder?.offsetX?.(n) ?? 0),
     top: n.y + (binder?.offsetY?.(n) ?? 0),
@@ -158,8 +160,10 @@ export function DesignElement({
     placeholder ? (
       n.inputType === "multiline" ? (
         <textarea
+          id={inputId}
           className="design-input"
-          aria-label={placeholderText}
+          aria-required={binder?.isRequired?.(n)}
+          aria-label={inputId ? undefined : placeholderText}
           dir="auto"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -175,8 +179,10 @@ export function DesignElement({
         />
       ) : (
         <input
+          id={inputId}
           className="design-input"
-          aria-label={placeholderText}
+          aria-required={binder?.isRequired?.(n)}
+          aria-label={inputId ? undefined : placeholderText}
           dir={n.inputType === "email" || n.inputType === "password" ? "ltr" : "auto"}
           type={binder?.inputType?.(n) ?? (n.inputType === "select" ? "text" : n.inputType || "text")}
           value={value}
@@ -229,7 +235,7 @@ export function DesignElement({
       <button
         className="design-node"
         data-source={n.id}
-        aria-label={accessibleLabel(n, binder?.text) || n.name}
+        aria-label={binder?.accessibilityLabel?.(n) ?? (accessibleLabel(n, binder?.text) || n.name)}
         aria-pressed={selectable ? selected : undefined}
         style={style}
         disabled={!enabled}
@@ -241,6 +247,15 @@ export function DesignElement({
         {body}
       </button>
     );
+  const labelFor = binder?.labelFor?.(n);
+  if (labelFor) return (
+    <label className="design-node" data-source={n.id} style={style} htmlFor={labelFor}>{body}</label>
+  );
+  const headingLevel = binder?.headingLevel?.(n);
+  if (headingLevel) {
+    const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
+    return <Heading className="design-node" data-source={n.id} style={{ ...style, margin: 0, font: "inherit" }}>{body}</Heading>;
+  }
   return (
     <div className="design-node" data-source={n.id} style={style}>
       {body}
