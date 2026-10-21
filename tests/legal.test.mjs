@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { legalHTTPSURL, fetchLegalDocument } from "../src/api/legalDocuments.ts";
+import { legalHTTPSURL, fetchLegalDocument, legalFetchTarget } from "../src/api/legalDocuments.ts";
 import { pdfContent } from "../src/api/legalPDF.ts";
 
 test("legal configuration accepts HTTPS only and distinguishes missing from invalid", () => {
@@ -63,4 +63,11 @@ test("real supplied PDF bytes decode into readable current document blocks", asy
   assert.ok(content.blocks.length > 10);
   assert.ok(content.blocks.every((block) => block.r.every(([text]) => typeof text === "string" && text.length > 0)));
   assert.match(content.blocks.map((block) => block.r[0][0]).join(" "), /Carezaar/i);
+});
+
+test("documents on the API host are read through the app's own origin; others directly", () => {
+  const api = "https://new.carezaar.com/api/";
+  assert.equal(legalFetchTarget("https://new.carezaar.com/terms_of_use.pdf", api), "/terms_of_use.pdf");
+  assert.equal(legalFetchTarget("https://new.carezaar.com/privacy_policy.pdf?v=2", api), "/privacy_policy.pdf?v=2");
+  assert.equal(legalFetchTarget("https://documents.example/terms.pdf", api), "https://documents.example/terms.pdf");
 });

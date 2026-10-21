@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { LEGAL_DOCUMENTS } from "../api/config";
+import { API_BASE_URL, LEGAL_DOCUMENTS } from "../api/config";
 import { pdfContent } from "../api/legalPDF";
-import { fetchLegalDocument, legalHTTPSURL, type LegalContent, type LegalRun } from "../api/legalDocuments";
+import { fetchLegalDocument, legalFetchTarget, legalHTTPSURL, type LegalContent, type LegalRun } from "../api/legalDocuments";
 import { useI18n } from "../app/i18n";
 import { Button, Dialog, Spinner } from "../ui/kit";
 
@@ -73,7 +73,7 @@ export function LegalDocumentDialog({ doc, onClose }: { doc: LegalDocument | nul
     setZoom(0);
     void (async () => {
       const remote = legalHTTPSURL(source.remote);
-      const body = await fetchLegalDocument(remote ?? source.content, controller.signal);
+      const body = await fetchLegalDocument(remote ? legalFetchTarget(remote, API_BASE_URL) : source.content, controller.signal);
       const next = body.kind === "structured" ? body.content : body.kind === "html" ? htmlContent(body.html) : await pdfContent(body.bytes, controller.signal);
       if (!controller.signal.aborted) setContent(next);
     })().catch(() => { if (!controller.signal.aborted) setFailed(true); });

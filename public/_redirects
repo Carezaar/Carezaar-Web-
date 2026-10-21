@@ -1,2 +1,4 @@
 /uploads/*  https://new.carezaar.com/uploads/:splat  200
+/terms_of_use.pdf  https://new.carezaar.com/terms_of_use.pdf  200
+/privacy_policy.pdf  https://new.carezaar.com/privacy_policy.pdf  200
 /*    /index.html   200

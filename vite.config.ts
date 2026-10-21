@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 // Two entries: the app itself, and a tiny cache warmer the landing page loads on the
 // same origin. The warmer keeps a fixed name so the landing can reference it.
 // Profile photos are read through the app's own origin (see README → Deployment).
-const uploads = { "/uploads": { target: "https://new.carezaar.com", changeOrigin: true } };
+// The client's Terms of Use and Privacy Policy PDFs live on the same host, also without CORS.
+const uploads = Object.fromEntries(["/uploads", "/terms_of_use.pdf", "/privacy_policy.pdf"]
+  .map((path) => [path, { target: "https://new.carezaar.com", changeOrigin: true }]));
 
 export default defineConfig({
   // Remove third-party diagnostic calls from shipped chunks too. Pure calls

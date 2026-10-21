@@ -11,6 +11,14 @@ export function legalHTTPSURL(raw: string | undefined): string | null {
   return url.href;
 }
 
+/** The API host serves its files without CORS headers, so a document there is read through
+ *  the same path on the app's own origin, proxied to the API host (see README → Deployment),
+ *  as profile photos are. Documents on any other host are fetched directly. */
+export function legalFetchTarget(remote: string, apiBaseURL: string): string {
+  const url = new URL(remote);
+  return url.origin === new URL(apiBaseURL).origin ? url.pathname + url.search : url.href;
+}
+
 export async function fetchLegalDocument(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<LegalBody> {
   const response = await fetcher(url, { signal, cache: "no-store", credentials: "omit",
     headers: { Accept: "application/pdf, text/html, application/json" } });
