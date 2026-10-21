@@ -47,7 +47,7 @@ function DesktopShell({ children }: { children: ReactNode }) {
     { to: "/main/matches", icon: "ic_matches", label: t("bottom_navigation_matches", "Matches"), toggles: true },
     { to: "/main/messages", icon: "ic_messages", label: t("bottom_navigation_messages", "Messages"), toggles: true, also: "/chat/" },
     { to: "/main/profile", icon: "ic_profile", label: t("bottom_navigation_profile", "Profile"), toggles: true },
-    { to: "/help", icon: "ic_message", label: t("profile_help_center_title", "Help Center") },
+    { to: "/help", icon: "ic_support", label: t("profile_help_center_title", "Help Center") },
     { to: "/faq", icon: "ic_faq", label: t("profile_faq_title", "FAQ") },
     { to: "/change-language", icon: "ic_language", label: t("profile_change_language_title", "Change Language") },
     { to: "/favorites", icon: "ic_favorite", label: t("profile_favorites_title", "Favorites"), toggles: true },
@@ -127,7 +127,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
           <img src={assetUrl("logo")} alt="" width={72} height={72} />
           <div><b>Carezaar</b><span>{t("splash_slogan", "Care, Connect, Compassion")}</span></div>
         </div>
-        <img className="auth-photo" src={assetUrl("bg_matches")} alt="" loading="lazy" width={695} height={638} />
+        <img className="auth-photo" src="/assets/signin-hands-tea.jpg" alt="" loading="lazy" width={695} height={638} />
       </section>
       <section className="auth-card">{children}</section>
     </div>

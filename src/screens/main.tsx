@@ -40,6 +40,8 @@ export function MainScreen() {
 type Card = { id: string; user: PartnerUser; min: number | null; max: number | null; distance: number;
   clienttypeId?: number; isMatch: boolean };
 
+/** How long each of a caregiver's care types stays in the banner. */
+const BANNER_ROTATE_MS = 5_000;
 
 function MatchesTab() {
   const navigate = useNavigate();
@@ -49,6 +51,8 @@ function MatchesTab() {
   const { run, toast, messageOf } = useFeedback();
   const [sort, setSort] = useState<MatchSort>("distance");
   const [sortOpen, setSortOpen] = useState(false);
+  const [headerTypeIds, setHeaderTypeIds] = useState<number[]>([]);
+  const [bannerIndex, setBannerIndex] = useState(0);
   const isClient = role === "client";
 
   const list = usePaged<Card>(async (page) => {
@@ -64,6 +68,28 @@ function MatchesTab() {
           meta, result: result.map((c: ClientBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, clienttypeId: c.clienttype_id, isMatch: c.is_match === true })) }));
     return page === 1 ? run(label, () => work) : work;
   }, [sort, isClient]);
+
+  // The banner follows the care type: header_senior, header_child, … A caregiver who
+  // supports several client types sees each in turn, from their saved skills.
+  useEffect(() => {
+    let current = true;
+    setHeaderTypeIds([]);
+    setBannerIndex(0);
+    const load = isClient
+      ? clientService.profile().then((p) => (p.clienttype_id ? [p.clienttype_id] : []))
+      : caregiverService.profile().then((p) => p.clienttype_ids);
+    load.then((ids) => { if (current) setHeaderTypeIds(ids); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [isClient]);
+  const bannerTypes = headerTypeIds.filter((id) => find("clienttypes", id)?.icon);
+  const rotating = bannerTypes.length > 1;
+  useEffect(() => {
+    if (!rotating) return;
+    const timer = window.setInterval(() => setBannerIndex((i) => i + 1), BANNER_ROTATE_MS);
+    return () => window.clearInterval(timer);
+  }, [rotating]);
+  const headerIcon = bannerTypes.length ? find("clienttypes", bannerTypes[bannerIndex % bannerTypes.length])?.icon : undefined;
+  const headerType = headerIcon ? headerIcon.replace("client_", "header_") : null;
 
   const ptr = usePullToRefresh(async () => {
     try { await list.refresh(); } catch (e) { toast(messageOf(e)); }
@@ -110,7 +136,7 @@ function MatchesTab() {
           </span>
         )}
       </div>
-      <Hero image="bg_matches" icon="ic_matches_off"
+      <Hero image={headerType ?? "bg_matches"} icon="ic_matches_off"
         title={t(`${prefix}_matches_page_title`, "My Matches")}
         subtitle={t(`${prefix}_matches_page_description`, "")} />
       <section className="prefs-banner">
@@ -314,7 +340,7 @@ function ProfileTab() {
 
   const items: { icon: string; title: string; description: string; to?: string; action?: () => void; tone?: string }[] = [
     { icon: "ic_match_on", title: t("profile_matches_title", "Matches"), description: t("profile_matches_description", "Review your match history"), to: "/profile/matches", tone: "success" },
-    { icon: "ic_message", title: t("profile_help_center_title", "Help Center"), description: t("profile_help_center_description", "Get help and support"), to: "/help" },
+    { icon: "ic_support", title: t("profile_help_center_title", "Help Center"), description: t("profile_help_center_description", "Get help and support"), to: "/help" },
     { icon: "ic_issue", title: t("profile_report_an_issue_title", "Report an Issue"), description: t("profile_report_an_issue_description", ""), to: "/report-issue" },
     { icon: "ic_faq", title: t("profile_faq_title", "FAQ"), description: t("profile_faq_description", "Find answers to common questions"), to: "/faq" },
     { icon: "ic_language", title: t("profile_change_language_title", "Change Language"), description: t("profile_change_language_description", "Choose your preferred language"), to: "/change-language" },

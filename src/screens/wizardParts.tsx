@@ -175,7 +175,9 @@ export function WizardIntro({ title, description, caregiver = false, onStart }: 
       </main>
     );
   }
-  return <FigmaScreen sceneKey="v2-65-19934" binder={binder} />;
+  return <FigmaScreen sceneKey="v2-65-19934" binder={binder} overlays={caregiver ? [
+    { x: 94, y: 110, width: 224, height: 238, content: <img src="/assets/skills-illustration.png" alt="" width="100%" height="100%" /> },
+  ] : []} />;
 }
 
 /* --------------------------------------------------------------- engine */
