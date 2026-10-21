@@ -10,7 +10,6 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
-import { takeMatchesPrefetch } from "../app/matchesPrefetch";
 import { AppHeader, BottomNav, Hero } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, PhotoBox, Spinner } from "../ui/kit";
 import { Icon } from "../ui/Icon";
@@ -54,11 +53,10 @@ function MatchesTab() {
 
   const list = usePaged<Card>(async (page) => {
     const label = `${t("loading_matches", "Getting list of matches - Page")} ${page}`;
-    // A returning user's first page may already be on its way (matchesPrefetch.ts); if it
-    // fails, ask again normally.
-    const early = role ? takeMatchesPrefetch(role, sort, page) : null;
-    const clientPage = () => (early as ReturnType<typeof clientService.matches> | null)?.catch(() => clientService.matches(sort, page)) ?? clientService.matches(sort, page);
-    const caregiverPage = () => (early as ReturnType<typeof caregiverService.matches> | null)?.catch(() => caregiverService.matches(sort, page)) ?? caregiverService.matches(sort, page);
+    // My Matches loads only once the saved sign-in has been checked, as on Android
+    // (parity review v6.0, Q1): this list mounts after the session is accepted.
+    const clientPage = () => clientService.matches(sort, page);
+    const caregiverPage = () => caregiverService.matches(sort, page);
     const work: Promise<{ result: Card[]; meta: import("../api/types").ApiMeta | null }> = isClient
       ? clientPage().then(({ result, meta }) => ({
           meta, result: result.map((c: CaregiverBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, isMatch: c.is_match === true })) }))
@@ -175,11 +173,7 @@ function MatchesTab() {
         </ul>
       )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      {Boolean(list.error) && list.items.length > 0 && (
-        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
-          retryLabel={t("general_try_again", "Try Again")} />
-      )}
-      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
       <Dialog open={sortOpen} onClose={() => setSortOpen(false)} title={t(`${prefix}_matches_sort`, "Sort")} labelledBy="sort-title">
         <div className="stack-sm">
           {(["distance", "pay"] as MatchSort[]).map((s) => (
@@ -301,11 +295,7 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
         </ul>
       )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      {Boolean(list.error) && list.items.length > 0 && (
-        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
-          retryLabel={t("general_try_again", "Try Again")} />
-      )}
-      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
     </>
   );
 }

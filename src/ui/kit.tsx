@@ -1,3 +1,4 @@
+import { sentinelShouldFire } from "../app/sentinel";
 import { ApiError } from "../api/errors";
 import {
   Children, cloneElement, isValidElement, useEffect, useId, useRef, useState,
@@ -236,12 +237,19 @@ export function Stepper({ step, total, label }: { step: number; total: number; l
 }
 
 /** Calls `onVisible` when scrolled into view: drives page-by-page loading. */
-export function InfiniteSentinel({ onVisible, active }: { onVisible: () => void; active: boolean }) {
+/** Calls `onVisible` when the end of the list comes into view. `resetKey` (the loaded page)
+ *  re-arms it after a successful page, so a short list keeps loading while the end stays in view. */
+export function InfiniteSentinel({ onVisible, active, resetKey }: { onVisible: () => void; active: boolean; resetKey?: number }) {
   const ref = useRef<HTMLDivElement>(null);
+  const inView = useRef(false);
+  useEffect(() => { inView.current = false; }, [resetKey]);
   useEffect(() => {
     if (!active || !ref.current) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) onVisible();
+      const intersecting = entries.some((e) => e.isIntersecting);
+      const fire = sentinelShouldFire(intersecting, inView.current);
+      inView.current = intersecting;
+      if (fire) onVisible();
     }, { rootMargin: "240px" });
     observer.observe(ref.current);
     return () => observer.disconnect();

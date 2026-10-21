@@ -107,20 +107,20 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
   };
   const titles = {
     request: ["match_match_button", "Request a Match"], accept: ["match_accept_title", "Accept"],
-    reject: ["match_reject_title", "Reject"], withdraw: ["general_cancel", "Cancel"],
+    reject: ["match_reject_title", "Reject"], withdraw: ["match_withdraw_title", "Withdraw"],
     unmatch: ["match_unmatch_title", "Unmatch"],
   } as const;
   /** The confirming button is named after the action itself, never "Confirm". */
   const actions = {
     request: ["match_match_title", "Match"], accept: ["match_accept_title", "Accept"],
-    reject: ["match_reject_title", "Reject"], withdraw: ["general_cancel", "Cancel"],
+    reject: ["match_reject_title", "Reject"], withdraw: ["match_withdraw_title", "Withdraw"],
     unmatch: ["match_unmatch_title", "Unmatch"],
   } as const;
   const messages = {
     request: ["match_match_message", "Are you sure you want to match with this user? They should accept your request."],
     accept: ["match_accept_message", "Are you sure you want to accept this match request?"],
     reject: ["match_reject_message", "Are you sure you want to reject this match request?"],
-    withdraw: ["match_withdraw_message", "Are you sure you want to cancel your match request with this user?"],
+    withdraw: ["match_withdraw_message", "Are you sure you want to withdraw your match request with this user?"],
     unmatch: ["match_unmatch_message", "Are you sure you want to end your match with this user?"],
   } as const;
 
@@ -154,7 +154,7 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
             <Button disabled={match.busy} onClick={() => mainAction("accept")}>{t("match_accept_title", "Accept")}</Button>
           </> : match.action === "withdraw" ? <>
             <span className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</span>
-            <Button disabled={match.busy} variant="outline" onClick={() => mainAction("withdraw")}>{t("general_cancel", "Cancel")}</Button>
+            <Button disabled={match.busy} variant="outline" onClick={() => mainAction("withdraw")}>{t("match_withdraw_title", "Withdraw")}</Button>
           </> : match.action === "unmatch" ? <Button disabled={match.busy} variant="danger" icon="ic_match_off" onClick={() => mainAction("unmatch")}>{t("match_unmatch_title", "Unmatch")}</Button>
           : <Button disabled={match.busy} icon="ic_match_on" onClick={() => mainAction("request")}>{t("match_match_button", "Request a Match")}</Button>}
       </div>

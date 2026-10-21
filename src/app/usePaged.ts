@@ -68,7 +68,10 @@ export function usePaged<T>(
       const { items: merged, added } = pagedMerge(base, result, keyRef.current);
       apply({ page: target, ended: result.length === 0 || added === 0, items: merged }, meta);
     } catch (e) {
-      if (gen === generation.current) setError(e);
+      // A further page that fails shows nothing, as on Android: the list stays as it is and
+      // the page is asked for again the next time the end of the list comes into view
+      // (parity review v6.0, G2). Only a failed first page is shown as an error.
+      if (gen === generation.current && target === 1) setError(e);
     } finally {
       if (gen === generation.current) { setLoading(false); inFlight.current = false; }
     }
@@ -125,13 +128,6 @@ export function usePaged<T>(
     void load(current + 1);
   }, [error, load]);
 
-  /** An explicit retry resumes the failed page without discarding loaded rows.
-   * Scroll callbacks remain paused until the user chooses to retry. */
-  const retry = useCallback(() => {
-    if (inFlight.current || !error) return;
-    return load(loaded.current.page + 1);
-  }, [error, load]);
-
   /** Optimistic local edit (e.g. a bookmark toggled on a card). */
   const mutate = useCallback((fn: (all: T[]) => T[]) => {
     setItems((all) => {
@@ -141,5 +137,5 @@ export function usePaged<T>(
     });
   }, []);
 
-  return { items, total, page, loading, refreshing, error, hasMore, loadMore, retry, reload, refresh, mutate };
+  return { items, total, page, loading, refreshing, error, hasMore, loadMore, reload, refresh, mutate };
 }

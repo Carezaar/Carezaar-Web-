@@ -327,7 +327,7 @@ function useSignUpForm() {
   const setEmail = useCallback((v: string) => { setEmailState(v); setErrors((e) => ({ ...e, email: undefined })); }, []);
   const setPassword = useCallback((v: string) => { setPasswordState(v); setErrors((e) => ({ ...e, password: undefined, confirmation: undefined })); }, []);
   const setConfirmation = useCallback((v: string) => { setConfirmationState(v); setErrors((e) => ({ ...e, confirmation: undefined })); }, []);
-  const setAccepted = useCallback((v: boolean) => { setAcceptedState(v); setErrors((e) => ({ ...e, accepted: undefined })); }, []);
+  const setAccepted = useCallback((v: boolean) => { setAcceptedState(v); }, []);
 
   /** Continue is always active, as on Android: it checks every field at once and puts
    *  each problem under its own field (parity review v4.0, C2). */
@@ -336,6 +336,8 @@ function useSignUpForm() {
     const { accepted: agreement, ...fields } = next;
     setErrors(fields);
     if (Object.values(fields).some(Boolean)) return;
+    // The agreement problem is only ever a short pop-up message, never text under the box
+    // (parity review v6.0, C2).
     if (agreement) { toast(agreement); return; }
     setConfirming(true);
   }, [email, password, confirmation, accepted, t, toast]);
@@ -489,9 +491,6 @@ function SignUpScene({ form }: { form: SignUpForm }) {
           </Checkbox>
           </div>
         ) },
-        ...(errors.accepted ? [{ x: 20, y: 640, width: 372, height: 18, content: (
-          <p className="field-message" role="alert">{errors.accepted}</p>
-        ) }] : []),
     ]} />
     <SignUpConfirmation form={form} />
     </>

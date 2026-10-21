@@ -95,11 +95,7 @@ export function NotificationsScreen() {
             ))}
           </ul>
         )}
-      {Boolean(list.error) && list.items.length > 0 && (
-        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
-          retryLabel={t("general_try_again", "Try Again")} />
-      )}
-      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
       {/* The details: who, what, and Show. No date (it's on the row just tapped) and no
           Cancel: tapping outside or Escape closes it, leaving Show as the one action. */}
       <Dialog open={selected !== null} onClose={() => setSelected(null)} labelledBy="notification-text">
@@ -174,11 +170,7 @@ export function FavoritesScreen() {
             ))}
           </ul>
         )}
-      {Boolean(list.error) && list.items.length > 0 && (
-        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
-          retryLabel={t("general_try_again", "Try Again")} />
-      )}
-      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
     </Page>
   );
 }

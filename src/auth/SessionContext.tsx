@@ -7,7 +7,6 @@ import { ApiError } from "../api/errors";
 import { authService } from "../api/services";
 import { tokenStore, type SessionOwner } from "../api/session";
 import type { User, UserRole } from "../api/types";
-import { rememberRole } from "../app/matchesPrefetch";
 
 /** Reproduces the Android Splash decision: a stored token means resolve the user and
  *  enter the app, otherwise show Intro. */
@@ -48,7 +47,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // Migrate legacy token pairs before private screens mount. This callback
     // runs after identity resolution, never during render.
     acceptedOwner.current = tokenStore.captureOwner();
-    rememberRole(acceptedOwner.current, user.role);
     hasSignedInThisPage.current = true;
     setState(classify(user));
   }, []);

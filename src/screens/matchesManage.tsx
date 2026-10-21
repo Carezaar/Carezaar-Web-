@@ -76,11 +76,7 @@ export function ManageMatchesScreen() {
           </ul>
         )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      {Boolean(list.error) && list.items.length > 0 && (
-        <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.retry()}
-          retryLabel={t("general_try_again", "Try Again")} />
-      )}
-      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} />
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
 
       <IntroductionDialog match={introFor} onClose={() => setIntroFor(null)} />
     </Page>
