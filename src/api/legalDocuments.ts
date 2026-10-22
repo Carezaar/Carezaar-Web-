@@ -20,7 +20,9 @@ export function legalFetchTarget(remote: string, apiBaseURL: string): string {
 }
 
 export async function fetchLegalDocument(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<LegalBody> {
-  const response = await fetcher(url, { signal, cache: "no-store", credentials: "omit",
+  // A document on the app's own origin (the proxy) is sent with that origin's credentials, so a
+  // password-protected deployment's own HTTP sign-in reaches it; other hosts never get any.
+  const response = await fetcher(url, { signal, cache: "no-store", credentials: url.startsWith("/") ? "same-origin" : "omit",
     headers: { Accept: "application/pdf, text/html, application/json" } });
   if (!response.ok) throw new Error(`Document request failed: ${response.status}`);
   if (url.startsWith("https:") && response.url && new URL(response.url).protocol !== "https:") throw new Error("Insecure document redirect.");

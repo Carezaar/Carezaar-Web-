@@ -79,6 +79,14 @@ test("the viewer opens the PDF itself: every page with its size and its text for
     import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.min.mjs")));
 });
 
+test("a document on the app's own origin is sent with that origin's credentials; other hosts get none", async () => {
+  const seen = [];
+  const fetcher = async (url, init) => { seen.push([url, init.credentials]); return new Response("%PDF-1.7", { headers: { "Content-Type": "application/pdf" } }); };
+  await fetchLegalDocument("/terms_of_use.pdf", new AbortController().signal, fetcher);
+  await fetchLegalDocument("https://documents.example/terms.pdf", new AbortController().signal, fetcher);
+  assert.deepEqual(seen, [["/terms_of_use.pdf", "same-origin"], ["https://documents.example/terms.pdf", "omit"]]);
+});
+
 test("documents on the API host are read through the app's own origin; others directly", () => {
   const api = "https://new.carezaar.com/api/";
   assert.equal(legalFetchTarget("https://new.carezaar.com/terms_of_use.pdf", api), "/terms_of_use.pdf");
