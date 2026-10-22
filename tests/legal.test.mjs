@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { legalHTTPSURL, fetchLegalDocument, legalFetchTarget } from "../src/api/legalDocuments.ts";
-import { pdfContent } from "../src/api/legalPDF.ts";
+import { pdfContent, openPDF } from "../src/api/legalPDF.ts";
 
 test("legal configuration accepts HTTPS only and distinguishes missing from invalid", () => {
   assert.equal(legalHTTPSURL(undefined), null);
@@ -63,6 +63,20 @@ test("real supplied PDF bytes decode into readable current document blocks", asy
   assert.ok(content.blocks.length > 10);
   assert.ok(content.blocks.every((block) => block.r.every(([text]) => typeof text === "string" && text.length > 0)));
   assert.match(content.blocks.map((block) => block.r[0][0]).join(" "), /Carezaar/i);
+});
+
+test("the viewer opens the PDF itself: every page with its size and its text for screen readers", async () => {
+  const bytes = new Uint8Array(await readFile(new URL("../public/legal/terms-of-use.pdf", import.meta.url)));
+  const pdf = await openPDF(bytes, new AbortController().signal, import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.min.mjs"));
+  try {
+    assert.ok(pdf.sizes.length > 1, "multi-page document");
+    for (const size of pdf.sizes) assert.ok(size.width > 0 && size.height > size.width, "portrait page size");
+    assert.match(await pdf.text(0), /Carezaar/i);
+    assert.match(await pdf.text(pdf.sizes.length - 1), /\S/);
+  } finally { await pdf.destroy(); }
+  const stopped = new AbortController(); stopped.abort();
+  await assert.rejects(openPDF(new Uint8Array(await readFile(new URL("../public/legal/terms-of-use.pdf", import.meta.url))), stopped.signal,
+    import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.min.mjs")));
 });
 
 test("documents on the API host are read through the app's own origin; others directly", () => {
