@@ -1,6 +1,6 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useGoBack } from "../navigation/back";
+import { useGoBack, exitPast } from "../navigation/back";
 import type { BaseItem } from "../api/types";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
@@ -193,7 +193,8 @@ export interface StepDef {
 export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, review, reviewTitle, saveLabel, onSave, onExit }: {
   steps: StepDef[]; review: ReactNode; reviewTitle: string; saveLabel: string;
   index: number; onStepChange: (index: number) => void; historyScope: string;
-  onSave: () => Promise<void>; onExit: () => void;
+  /** `leave` closes the wizard after a successful save in the editor (all its step entries). */
+  onSave: (leave: () => void) => Promise<void>; onExit: () => void;
 }) {
   const { t } = useI18n();
   const { toast } = useFeedback();
@@ -219,6 +220,11 @@ export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, r
       carezaarWizard: { scope: historyScope, step, depth: replace ? 0 : depth + 1 } } });
     window.scrollTo({ top: 0 });
   };
+  const leave = () => {
+    const exit = exitPast((window.history.state as { idx?: number } | null)?.idx ?? 0, depth, "/main/matches");
+    if ("back" in exit) navigate(-exit.back);
+    else navigate(exit.to, { replace: true });
+  };
   const total = steps.length + 1;
   const onReview = index === steps.length;
   const current = steps[index];
@@ -237,7 +243,7 @@ export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, r
     }} />}
       footer={
         <div className="stack-sm">
-          <Button trailingIcon="ic_arrow_forward" onClick={() => (onReview ? void onSave() : next())}>
+          <Button trailingIcon="ic_arrow_forward" onClick={() => (onReview ? void onSave(leave) : next())}>
             {onReview ? saveLabel : t("signup_form_client_continue", "Continue")}
           </Button>
           <p className="footnote"><Icon name="ic_info_circle" size={18} tint="var(--primary)" />

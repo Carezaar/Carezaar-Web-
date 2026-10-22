@@ -153,7 +153,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
     </ReviewCard>
   );
 
-  const save = async () => {
+  const save = async (leave: () => void) => {
     // Inside the Save click, where browsers allow the permission prompt.
     const prefs = {
       clienttypeId: clienttype[0], lat: location!.lat, lng: location!.lng, salaryMin, salaryMax,
@@ -172,7 +172,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         reset();
       } else {
         await act(t("loading_profile_set", "Updating profile"), () => clientService.updateProfile(prefs));
-        goBack();
+        leave();
       }
     } catch (e) {
       toast(messageOf(e));
@@ -324,7 +324,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
     </ReviewCard>
   );
 
-  const save = async () => {
+  const save = async (leave: () => void) => {
     // Inside the Save click, where browsers allow the permission prompt.
     const skills = {
       commuteId: commute!, experienceId: experience!, roleId: role!, worktypeId: worktype!,
@@ -343,7 +343,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         reset();
       } else {
         await act(t("loading_profile_set", "Updating profile"), () => caregiverService.updateProfile(skills));
-        goBack();
+        leave();
       }
     } catch (e) {
       toast(messageOf(e));

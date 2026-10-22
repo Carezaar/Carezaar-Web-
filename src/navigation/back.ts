@@ -12,3 +12,9 @@ export function useGoBack(fallback = "/") {
     else navigate(fallback, { replace: true });
   }, [navigate, fallback]);
 }
+
+/** Leaving a screen that added `depth` history entries of its own (the wizard's steps): back
+ *  past all of them to the screen that opened it, or to `fallback` when it was opened directly. */
+export function exitPast(idx: number, depth: number, fallback: string): { back: number } | { to: string } {
+  return idx - depth > 0 ? { back: depth + 1 } : { to: fallback };
+}
