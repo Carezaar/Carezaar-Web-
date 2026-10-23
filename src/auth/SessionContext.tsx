@@ -7,6 +7,7 @@ import { ApiError } from "../api/errors";
 import { authService } from "../api/services";
 import { tokenStore, type SessionOwner } from "../api/session";
 import type { User, UserRole } from "../api/types";
+import { forgetMatches } from "../app/matchesState";
 
 /** Reproduces the Android Splash decision: a stored token means resolve the user and
  *  enter the app, otherwise show Intro. */
@@ -75,6 +76,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [acceptUser]);
+
+  // Signing out (or a sign-in that ends) forgets the My Matches sort and list (23 Oct 2026).
+  useEffect(() => { if (state.status === "signedOut") forgetMatches(); }, [state.status]);
 
   useEffect(() => {
     const invalidateSessionChecks = () => { restoreRevision.current++; };

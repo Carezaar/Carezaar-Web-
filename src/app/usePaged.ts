@@ -27,24 +27,48 @@ export function pagedMerge<T>(existing: T[], incoming: T[], keyOf: (item: T) => 
 
 const defaultKey = (item: unknown) => (item as { id?: unknown })?.id ?? item;
 
+/** Pages 1..N fetched again, in order, rebuilt into one list with the same rules as loading
+ *  them one by one: no item twice, and an empty page (or one that adds nothing) ends the list
+ *  there. Records the server no longer lists drop out; new ones appear in their place. */
+export function reconcilePages<T>(pages: T[][], keyOf: (item: T) => unknown): { items: T[]; page: number; ended: boolean } {
+  let items: T[] = [];
+  let page = 0;
+  for (const result of pages) {
+    const { items: merged, added } = pagedMerge(items, result, keyOf);
+    page += 1;
+    if (result.length === 0 || added === 0) return { items, page, ended: true };
+    items = merged;
+  }
+  return { items, page, ended: false };
+}
+
+/** A list state to start from instead of loading page 1 (e.g. My Matches on return). */
+export interface PagedStart<T> { items: T[]; page: number; ended: boolean; total: number | null }
+
 export function usePaged<T>(
-  fetchPage: (page: number) => Promise<{ result: T[]; meta: ApiMeta | null }>,
+  fetchPage: (page: number, options?: { quiet?: boolean }) => Promise<{ result: T[]; meta: ApiMeta | null }>,
   deps: unknown[],
   keyOf: (item: T) => unknown = defaultKey,
+  start: PagedStart<T> | null = null,
 ) {
-  const [items, setItems] = useState<T[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
-  const [page, setPage] = useState(0);
-  const [ended, setEnded] = useState(false);
+  const [items, setItems] = useState<T[]>(() => start?.items ?? []);
+  const [total, setTotal] = useState<number | null>(() => start?.total ?? null);
+  const [page, setPage] = useState(() => start?.page ?? 0);
+  const [ended, setEnded] = useState(() => start?.ended ?? false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // The quiet refresh of loaded pages shows nothing (unlike `refreshing`, which drives the
+  // pull-to-refresh indicator); it only holds back further pages until it is done.
+  const [revalidating, setRevalidating] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const generation = useRef(0);
   const inFlight = useRef(false);
   // The latest list and page as of the last response. `loadMore` reads these instead of
   // state: a fast response can land before the next render, and a stale closure would
   // request (and append) the same page again.
-  const loaded = useRef<{ page: number; ended: boolean; items: T[] }>({ page: 0, ended: false, items: [] });
+  const loaded = useRef<{ page: number; ended: boolean; items: T[] }>(start ? { page: start.page, ended: start.ended, items: start.items } : { page: 0, ended: false, items: [] });
+  // A starting state replaces the first load; later dependency changes (a new sort) load again.
+  const startRef = useRef(start);
   const fetchRef = useRef(fetchPage);
   fetchRef.current = fetchPage;
   const keyRef = useRef(keyOf);
@@ -117,8 +141,35 @@ export function usePaged<T>(
     }
   }, [apply]);
 
+  /** Quiet refresh of every page already loaded (My Matches on return): pages 1..N are asked
+   *  for again without the loading window while the list stays on screen, and replace it only
+   *  once all have answered. A failure keeps the list as it is; a newer load (a new sort, a
+   *  reload) wins over this answer. Further pages wait until it is done. `fetchAll` lets the
+   *  caller share one refresh between screens. Resolves true when the list was refreshed. */
+  const refreshLoaded = useCallback(async (fetchAll?: (count: number) => Promise<{ result: T[]; meta: ApiMeta | null }[]>) => {
+    const count = loaded.current.page;
+    if (count < 1 || inFlight.current || refreshRunning.current) return false;
+    const gen = generation.current;
+    inFlight.current = true;
+    setRevalidating(true);
+    try {
+      const answers = await (fetchAll ?? ((n: number) => Promise.all(Array.from({ length: n }, (_, i) => fetchRef.current(i + 1, { quiet: true })))))(count);
+      if (gen !== generation.current) return false;
+      apply(reconcilePages(answers.map((a) => a.result), keyRef.current), answers[0]?.meta ?? null);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (gen === generation.current) inFlight.current = false;
+      setRevalidating(false);
+    }
+  }, [apply]);
+
+  useEffect(() => {
+    if (startRef.current) { startRef.current = null; return; }
+    void reload();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller passes the list's own dependencies
-  useEffect(() => { void reload(); }, deps);
+  }, deps);
 
   const hasMore = page > 0 && !ended;
   const loadMore = useCallback(() => {
@@ -137,5 +188,5 @@ export function usePaged<T>(
     });
   }, []);
 
-  return { items, total, page, loading, refreshing, error, hasMore, loadMore, reload, refresh, mutate };
+  return { items, total, page, ended, loading, refreshing, revalidating, error, hasMore, loadMore, reload, refresh, refreshLoaded, mutate };
 }

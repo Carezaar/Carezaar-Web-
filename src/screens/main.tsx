@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/errors";
 import { caregiverService, clientService, userService } from "../api/services";
@@ -10,6 +10,8 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
+import { matchesKey, readBanner, readSnapshot, rememberedSort, rememberSort, saveScroll, sharedRefresh, writeBanner, writeSnapshot } from "../app/matchesState";
+import { tokenStore } from "../api/session";
 import { AppHeader, BottomNav, Hero } from "../ui/layout";
 import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, PhotoBox, Spinner } from "../ui/kit";
 import { Icon } from "../ui/Icon";
@@ -45,42 +47,81 @@ const BANNER_ROTATE_MS = 5_000;
 
 function MatchesTab() {
   const navigate = useNavigate();
-  const { role } = useSession();
+  const { role, user } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
   const { run, toast, messageOf } = useFeedback();
-  const [sort, setSort] = useState<MatchSort>("distance");
+  // The sort and the loaded list belong to this sign-in (client request, 23 Oct 2026): the
+  // sort is remembered until sign-out, and coming back to the tab shows the list as it was
+  // left (every loaded page, same place) while it is refreshed quietly. See matchesState.
+  const [key] = useState(() => matchesKey(tokenStore.owner, user?.id, role));
+  const [sort, setSortState] = useState<MatchSort>(() => rememberedSort(key) ?? "distance");
+  const setSort = (next: MatchSort) => { setSortState(next); rememberSort(key, next); };
+  const [returning] = useState(() => readSnapshot<Card>(key, sort));
   const [sortOpen, setSortOpen] = useState(false);
-  const [headerTypeIds, setHeaderTypeIds] = useState<number[]>([]);
+  const [headerTypeIds, setHeaderTypeIds] = useState<number[]>(() => readBanner(key) ?? []);
   const [bannerIndex, setBannerIndex] = useState(0);
   const isClient = role === "client";
 
-  const list = usePaged<Card>(async (page) => {
+  // One page of cards in a given sort (also used by the quiet refresh on return).
+  const fetchCards = (by: MatchSort, page: number): Promise<{ result: Card[]; meta: import("../api/types").ApiMeta | null }> => isClient
+    ? clientService.matches(by, page).then(({ result, meta }) => ({
+        meta, result: result.map((c: CaregiverBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, isMatch: c.is_match === true })) }))
+    : caregiverService.matches(by, page).then(({ result, meta }) => ({
+        meta, result: result.map((c: ClientBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, clienttypeId: c.clienttype_id, isMatch: c.is_match === true })) }));
+  const fetchRef = useRef(fetchCards);
+  fetchRef.current = fetchCards;
+
+  const list = usePaged<Card>(async (page, options) => {
     const label = `${t("loading_matches", "Getting list of matches - Page")} ${page}`;
     // My Matches loads only once the saved sign-in has been checked, as on Android
     // (parity review v6.0, Q1): this list mounts after the session is accepted.
-    const clientPage = () => clientService.matches(sort, page);
-    const caregiverPage = () => caregiverService.matches(sort, page);
-    const work: Promise<{ result: Card[]; meta: import("../api/types").ApiMeta | null }> = isClient
-      ? clientPage().then(({ result, meta }) => ({
-          meta, result: result.map((c: CaregiverBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, isMatch: c.is_match === true })) }))
-      : caregiverPage().then(({ result, meta }) => ({
-          meta, result: result.map((c: ClientBrief) => ({ id: c.id, user: c.user, min: c.salary_min, max: c.salary_max, distance: c.distance, clienttypeId: c.clienttype_id, isMatch: c.is_match === true })) }));
-    return page === 1 ? run(label, () => work) : work;
-  }, [sort, isClient]);
+    const work = fetchCards(sort, page);
+    return page === 1 && !options?.quiet ? run(label, () => work) : work;
+  }, [sort, isClient], undefined, returning);
+
+  // Keep what is on screen for the next return.
+  useEffect(() => {
+    if (key && list.page > 0) writeSnapshot<Card>({ key, sort, items: list.items, page: list.page, ended: list.ended, total: list.total, scroll: window.scrollY });
+  }, [key, sort, list.items, list.page, list.ended, list.total]);
+  // A layout effect: its clean-up runs while the next screen is put in place, so scrolling the
+  // browser does as the page changes is not recorded as the person's position.
+  useLayoutEffect(() => {
+    const onScroll = () => { if (window.location.pathname === "/main/matches") saveScroll(key, window.scrollY); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [key]);
+  // Back on the tab: the same place in the list, then every loaded page refreshed quietly
+  // (no loading window, no return to page 1). One refresh is shared by quick returns.
+  const quietPage = useRef(list.refreshLoaded);
+  quietPage.current = list.refreshLoaded;
+  useLayoutEffect(() => {
+    if (returning) window.scrollTo({ top: returning.scroll, behavior: "instant" });
+  }, [returning]);
+  useEffect(() => {
+    if (!returning) return;
+    const pages = returning.page;
+    void quietPage.current(() => sharedRefresh(`${key}|${returning.sort}|${pages}`, () => Promise.all(
+      Array.from({ length: pages }, (_, i) => fetchRef.current(returning.sort, i + 1)))));
+  }, [returning, key]);
 
   // The banner follows the care type: header_senior, header_child, … A caregiver who
   // supports several client types sees each in turn, from their saved skills.
   useEffect(() => {
     let current = true;
-    setHeaderTypeIds([]);
+    // Kept from the last visit (if any) until the profile answers, so the banner keeps its size.
+    setHeaderTypeIds(readBanner(key) ?? []);
     setBannerIndex(0);
     const load = isClient
       ? clientService.profile().then((p) => (p.clienttype_id ? [p.clienttype_id] : []))
       : caregiverService.profile().then((p) => p.clienttype_ids);
-    load.then((ids) => { if (current) setHeaderTypeIds(ids); }).catch(() => undefined);
+    load.then((ids) => {
+      const unchanged = JSON.stringify(ids) === JSON.stringify(readBanner(key));
+      writeBanner(key, ids);
+      if (current && !unchanged) setHeaderTypeIds(ids);
+    }).catch(() => undefined);
     return () => { current = false; };
-  }, [isClient]);
+  }, [isClient, key]);
   const bannerTypes = headerTypeIds.filter((id) => find("clienttypes", id)?.icon);
   const rotating = bannerTypes.length > 1;
   useEffect(() => {
@@ -199,7 +240,7 @@ function MatchesTab() {
         </ul>
       )}
       {list.loading && list.items.length > 0 && <Spinner />}
-      <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
+      <InfiniteSentinel active={list.hasMore && !list.loading && !list.revalidating && !list.error} onVisible={list.loadMore} resetKey={list.page} />
       <Dialog open={sortOpen} onClose={() => setSortOpen(false)} title={t(`${prefix}_matches_sort`, "Sort")} labelledBy="sort-title">
         <div className="stack-sm">
           {(["distance", "pay"] as MatchSort[]).map((s) => (
