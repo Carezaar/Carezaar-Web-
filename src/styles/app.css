@@ -22,7 +22,7 @@
   /* Text in the success colour: #01BB8A is 2.5:1 on white. */
   --success-text: #017a5a;
   --warning: #e39b0b;
-  /* Text in the warning colour: #E39B0B is 2.3:1 on white; #8A5A00 is 5.8:1. */
+  /* Text in the warning colour: #E39B0B is 2.3:1 on white; #8A5A00 is 5.9:1 (5.6:1 on the pill). */
   --warning-text: #8a5a00;
   --error: #c81e2a;
   --error-soft: #fdecec;
