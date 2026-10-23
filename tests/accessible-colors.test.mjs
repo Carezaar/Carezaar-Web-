@@ -68,5 +68,7 @@ test("the pay section is headed by the client's labels, per role, through manage
   assert.ok(client.includes('t("signup_form_client_hourly_budget", "Hourly Care Budget")} ('), "client review row");
   assert.ok(caregiver.includes('<SalaryRange title={t("signup_form_caregiver_expected_hourly_pay", "Expected Hourly pay")}'));
   assert.ok(caregiver.includes('t("signup_form_caregiver_expected_hourly_pay", "Expected Hourly pay")} ('), "caregiver review row");
+  assert.ok(client.includes('note={t("signup_form_client_hourly_budget_hint", "Enter the hourly amount you are willing to pay for care services.")}'), "client hint, as in the client's screenshot");
+  assert.ok(caregiver.includes('note={t("signup_form_caregiver_expected_hourly_pay_hint", "Enter your expected hourly pay rate.")}'), "caregiver hint");
   assert.ok(!client.includes("signup_form_caregiver_expected_hourly_pay") && !caregiver.includes("signup_form_client_hourly_budget"), "no cross-role label");
 });

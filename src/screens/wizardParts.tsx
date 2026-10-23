@@ -98,9 +98,10 @@ export function CareTypeCards({ items, value, onToggle }: {
   );
 }
 
-export function SalaryRange({ min, max, onMin, onMax, unit, title }: {
+/** `note` is the managed line under the fields, as on Android (client review, 23 Oct). */
+export function SalaryRange({ min, max, onMin, onMax, unit, title, note }: {
   min: number | null; max: number | null; onMin: (v: number | null) => void; onMax: (v: number | null) => void;
-  unit: string; title: string;
+  unit: string; title: string; note?: string;
 }) {
   const { t } = useI18n();
   // Digits only, at most 6 (F4).
@@ -109,14 +110,15 @@ export function SalaryRange({ min, max, onMin, onMax, unit, title }: {
     <Section title={title} hint={`(${unit})`}>
       <div className="grid-2">
         <Field label={t("signup_form_client_minimum", "Minimum")} icon="ic_usd">
-          <input type="text" inputMode="numeric" pattern="[0-9]*" value={min ?? ""}
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={min ?? ""} placeholder="0"
             aria-label={t("signup_form_client_minimum", "Minimum")} onChange={(e) => onMin(parse(e.target.value))} />
         </Field>
         <Field label={t("signup_form_client_maximum", "Maximum")} icon="ic_usd">
-          <input type="text" inputMode="numeric" pattern="[0-9]*" value={max ?? ""}
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={max ?? ""} placeholder="0"
             aria-label={t("signup_form_client_maximum", "Maximum")} onChange={(e) => onMax(parse(e.target.value))} />
         </Field>
       </div>
+      {note && <p className="muted pay-note">{note}</p>}
     </Section>
   );
 }

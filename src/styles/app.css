@@ -71,6 +71,7 @@ a { color: var(--primary); }
 .center { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .center-row { display: flex; justify-content: center; gap: 6px; align-items: center; margin: 0; }
 .muted { color: var(--text-secondary); }
+.pay-note { margin: 12px 0 0; font-size: 14px; }
 .small { font-size: 13px; }
 .end { text-align: end; }
 .lead { font-size: 17px; font-weight: 600; text-align: center; margin: 24px 0 8px; }

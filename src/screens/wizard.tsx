@@ -117,6 +117,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         <Section title={t("signup_form_client_gender_preference", "What is your preferred caregiver gender?")} hint={hint}>
           <MultiSelect items={items("genders")} value={genders} onChange={setGenders} withIcons /></Section>
         <SalaryRange title={t("signup_form_client_hourly_budget", "Hourly Care Budget")} unit={t("signup_form_client_usd_per_hour", "USD per hour")}
+          note={t("signup_form_client_hourly_budget_hint", "Enter the hourly amount you are willing to pay for care services.")}
           min={salaryMin} max={salaryMax} onMin={setSalaryMin} onMax={setSalaryMax} />
       </>,
       problem: () => (location ? null : t("general_location_required", "Please select a location to continue."))
@@ -289,6 +290,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         <Section title={t("signup_form_caregiver_worktype", "Work Types")}>
           <SingleSelect items={items("worktypes")} value={worktype} onChange={setWorktype} /></Section>
         <SalaryRange title={t("signup_form_caregiver_expected_hourly_pay", "Expected Hourly pay")} unit={t("signup_form_caregiver_unit", "USD per hour")}
+          note={t("signup_form_caregiver_expected_hourly_pay_hint", "Enter your expected hourly pay rate.")}
           min={salaryMin} max={salaryMax} onMin={setSalaryMin} onMax={setSalaryMax} />
       </>,
       problem: () => (location ? null : t("general_location_required", "Please select a location to continue."))
