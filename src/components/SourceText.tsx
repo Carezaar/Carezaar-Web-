@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { DesignNode } from "../design/types";
-import { rgba, type RGBA } from "../design/types";
+import { textColor } from "../design/accessibleColors";
 let canvas: HTMLCanvasElement | null = null;
 export function measureText(text: string, weight: number, size: number, family: string): number {
   canvas ??= document.createElement("canvas");
@@ -8,13 +8,6 @@ export function measureText(text: string, weight: number, size: number, family: 
   if (!ctx) return 0;
   ctx.font = `${weight} ${size}px '${family}', sans-serif`;
   return ctx.measureText(text).width;
-}
-
-/** The frames' mid greys (#7F7F7F–#A3A3A3) are 2.6–4.0:1 on white, below WCAG AA for
- *  body text; they render as the app's secondary text grey (#666, 5.7:1). */
-function textColor(c?: RGBA): string {
-  if (c && Math.abs(c[0] - c[1]) < 0.01 && Math.abs(c[1] - c[2]) < 0.01 && c[0] > 0.45 && c[0] < 0.66 && c[3] > 0.9) return "#666666";
-  return rgba(c);
 }
 
 /** Preserves source baselines without converting readable text to outlines. */

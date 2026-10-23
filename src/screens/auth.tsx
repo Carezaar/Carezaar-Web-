@@ -471,7 +471,7 @@ function SignUpScene({ form }: { form: SignUpForm }) {
         { x: 348, y: 340, width: 32, height: 32, content: (
           <PasswordToggle revealed={revealPassword} onToggle={() => setRevealPassword((r) => !r)} />
         ) },
-        { x: 68, y: 513, width: 278, height: 56, content: (
+        { x: 68, y: 513, width: 278, height: 56, field: true, content: (
           <input id={`${fieldPrefix}-confirmation`} className="scene-input"
             aria-required="true"
             type={revealConfirm ? "text" : "password"} value={confirmation}

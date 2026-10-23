@@ -116,7 +116,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
           <MultiSelect items={items("worktypes")} value={worktypes} onChange={setWorktypes} /></Section>
         <Section title={t("signup_form_client_gender_preference", "What is your preferred caregiver gender?")} hint={hint}>
           <MultiSelect items={items("genders")} value={genders} onChange={setGenders} withIcons /></Section>
-        <SalaryRange title={t("signup_form_client_pay_rate", "Pay Rate")} unit={t("signup_form_client_usd_per_hour", "USD per hour")}
+        <SalaryRange title={t("signup_form_client_hourly_budget", "Hourly Care Budget")} unit={t("signup_form_client_usd_per_hour", "USD per hour")}
           min={salaryMin} max={salaryMax} onMin={setSalaryMin} onMax={setSalaryMax} />
       </>,
       problem: () => (location ? null : t("general_location_required", "Please select a location to continue."))
@@ -148,7 +148,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
       <ReviewRow title={t("signup_form_client_care_days", "Care Days")} values={labels("caredays", days)} />
       <ReviewRow title={t("signup_form_client_work_type", "Work Type")} values={labels("worktypes", worktypes)} />
       <ReviewRow title={t("signup_form_client_gender_preference", "Preferred caregiver gender")} values={labels("genders", genders)} />
-      <ReviewRow title={`${t("signup_form_client_pay_rate", "Pay Rate")} (${t("signup_form_client_usd_per_hour", "USD per hour")})`}
+      <ReviewRow title={`${t("signup_form_client_hourly_budget", "Hourly Care Budget")} (${t("signup_form_client_usd_per_hour", "USD per hour")})`}
         values={[`${t("signup_form_client_minimum", "Minimum")}: $${salaryMin ?? "—"}`, `${t("signup_form_client_maximum", "Maximum")}: $${salaryMax ?? "—"}`]} />
     </ReviewCard>
   );
@@ -288,7 +288,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
           <MultiSelect items={items("caredays")} value={days} onChange={setDays} /></Section>
         <Section title={t("signup_form_caregiver_worktype", "Work Types")}>
           <SingleSelect items={items("worktypes")} value={worktype} onChange={setWorktype} /></Section>
-        <SalaryRange title={t("signup_form_caregiver_salary", "Expected Pay Rate")} unit={t("signup_form_caregiver_unit", "USD per hour")}
+        <SalaryRange title={t("signup_form_caregiver_expected_hourly_pay", "Expected Hourly pay")} unit={t("signup_form_caregiver_unit", "USD per hour")}
           min={salaryMin} max={salaryMax} onMin={setSalaryMin} onMax={setSalaryMax} />
       </>,
       problem: () => (location ? null : t("general_location_required", "Please select a location to continue."))
@@ -319,7 +319,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
       <ReviewRow title={t("caregiver_details_preferred_shifts", "Preferred Shifts")} values={labels("shifts", shifts)} />
       <ReviewRow title={t("caregiver_details_selected_work_days", "Selected Work Days")} values={labels("caredays", days)} />
       <ReviewRow title={t("caregiver_details_work_type", "Work Type")} values={labels("worktypes", [worktype])} />
-      <ReviewRow title={`${t("caregiver_details_pay_rate", "Pay Rate")} (${t("caregiver_details_usd_per_hour", "USD per hour")})`}
+      <ReviewRow title={`${t("signup_form_caregiver_expected_hourly_pay", "Expected Hourly pay")} (${t("caregiver_details_usd_per_hour", "USD per hour")})`}
         values={[`$${salaryMin ?? "—"} - $${salaryMax ?? "—"}`]} />
     </ReviewCard>
   );

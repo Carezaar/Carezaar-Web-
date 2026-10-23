@@ -13,12 +13,17 @@
      and on the pale blue/green panels. */
   --text-secondary: #666666;
   --line: #e3e7ee;
+  /* Outline of text fields (WCAG 1.4.11, 3:1): #C9CED6 was 1.6:1 on white; #80868F is 3.7:1
+     on white and 3.2:1 on the pale panels. Decorative dividers keep --line. */
+  --field-border: #80868f;
   --surface: #ffffff;
   --backdrop: #eef1f5;
   --success: #01bb8a;
   /* Text in the success colour: #01BB8A is 2.5:1 on white. */
   --success-text: #017a5a;
   --warning: #e39b0b;
+  /* Text in the warning colour: #E39B0B is 2.3:1 on white; #8A5A00 is 5.8:1. */
+  --warning-text: #8a5a00;
   --error: #c81e2a;
   --error-soft: #fdecec;
   --radius: 12px;
@@ -127,7 +132,7 @@ a { color: var(--primary); }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field-label { display: flex; justify-content: space-between; font-weight: 700; font-size: 15px; }
 .req { color: var(--error); }
-.field-box { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 14px; border: 1.2px solid #c9ced6; border-radius: var(--radius); background: #fff; }
+.field-box { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 14px; border: 1.2px solid var(--field-border); border-radius: var(--radius); background: #fff; }
 .field-box:focus-within { border-color: var(--text); }
 .field-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 122, 254, .2); }
 .field-error .field-box { border-color: var(--error); }
@@ -154,7 +159,7 @@ a { color: var(--primary); }
 .rule-chip { display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 0; font-weight: 700; }
 .rule-chip.on { background: #e9f8f3; border-color: #bfe9da; }
 .review-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; }
-.status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; border: 0; cursor: pointer; background: #fff7e6; color: #8a5a00; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; border: 0; cursor: pointer; background: #fff7e6; color: var(--warning-text); }
 .status-pill.replied { background: #e9f8f3; color: #047a5a; cursor: default; }
 
 /* ---------- cards & lists ---------- */
@@ -244,7 +249,9 @@ a { color: var(--primary); }
 .reply-bar { display: flex; gap: 8px; align-items: center; background: var(--care); border-radius: 10px; padding: 6px 10px; font-size: 13px; }
 .reply-bar .ellipsis { flex: 1; }
 .composer-row { display: flex; gap: 10px; align-items: center; }
-.composer-row textarea { flex: 1; resize: none; border: 0; background: #eaf2fc; border-radius: 16px; padding: 16px; font-size: 15px; max-height: 120px; }
+.composer-row textarea { flex: 1; resize: none; border: 1.2px solid var(--field-border); background: #eaf2fc; border-radius: 16px; padding: 16px; font-size: 15px; max-height: 120px; }
+/* WCAG AA: the default placeholder grey was 4.1:1 on the pale fill; #666 is 5.2:1. */
+.composer-row textarea::placeholder { color: var(--text-secondary); opacity: 1; }
 .send-btn { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--primary); display: grid; place-items: center; cursor: pointer; }
 .send-btn:disabled { opacity: .45; }
 /* A conversation that can't take messages any more: grey send button, note above the box. */
@@ -256,13 +263,17 @@ a { color: var(--primary); }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
 .segmented button { border: 0; background: #fff; padding: 14px 0; font-size: 16px; cursor: pointer; }
 .segmented button + button { border-inline-start: 1px solid var(--line); }
-.segmented button.on { background: var(--primary-soft); color: var(--primary-dark); font-weight: 700; }
+/* The selected segment must stand out at 3:1 (WCAG 1.4.11); the pale fill was 1.1:1. Filled, as on Android and iOS. */
+.segmented button.on { background: var(--primary); color: #fff; font-weight: 700; }
+/* The focus ring sits inside the segment so a filled neighbour cannot hide it: blue on white, white on blue (4.8:1). */
+.segmented button:focus-visible { outline-offset: -4px; }
+.segmented button.on:focus-visible { outline-color: #fff; }
 .match-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow); cursor: pointer; }
 .match-row-text { flex: 1; min-width: 0; }
 .match-row-text h2 { margin: 0 0 6px; font-size: 16px; }
 .match-row-text p { margin: 2px 0; font-size: 14px; }
 .match-row-side { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-.pending-note { color: var(--warning); font-weight: 600; }
+.pending-note { color: var(--warning-text); font-weight: 600; }
 .stars { display: flex; gap: 6px; font-size: 32px; }
 .stars button { border: 0; background: none; cursor: pointer; color: #cfd6df; }
 .stars button.on { color: #f5b301; }
@@ -281,7 +292,7 @@ a { color: var(--primary); }
 .care-type { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 16px; border-radius: var(--radius-lg); border: 1.5px solid var(--line); background: #fff; text-align: start; cursor: pointer; }
 .care-type.on { border-color: var(--primary); background: var(--care); }
 .care-type-text { display: flex; flex-direction: column; gap: 4px; }
-.location-field { display: flex; gap: 10px; align-items: center; width: 100%; padding: 14px; border: 1.2px solid #c9ced6; border-radius: var(--radius); background: #fff; cursor: pointer; text-align: start; }
+.location-field { display: flex; gap: 10px; align-items: center; width: 100%; padding: 14px; border: 1.2px solid var(--field-border); border-radius: var(--radius); background: #fff; cursor: pointer; text-align: start; }
 .location-field .location-text { flex: 1; }
 .review-card { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 10px 16px; }
 .review-row { padding: 12px 0; border-bottom: 1px solid #cfe0f5; }
@@ -365,7 +376,7 @@ a { color: var(--primary); }
 .option-row { display: flex; gap: 12px; align-items: center; width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; font-size: 16px; }
 .option-row.on { border-color: var(--primary); background: var(--care); }
 .otp-boxes { display: flex; gap: 12px; justify-content: center; margin: 16px 0 24px; }
-.otp-boxes input { width: 56px; height: 64px; text-align: center; font-size: 28px; font-weight: 700; border: 1.2px solid #c9ced6; border-radius: 12px; }
+.otp-boxes input { width: 56px; height: 64px; text-align: center; font-size: 28px; font-weight: 700; border: 1.2px solid var(--field-border); border-radius: 12px; }
 .otp-boxes input:focus { border-color: var(--primary); outline: none; }
 
 /* ---------- Figma scene hosting ---------- */

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { DesignElement } from "../components/DesignElement";
+import { withFieldOutlines } from "../design/accessibleColors";
 import type { DesignNode } from "../design/types";
 import { useI18n } from "../app/i18n";
 import { SceneBinderContext, type SceneBinder } from "./binder";
@@ -13,6 +14,8 @@ import { Spinner, ErrorState } from "../ui/kit";
  *  scales with the design so it stays aligned at every width. */
 export interface SceneOverlay {
   x: number; y: number; width: number; height: number; content: ReactNode;
+  /** A text input drawn over a field outline of the frame (see `withFieldOutlines`). */
+  field?: boolean;
 }
 
 /** One request per scene file: a screen mounted twice in quick succession (frames
@@ -60,6 +63,8 @@ export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
     return () => { active = false; };
   }, [sceneKey, retryRevision]);
 
+  const fieldBoxes = JSON.stringify(overlays.filter((o) => o.field).map((o) => ({ x: o.x, y: o.y, w: o.width, h: o.height })));
+  const outlined = useMemo(() => (node ? withFieldOutlines(node, JSON.parse(fieldBoxes)) : null), [node, fieldBoxes]);
   const localised = useMemo<SceneBinder>(() => ({
     ...binder,
     rtl: isRtl,
@@ -79,7 +84,7 @@ export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
           position: "relative", width: node.width, height: node.height,
           transform: `scale(${scale})`, transformOrigin: "top left",
         } as CSSProperties}>
-          <DesignElement node={node} parentWidth={node.width} />
+          <DesignElement node={outlined ?? node} parentWidth={node.width} />
           {overlays.map((o, i) => (
             <div key={i} className="scene-overlay"
               style={{ position: "absolute", left: isRtl ? node.width - o.x - o.width : o.x, top: o.y, width: o.width, height: o.height }}>

@@ -5,6 +5,7 @@ import { useState, type CSSProperties } from "react";
 import { useSceneBinder } from "../figma/binder";
 import { rgba, type DesignNode } from "../design/types";
 import { SourceText, measureText } from "./SourceText";
+import { textColor } from "../design/accessibleColors";
 import { SourceVector } from "./SourceVector";
 import { SourceImage } from "./SourceImage";
 function accessibleLabel(n: DesignNode, translate?: (n: DesignNode) => string | undefined): string {
@@ -173,7 +174,7 @@ export function DesignElement({
             fontFamily: `"${n.fontFamily}", system-ui, sans-serif`,
             lineHeight: 1.4,
             // The frame's text node is the placeholder; typed text uses the text colour.
-            ["--placeholder" as string]: rgba(n.fills.find((p) => p.color)?.color),
+            ["--placeholder" as string]: textColor(n.fills.find((p) => p.color)?.color),
           }}
         />
       ) : (
@@ -192,7 +193,7 @@ export function DesignElement({
             fontFamily: `"${n.fontFamily}", system-ui, sans-serif`,
             fontSize: n.fontSize,
             fontWeight: n.fontWeight,
-            ["--placeholder" as string]: rgba(n.fills.find((p) => p.color)?.color),
+            ["--placeholder" as string]: textColor(n.fills.find((p) => p.color)?.color),
           }}
         />
       )
