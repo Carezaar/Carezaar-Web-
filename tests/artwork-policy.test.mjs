@@ -8,7 +8,27 @@ const root = new URL('../public/', import.meta.url);
 const src = (f) => fs.readFileSync(new URL('../src/' + f, import.meta.url), 'utf8');
 
 // SHA-256 of every people artwork file removed in 1d5b98a ("Update app artwork").
-// None of these bytes may come back under any name.
+// Only the explicitly approved Android images may be restored.
+const APPROVED_ANDROID_IMAGES = {
+  "app-assets/bg_intro.webp": "926509b8b68d0fdfe0c22fd4ac1ec69726646ba1c39a7aa6ef0e527b136f9c54",
+  "app-assets/bg_messages.webp": "e7cebc002ede449f8ad42c90540a483dc5ea4f064523eba3d0b05ae16b032096",
+  "app-assets/bg_profile.webp": "af535d5dd6f5fb46f231e26ec39d76f330aee5275d8c813ab8dd5eb68c97a588",
+  "app-assets/client_adult.webp": "31df4e2fd4a95b477f197052e9c104e20227c2fe6fc316970b98c287729e8a14",
+  "app-assets/client_child.webp": "0003ff47d50f969de5f9c65fa92624d5a165461c1e62482bbb42f857a0a01e23",
+  "app-assets/client_pregnancy.webp": "eac2aaae8a6bd47cd67f0c25e0c99be2a5c391ee944f366c7a8c6aab63a9c623",
+  "app-assets/client_senior.webp": "82b442cb341bd923e70eadf50e9461fe7ab0fb3ad914ae6c7382b12e551dc00a",
+  "app-assets/header_adult.webp": "a4974815e0964777961284016f67871d9f8c4b261999a3e06d135ca7a158b583",
+  "app-assets/header_child.webp": "c5f9556caea46f2bb007d7416026791d535cc57a786be121489491c5a2868b37",
+  "app-assets/header_pregnancy.webp": "120a8df43ce88b9ef660ae2a1c2c5ab9c07bf73621a016fc8f43a3ea067e434f",
+  "app-assets/header_senior.webp": "62f6436f20558099bff5e1b1b5a116b6d980db81f7e4ef34f9d56afcb7199c14",
+  "app-assets/header_messages.webp": "e7cebc002ede449f8ad42c90540a483dc5ea4f064523eba3d0b05ae16b032096",
+  "assets/welcome-hands.jpg": "714e647f538d3fd418d1d4e828bd4d6e8f8a83d31c82f08fe6184ac2e81bca93",
+  "assets/care-type-senior.png": "ec906f73c509aa2b1133424e6366acebb9ff9bf4d38dcf54c1fc6d01cc65a278",
+  "assets/care-type-child.png": "fe923375cb3ea656b75d47eaec08914018396eccdfd681bf19a78b2d112b974a",
+  "assets/care-type-pregnancy.png": "619b2804d43a3a72da24277b1cf1e12b0683c3c8da2d58ad0cbcf956eb2bb30c",
+  "assets/signin-hands-tea.jpg": "714e647f538d3fd418d1d4e828bd4d6e8f8a83d31c82f08fe6184ac2e81bca93"
+};
+
 const REMOVED_PEOPLE_ARTWORK = new Set([
   "926509b8b68d0fdfe0c22fd4ac1ec69726646ba1c39a7aa6ef0e527b136f9c54", // public/app-assets/bg_intro.webp
   "31df4e2fd4a95b477f197052e9c104e20227c2fe6fc316970b98c287729e8a14", // public/app-assets/client_adult.webp
@@ -52,14 +72,16 @@ function files(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(path.join(dir, e.name)) : [path.join(dir, e.name)]);
 }
 
-test('none of the removed people artwork is shipped, under any name', () => {
+test('approved Android images match and unrelated removed artwork stays excluded', () => {
   for (const file of files(fileURLToPath(root))) {
     const hash = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-    assert.equal(REMOVED_PEOPLE_ARTWORK.has(hash), false, 'Removed people artwork shipped again: ' + file);
+    const relative = path.relative(fileURLToPath(root), file).split(path.sep).join('/');
+    if (APPROVED_ANDROID_IMAGES[relative]) assert.equal(hash, APPROVED_ANDROID_IMAGES[relative], 'Android image differs: ' + relative);
+    else assert.equal(REMOVED_PEOPLE_ARTWORK.has(hash), false, 'Removed artwork shipped again: ' + file);
   }
 });
 
-test('people-free replacements exist under the names the server and scenes use', () => {
+test('product image replacements exist under the names the server and scenes use', () => {
   const names = ['bg_intro', 'bg_profile', 'client_adult', 'client_child', 'client_pregnancy', 'client_senior',
     'header_adult', 'header_child', 'header_pregnancy', 'header_senior', 'header_messages'].map((n) => 'app-assets/' + n + '.webp')
     .concat(['ic_caregiver', 'ic_client', 'ic_condition_assessment', 'ic_condition_babysitting_nanny', 'ic_condition_companionship',
