@@ -8,8 +8,7 @@ const RASTERS = new Set([
   "header_messages",
 ]);
 
-/** Figma scene images (by file name under /assets) shown with a people-free picture
- *  that carries the same meaning (see ARTWORK_POLICY.md). */
+/** Scene images mapped to the corresponding Android product images. */
 export const SCENE_IMAGE_REPLACEMENTS: Record<string, string> = {
   "92bf103484e337567f379617f79c6c37ba10484d.jpg": "welcome-hands.jpg",
   "2c0c41de4775bed358fedceb4f03ba6bd2b76913.png": "care-type-senior.png",
