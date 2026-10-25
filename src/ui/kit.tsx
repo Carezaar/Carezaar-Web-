@@ -145,6 +145,62 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
+/** Placeholders shown while the first content of a screen loads (client request, 25 Oct
+ *  2026), in the shape of what will appear. They exist only while rendered, so their
+ *  shimmer stops the moment the content, an empty state or an error replaces them; they
+ *  never request anything themselves. The shimmer is still under reduced motion. */
+export function SkeletonList({ count = 4, variant = "card", label = "Loading" }: {
+  count?: number; variant?: "card" | "row" | "issue"; label?: string;
+}) {
+  return (
+    <div className={`skeleton-list skeleton-${variant}`} role="status" aria-busy="true" aria-label={label}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="skeleton-item" aria-hidden="true">
+          {variant !== "issue" && <span className="skeleton skeleton-media" />}
+          <span className="skeleton-lines">
+            <span className="skeleton skeleton-line" style={{ width: "58%" }} />
+            <span className="skeleton skeleton-line" style={{ width: "82%" }} />
+            {variant !== "row" && <span className="skeleton skeleton-line" style={{ width: "40%" }} />}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A profile or details page loading: photo, name and a few sections. */
+export function SkeletonDetail({ label = "Loading" }: { label?: string }) {
+  return (
+    <div className="skeleton-detail" role="status" aria-busy="true" aria-label={label}>
+      <span className="skeleton skeleton-photo" aria-hidden="true" />
+      <span className="skeleton skeleton-line" style={{ width: "46%", height: 22 }} aria-hidden="true" />
+      <span className="skeleton skeleton-line" style={{ width: "30%" }} aria-hidden="true" />
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="skeleton-section" aria-hidden="true">
+          <span className="skeleton skeleton-line" style={{ width: "36%" }} />
+          <span className="skeleton skeleton-chip-row"><span className="skeleton skeleton-chip" /><span className="skeleton skeleton-chip" /><span className="skeleton skeleton-chip" /></span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** A conversation loading: message bubbles on both sides. */
+export function SkeletonChat({ label = "Loading" }: { label?: string }) {
+  return (
+    <div className="skeleton-chat" role="status" aria-busy="true" aria-label={label}>
+      {["in", "in", "out", "in", "out", "out"].map((side, i) => (
+        <span key={i} className={`skeleton skeleton-bubble ${side}`} style={{ width: `${[52, 38, 60, 44, 34, 56][i]}%` }} aria-hidden="true" />
+      ))}
+    </div>
+  );
+}
+
+/** A small inline progress indicator for a section that refreshes or loads more. */
+export function InlineProgress({ label }: { label?: string }) {
+  return <div className="inline-progress" role="status" aria-label={label ?? "Loading"}><span className="spinner spinner-sm" aria-hidden="true" /></div>;
+}
+
 export function EmptyState({ title, message, illustration = "illus_chat", tint }: {
   title: string; message?: string; illustration?: string;
   /** For a monochrome APK icon (drawn as a tint mask) rather than full-colour art. */

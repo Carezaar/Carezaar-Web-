@@ -13,7 +13,8 @@ import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
 import { isPasswordValid, passwordRules, required } from "../validation/validation";
 import { BackHeader, Page } from "../ui/layout";
-import { Avatar, Button, cardLink, Checkbox, Dialog, EmptyState, ErrorState, Field, InfiniteSentinel, Spinner, TextArea, TextField } from "../ui/kit";
+import { Avatar, Button, cardLink, Checkbox, Dialog, EmptyState, ErrorState, Field, InfiniteSentinel, InlineProgress, SkeletonList, TextArea, TextField } from "../ui/kit";
+import { DuplicateActionError, useGuarded } from "../app/actionGuard";
 import { Icon } from "../ui/Icon";
 import { sanitizeHtml } from "../ui/sanitize";
 import { RuleChips } from "../ui/RuleChips";
@@ -27,12 +28,9 @@ export function NotificationsScreen() {
   const navigate = useNavigate();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
   const [selected, setSelected] = useState<AppNotification | null>(null);
-  const list = usePaged(async (page) => {
-    const work = userService.notifications(page);
-    return page === 1 ? run(`${t("loading_user_notifications_get", "Getting notifications - Page")} ${page}`, () => work) : work;
-  }, []);
+  const list = usePaged((page) => userService.notifications(page), []);
   const { markChecked } = useNotifications();
   useEffect(() => markChecked, [markChecked]);
 
@@ -40,8 +38,7 @@ export function NotificationsScreen() {
   const open = (n: AppNotification) => {
     setSelected(n);
     if (!n.seen_at) {
-      void act(t("loading_user_notifications_see", "Marking notification as seen"),
-        () => userService.markNotificationSeen(n.id))
+      void act(`notification:${n.id}`, () => userService.markNotificationSeen(n.id))
         .then((seen) => list.mutate((all) => all.map((x) =>
           x.id === n.id ? { ...x, seen_at: seen.seen_at ?? "now" } : x)))
         .catch((error) => toast(messageOf(error)));
@@ -65,7 +62,8 @@ export function NotificationsScreen() {
   return (
     <Page header={<BackHeader title={t("general_notifications", "Notifications")} />}>
       {list.error && list.items.length === 0 ? <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.reload()} />
-        : !list.loading && list.items.length === 0 ? <EmptyState title={t("general_notifications", "Notifications")} illustration="ic_notification_off" tint="var(--primary)" />
+        : list.items.length === 0 && (list.loading || list.page === 0) ? <SkeletonList count={6} variant="row" label={t("loading_user_notifications_get", "Getting notifications")} />
+        : list.items.length === 0 ? <EmptyState title={t("general_notifications", "Notifications")} illustration="ic_notification_off" tint="var(--primary)" />
         : (
           <ul className="row-list">
             {list.items.map((n) => (
@@ -95,6 +93,7 @@ export function NotificationsScreen() {
             ))}
           </ul>
         )}
+      {list.loading && list.items.length > 0 && <InlineProgress />}
       <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
       {/* The details: who, what, and Show. No date (it's on the row just tapped) and no
           Cancel: tapping outside or Escape closes it, leaving Show as the one action. */}
@@ -121,17 +120,15 @@ export function NotificationsScreen() {
 export function FavoritesScreen() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { run, act, toast, messageOf } = useFeedback();
-  const list = usePaged(async (page) => {
-    const work = userService.bookmarks(page);
-    return page === 1 ? run(`${t("loading_favorite_get", "Getting favorites - Page")} ${page}`, () => work) : work;
-  }, []);
+  const { act, toast, messageOf } = useFeedback();
+  const list = usePaged((page) => userService.bookmarks(page), []);
   const remove = async (u: User) => {
     const removeLocally = () => list.mutate((all) => all.filter((x) => x.id !== u.id));
     try {
-      await act(t("loading_favorite_delete", "Removing from favorite list"), () => userService.removeBookmark(u.id));
+      await act(`bookmark:${u.id}`, () => userService.removeBookmark(u.id));
       removeLocally();
     } catch (e) {
+      if (e instanceof DuplicateActionError) return;
       // A lost answer may follow a successful removal. Read the exact person's
       // current state, without replaying the mutation or hiding an unconfirmed row.
       if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
@@ -150,7 +147,8 @@ export function FavoritesScreen() {
     <Page header={<BackHeader title={t("profile_favorites_title", "Favorites")} />}>
       <div className="fav-head"><span><Icon name="ic_favorite_on" size={44} tint="var(--primary-dark)" /></span></div>
       {list.error && list.items.length === 0 ? <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.reload()} />
-        : !list.loading && list.items.length === 0 ? <EmptyState title={t("profile_favorites_title", "Favorites")} illustration="ic_favorite_off" tint="var(--primary)" />
+        : list.items.length === 0 && (list.loading || list.page === 0) ? <SkeletonList count={4} variant="row" label={t("loading_favorite_get", "Getting favorites")} />
+        : list.items.length === 0 ? <EmptyState title={t("profile_favorites_title", "Favorites")} illustration="ic_favorite_off" tint="var(--primary)" />
         : (
           <ul className="card-list">
             {list.items.map((u) => (
@@ -159,10 +157,7 @@ export function FavoritesScreen() {
                   <Avatar src={u.photo} size={96} />
                   <div className="fav-text"><h2>{personName(u, t)}</h2><p className="clamp-3" dir="auto">{u.bio}</p></div>
                   <div className="match-side">
-                    <button type="button" className="icon-btn" aria-label="Remove from favorites"
-                      onClick={(e) => { e.stopPropagation(); void remove(u); }}>
-                      <Icon name="ic_favorite_on" size={28} tint="var(--error)" />
-                    </button>
+                    <RemoveFavoriteButton id={u.id} onRemove={() => void remove(u)} />
                     <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                   </div>
                 </div>
@@ -170,8 +165,20 @@ export function FavoritesScreen() {
             ))}
           </ul>
         )}
+      {list.loading && list.items.length > 0 && <InlineProgress />}
       <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
     </Page>
+  );
+}
+
+/** The heart on a favourite: disabled, with progress, while its removal is unresolved. */
+function RemoveFavoriteButton({ id, onRemove }: { id: string; onRemove: () => void }) {
+  const busy = useGuarded(`bookmark:${id}`);
+  return (
+    <button type="button" className="icon-btn" aria-label="Remove from favorites" disabled={busy} aria-busy={busy}
+      onClick={(e) => { e.stopPropagation(); onRemove(); }}>
+      {busy ? <span className="spinner spinner-sm inline-spinner" aria-hidden="true" /> : <Icon name="ic_favorite_on" size={28} tint="var(--error)" />}
+    </button>
   );
 }
 
@@ -239,7 +246,8 @@ export function FaqScreen() {
 export function ReportIssueScreen() {
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
+  const submitting = useGuarded("issue:create");
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [open, setOpen] = useState(false);
@@ -249,9 +257,9 @@ export function ReportIssueScreen() {
 
   const load = () => {
     setError(null);
-    run(t("loading_user_issues_get", "Getting reported issues"), () => userService.issues()).then(setIssues).catch(setError);
+    userService.issues().then(setIssues).catch(setError);
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- load the list once on mount
+  // Loaded once on mount (load uses only stable setters and the service).
   useEffect(load, []);
 
   const submit = async () => {
@@ -259,22 +267,24 @@ export function ReportIssueScreen() {
       ?? required(description, t("report_an_issue_description_label", "Description"));
     if (problem) { toast(problem); return; }
     try {
-      await act(t("loading_user_issues_create", "Reporting a new issue"), () => userService.createIssue({
+      const created = await act("issue:create", () => userService.createIssue({
         issuetypeId: type === "other" ? null : type, title: type === "other" ? subject.trim() : null, description: description.trim(),
-      }));
+      }, Math.max(0, ...(issues ?? []).map((i) => i.id))));
+      // The server's answer is the issue as filed: shown at once, not after another load,
+      // so a later failed refresh can't make it look unsent.
+      setIssues((all) => [created, ...(all ?? []).filter((i) => i.id !== created.id)]);
+      setError(null);
       setOpen(false); setSubject(""); setDescription(""); setType("other");
-      load();
     } catch (e) {
-      // No answer: the issue may have been filed. It isn't sent again; the list is
-      // reloaded so the user can see whether it arrived before submitting again.
-      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) load();
+      // No answer: the issue may have been filed. The form stays as it is; Submit sends the
+      // same request with the same Idempotency-Key, so the server files it at most once.
       toast(messageOf(e));
     }
   };
 
   return (
     <Page header={<BackHeader title={t("report_an_issue_title", "Report An Issue")} />}>
-      {error ? <ErrorState message={messageOf(error)} error={error} onRetry={load} /> : !issues ? <Spinner />
+      {error && !issues ? <ErrorState message={messageOf(error)} error={error} onRetry={load} /> : !issues ? <SkeletonList count={3} variant="issue" label={t("loading_user_issues_get", "Getting reported issues")} />
         : issues.length === 0 ? <EmptyState title={t("report_an_issue_no_issues_found", "No issues found")}
             message={t("report_an_issue_empty_description", "")} illustration="illus_report" />
         : (
@@ -315,7 +325,7 @@ export function ReportIssueScreen() {
           )}
           <TextArea label={t("report_an_issue_description_label", "Description")} required value={description}
             onChange={(e) => setDescription(e.target.value)} placeholder={t("report_an_issue_description_placeholder", "Write your issue here...")} />
-          <Button onClick={() => void submit()}>{t("report_an_issue_submit_button", "Submit")}</Button>
+          <Button loading={submitting} onClick={() => void submit()}>{t("report_an_issue_submit_button", "Submit")}</Button>
         </div>
       </Dialog>
     </Page>
@@ -365,6 +375,7 @@ export function ChangePasswordScreen() {
   const [next, setNext] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const changing = useGuarded("auth:password");
   const valid = current !== "" && isPasswordValid(next) && next === confirmation;
   const submit = async () => {
     setConfirming(false);
@@ -374,7 +385,7 @@ export function ChangePasswordScreen() {
     // where they sign in with the new password, as on Android (parity review v4.0, O1).
     // The server ends every session of the account at that moment anyway.
     try {
-      await act(t("loading_user_password_change", "Changing password"), async () => {
+      await act("auth:password", async () => {
         try {
           await userService.changePassword(current, next);
         } catch (e) {
@@ -389,12 +400,12 @@ export function ChangePasswordScreen() {
       return;
     }
     setCurrent(""); setNext(""); setConfirmation("");
-    await act(t("loading_auth_logout", "Signing out"), signOut);
+    await act("auth:logout", signOut).catch(() => undefined);
     navigate("/intro", { replace: true });
   };
   return (
     <Page header={<BackHeader title={t("settings_change_password_title", "Change Password")} />}
-      footer={<Button disabled={!valid} onClick={() => setConfirming(true)}>{t("settings_change_password_change_password", "Change Password")}</Button>}>
+      footer={<Button disabled={!valid} loading={changing} onClick={() => setConfirming(true)}>{t("settings_change_password_change_password", "Change Password")}</Button>}>
       <div className="stack">
         <TextField label={t("settings_change_password_current_password", "Current Password")} required icon="ic_lock" type="password"
           autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)}
@@ -433,11 +444,12 @@ export function DeleteAccountScreen() {
   const own = items("reasons").filter((r) => r.code?.startsWith(`${role ?? "client"}_`));
   const reasons = own.length ? own : items("reasons");
   const [aware, setAware] = useState(false);
+  const deleting = useGuarded("account:delete");
   const lose = ["delete_account_data_profile", "delete_account_data_matches", "delete_account_data_messages", "delete_account_data_favorites", "delete_account_data_settings"];
   const submit = async () => {
     try {
       if (reason === "") return;
-      await act(t("loading_deleting_user_account", "Deleting user account"), () => userService.deleteAccount(reason));
+      await act("account:delete", () => userService.deleteAccount(reason));
       await signOut();
       navigate("/intro", { replace: true });
     } catch (e) {
@@ -457,7 +469,7 @@ export function DeleteAccountScreen() {
     <Page header={<BackHeader title={t("delete_account_title", "Delete Account")} onBack={() => goBack()} />}
       footer={<div className="dialog-actions">
         <Button variant="outline" onClick={() => goBack()}>{t("delete_account_action_cancel", "Cancel")}</Button>
-        <Button variant="danger" disabled={!aware || reason === ""} onClick={() => void submit()}>{t("delete_account_action_delete", "Delete Account")}</Button>
+        <Button variant="danger" disabled={!aware || reason === ""} loading={deleting} onClick={() => void submit()}>{t("delete_account_action_delete", "Delete Account")}</Button>
       </div>}>
       <div className="stack">
         <div className="center"><Icon name="ic_trash" size={72} tint="var(--error)" />

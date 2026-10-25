@@ -8,7 +8,9 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { useSignUp, useSignUpWizardValue } from "../app/signup";
 import { lazyWithReload } from "../app/recovery";
-import { Spinner } from "../ui/kit";
+import { SkeletonDetail, Spinner } from "../ui/kit";
+import { useGuarded } from "../app/actionGuard";
+import { BackHeader, Page } from "../ui/layout";
 import type { LatLng } from "./LocationPicker";
 import { type StepDef, Section, MultiSelect, SingleSelect, CareTypeCards, SalaryRange, LocationField, ReviewRow, WizardIntro, Wizard, ReviewCard } from "./wizardParts";
 
@@ -24,7 +26,10 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
+  const saving = useGuarded("preferences:save");
+  // The editor shows a skeleton until the saved choices arrive, not an empty form.
+  const [ready, setReady] = useState(mode !== "edit");
   const { state: signUp, reset, update } = useSignUp();
   const { signIn } = useSession();
 
@@ -53,7 +58,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
 
   useEffect(() => {
     if (mode !== "edit") return;
-    run(t("loading_profile_get", "Getting profile"), () => clientService.profile())
+    clientService.profile()
       .then((p) => {
         setClienttype([p.clienttype_id]); setConditions(p.carecondition_ids); setSpecials(p.carespecial_ids);
         setExperiences(p.experience_ids); setRoles(p.role_ids); setCertifications(p.certification_ids);
@@ -61,7 +66,8 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
         setShifts(p.shift_ids); setDays(p.careday_ids); setWorktypes(p.worktype_ids); setGenders(p.gender_ids);
         setSalaryMin(p.salary_min); setSalaryMax(p.salary_max);
       })
-      .catch((e) => toast(messageOf(e)));
+      .catch((e) => toast(messageOf(e)))
+      .finally(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load the saved preferences once; the setters are stable
   }, [mode]);
 
@@ -163,30 +169,34 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
       roleIds: roles, shiftIds: shifts, worktypeIds: worktypes,
     };
     try {
-      if (mode === "signup") {
-        if (!signUp.entityCreated) {
-          await act(t("loading_client_signup", "Signing up care needer"), () => clientService.create(signUp.userId!, prefs));
-          update({ entityCreated: true });
+      // One guarded save, start to finish: Save shows progress and can't run twice.
+      await act("preferences:save", async () => {
+        if (mode === "signup") {
+          if (!signUp.entityCreated) {
+            await clientService.create(signUp.userId!, prefs);
+            update({ entityCreated: true });
+          }
+          // Signing in moves the user into the app (the signed-out route guard redirects).
+          await signIn(signUp.email, signUp.password);
+          reset();
+        } else {
+          await clientService.updateProfile(prefs);
+          leave();
         }
-        // Signing in moves the user into the app (the signed-out route guard redirects).
-        await act(t("loading_auth_login", "Signing in"), () => signIn(signUp.email, signUp.password));
-        reset();
-      } else {
-        await act(t("loading_profile_set", "Updating profile"), () => clientService.updateProfile(prefs));
-        leave();
-      }
+      });
     } catch (e) {
       toast(messageOf(e));
     }
   };
 
+  if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (!started) return <WizardIntro onStart={() => setStarted(true)} />;
   // The map opens over the wizard; unmounting the wizard would lose the current step.
   return (
     <>
       <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`client:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review} reviewTitle={t("signup_form_client_review", "Review Your Preferences")}
         saveLabel={mode === "signup" ? t("general_save", "Save") : t("profile_save", "Save")}
-        onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
+        onSave={save} saving={saving} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
         onConfirm={(p) => { setLocation(p); setPicking(false); }} /></Suspense>}
     </>
@@ -200,7 +210,10 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
+  const saving = useGuarded("preferences:save");
+  // The editor shows a skeleton until the saved choices arrive, not an empty form.
+  const [ready, setReady] = useState(mode !== "edit");
   const { state: signUp, reset, update } = useSignUp();
   const { signIn } = useSession();
 
@@ -228,7 +241,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
 
   useEffect(() => {
     if (mode !== "edit") return;
-    run(t("loading_profile_get", "Getting profile"), () => caregiverService.profile())
+    caregiverService.profile()
       .then((p) => {
         setClienttypes(p.clienttype_ids); setConditions(p.carecondition_ids); setSpecials(p.carespecial_ids);
         setExperience(p.experience_id); setRole(p.role_id); setCertifications(p.certification_ids);
@@ -236,7 +249,8 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
         setShifts(p.shift_ids); setDays(p.careday_ids); setWorktype(p.worktype_id);
         setSalaryMin(p.salary_min); setSalaryMax(p.salary_max);
       })
-      .catch((e) => toast(messageOf(e)));
+      .catch((e) => toast(messageOf(e)))
+      .finally(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load the saved preferences once; the setters are stable
   }, [mode]);
 
@@ -335,23 +349,27 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
       clienttypeIds: clienttypes, languageskillIds: languages, shiftIds: shifts,
     };
     try {
-      if (mode === "signup") {
-        if (!signUp.entityCreated) {
-          await act(t("loading_caregiver_signup", "Signing up caregiver"), () => caregiverService.create(signUp.userId!, skills));
-          update({ entityCreated: true });
+      // One guarded save, start to finish: Save shows progress and can't run twice.
+      await act("preferences:save", async () => {
+        if (mode === "signup") {
+          if (!signUp.entityCreated) {
+            await caregiverService.create(signUp.userId!, skills);
+            update({ entityCreated: true });
+          }
+          // Signing in moves the user into the app (the signed-out route guard redirects).
+          await signIn(signUp.email, signUp.password);
+          reset();
+        } else {
+          await caregiverService.updateProfile(skills);
+          leave();
         }
-        // Signing in moves the user into the app (the signed-out route guard redirects).
-        await act(t("loading_auth_login", "Signing in"), () => signIn(signUp.email, signUp.password));
-        reset();
-      } else {
-        await act(t("loading_profile_set", "Updating profile"), () => caregiverService.updateProfile(skills));
-        leave();
-      }
+      });
     } catch (e) {
       toast(messageOf(e));
     }
   };
 
+  if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (!started) return <WizardIntro caregiver onStart={() => setStarted(true)}
     title={t("signup_form_caregiver_match_title", "Find Your Ideal Matches")}
     description={t("signup_form_caregiver_match_description", "")} />;
@@ -360,7 +378,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
       <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`caregiver:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review}
         reviewTitle={t("signup_form_caregiver_review_title", "Review your skills and availability")}
         saveLabel={t("general_save", "Save")}
-        onSave={save} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
+        onSave={save} saving={saving} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
         onConfirm={(p) => { setLocation(p); setPicking(false); }} /></Suspense>}
     </>

@@ -29,6 +29,9 @@ export interface RequestOptions {
   /** Logout alone binds its dispatch/replay to the captured logical sign-in.
    *  Undefined keeps the existing policy for other actions; null binds signed-out. */
   sessionOwner?: SessionOwner;
+  /** `Idempotency-Key` for one logical submission (see idempotency.ts). The same options are
+   *  used when a refused request is sent again after renewing the sign-in, so the key stays. */
+  idempotencyKey?: string;
 }
 
 export class SupersededSessionRequest extends Error {}
@@ -169,6 +172,7 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
     Accept: "application/json",
     "Accept-Language": appLanguage.code,
   };
+  if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
   const useAuth = options.auth !== false;
   if (useAuth && tokenStore.accessToken) {
     headers.Authorization = `Bearer ${tokenStore.accessToken}`;

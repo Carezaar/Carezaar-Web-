@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useSession } from "../auth/SessionContext";
 import { useI18n } from "../app/i18n";
 import { useFeedback } from "../app/feedback";
+import { useGuarded } from "../app/actionGuard";
 import { useNotifications } from "../app/notifications";
 import { Avatar, Button, Dialog } from "./kit";
 import { assetUrl, Icon } from "./Icon";
@@ -41,6 +42,7 @@ function DesktopShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useSession();
   const { t } = useI18n();
   const { act } = useFeedback();
+  const signingOut = useGuarded("auth:logout");
   const { unread } = useNotifications();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const nav = [
@@ -103,9 +105,9 @@ function DesktopShell({ children }: { children: ReactNode }) {
         <p>{t("navigation_drawer_log_out_dialog_message", "You have selected to sign out from your account.")}</p>
         <div className="dialog-actions">
           <Button variant="outline" onClick={() => setConfirmLogout(false)}>{t("navigation_drawer_log_out_dialog_deny", "Cancel")}</Button>
-          <Button variant="danger" onClick={async () => {
+          <Button variant="danger" loading={signingOut} onClick={async () => {
+            try { await act("auth:logout", signOut); } catch { return; }
             setConfirmLogout(false);
-            await act(t("loading_auth_logout", "Signing out"), signOut);
             navigate("/intro", { replace: true });
           }}>{t("navigation_drawer_log_out_dialog_confirm", "Confirm")}</Button>
         </div>

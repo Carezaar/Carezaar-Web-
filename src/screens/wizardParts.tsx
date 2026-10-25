@@ -192,8 +192,10 @@ export interface StepDef {
   problem: () => string | null;
 }
 
-export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, review, reviewTitle, saveLabel, onSave, onExit }: {
+export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, review, reviewTitle, saveLabel, onSave, onExit, saving = false }: {
   steps: StepDef[]; review: ReactNode; reviewTitle: string; saveLabel: string;
+  /** The save is unresolved: Save shows progress and is disabled. */
+  saving?: boolean;
   index: number; onStepChange: (index: number) => void; historyScope: string;
   /** `leave` closes the wizard after a successful save in the editor (all its step entries). */
   onSave: (leave: () => void) => Promise<void>; onExit: () => void;
@@ -245,7 +247,7 @@ export function Wizard({ steps, index: savedIndex, onStepChange, historyScope, r
     }} />}
       footer={
         <div className="stack-sm">
-          <Button trailingIcon="ic_arrow_forward" onClick={() => (onReview ? void onSave(leave) : next())}>
+          <Button trailingIcon="ic_arrow_forward" loading={onReview && saving} onClick={() => (onReview ? void onSave(leave) : next())}>
             {onReview ? saveLabel : t("signup_form_client_continue", "Continue")}
           </Button>
           <p className="footnote"><Icon name="ic_info_circle" size={18} tint="var(--primary)" />

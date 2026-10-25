@@ -6,6 +6,7 @@ import { userService } from "../api/services";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
+import { useGuarded } from "../app/actionGuard";
 import { useI18n } from "../app/i18n";
 import { useSignUp } from "../app/signup";
 import { BackHeader, Page } from "../ui/layout";
@@ -35,7 +36,8 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const navigate = useNavigate();
   const goBack = useGoBack("/main/profile");
   const { t, label } = useI18n();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
+  const saving = useGuarded("profile:save");
   const { items } = useBaseData();
   const { state: signUp, update } = useSignUp();
   const { user, refreshUser } = useSession();
@@ -61,7 +63,8 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
 
   useEffect(() => {
     if (mode !== "edit") return;
-    void run(t("loading_auth_info", "Getting user information"), refreshUser).catch(() => undefined);
+    // The form already shows the account as it is known; this brings it up to date quietly.
+    void refreshUser().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh once when the edit screen opens
   }, [mode]);
 
@@ -119,8 +122,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
     if (Object.keys(next).length) return;
     const email = mode === "signup" ? signUp.email : user?.email ?? "";
     try {
-      const saved = await act(
-        mode === "signup" ? t("loading_auth_register", "Registering") : t("loading_profile_set", "Updating profile"),
+      const saved = await act("profile:save",
         async () => {
           // Keeping the photo belongs to the same progress/duplicate-action lock as Save.
           let photoToSend = photo;
@@ -164,7 +166,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
   const genderValue = gender ? label(gender) : t("profile_edit_gender_placeholder", "Select your gender");
   return (
     <Page header={<BackHeader />} footer={
-      <Button trailingIcon="ic_arrow_forward" disabled={!valid} onClick={() => void submit()}>
+      <Button trailingIcon="ic_arrow_forward" disabled={!valid} loading={saving} onClick={() => void submit()}>
         {mode === "signup" ? t("general_continue", "Continue") : t("profile_save", "Save")}
       </Button>
     }>

@@ -8,6 +8,8 @@ import { authService } from "../api/services";
 import { tokenStore, type SessionOwner } from "../api/session";
 import type { User, UserRole } from "../api/types";
 import { forgetMatches } from "../app/matchesState";
+import { setGuardAccount } from "../app/actionGuard";
+import { setIdempotencyAccount } from "../api/idempotency";
 
 /** Reproduces the Android Splash decision: a stored token means resolve the user and
  *  enter the app, otherwise show Intro. */
@@ -79,6 +81,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Signing out (or a sign-in that ends) forgets the My Matches sort and list (23 Oct 2026).
   useEffect(() => { if (state.status === "signedOut") forgetMatches(); }, [state.status]);
+  // Action guards and unfinished submissions belong to the signed-in account.
+  const accountId = state.status === "signedIn" ? state.user.id : null;
+  useEffect(() => { setGuardAccount(accountId); setIdempotencyAccount(accountId); }, [accountId]);
 
   useEffect(() => {
     const invalidateSessionChecks = () => { restoreRevision.current++; };

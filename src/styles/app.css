@@ -312,7 +312,7 @@ a { color: var(--primary); }
 .map-confirm { position: absolute; inset: auto 20px 24px; z-index: 500; }
 
 /* ---------- dialogs, feedback ---------- */
-.dialog-scrim, .busy-scrim { position: fixed; inset: 0; background: rgba(15, 20, 30, .42); display: grid; place-items: center; z-index: 40; padding: 20px; }
+.dialog-scrim { position: fixed; inset: 0; background: rgba(15, 20, 30, .42); display: grid; place-items: center; z-index: 40; padding: 20px; }
 .dialog { width: min(100%, 400px); max-height: 86dvh; overflow: auto; background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 14px; }
 .dialog-title { margin: 0; text-align: center; font-size: 22px; display: flex; gap: 8px; justify-content: center; align-items: center; }
 .dialog p { margin: 0; text-align: center; }
@@ -334,10 +334,10 @@ a { color: var(--primary); }
 .legal-page { position: relative; margin: 0 auto 12px; background: #fff; box-shadow: 0 1px 4px rgba(15, 20, 30, .18); }
 .legal-page:last-child { margin-bottom: 0; }
 .legal-page canvas { display: block; width: 100%; height: 100%; }
-.busy-scrim { z-index: 50; background: rgba(15, 20, 30, .22); }
 .busy-card { background: #fff; border-radius: 16px; padding: 16px 20px; box-shadow: 0 12px 40px rgba(0,0,0,.18); min-width: 260px; max-width: 340px; }
 .busy-head { display: flex; gap: 12px; align-items: center; font-size: 17px; }
 .busy-card ul { list-style: none; margin: 10px 0 0; padding: 0; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+.icon-btn .spinner-sm { border-color: #d6e6fb; border-top-color: var(--primary); }
 .toast-stack { position: fixed; inset: auto 0 96px; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 60; pointer-events: none; padding: 0 16px; }
 .toast { pointer-events: none; width: min(100%, 440px); display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; background: var(--error-soft); color: var(--error); border: 1.5px solid var(--error); border-radius: 14px; padding: 12px 14px; font-weight: 600; font-size: 14px; }
 .toast button { pointer-events: auto; border: 0; background: none; cursor: pointer; }
@@ -349,6 +349,28 @@ a { color: var(--primary); }
 .spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #d6e6fb; border-top-color: var(--primary); animation: spin 0.9s linear infinite; display: inline-block; }
 .spinner-sm { width: 18px; height: 18px; border-width: 2px; border-color: rgba(255,255,255,.4); border-top-color: #fff; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.btn-outline .spinner-sm, .btn-ghost .spinner-sm, .inline-progress .spinner-sm { border-color: #d6e6fb; border-top-color: var(--primary); }
+.btn-danger .spinner-sm { border-color: rgba(205, 45, 45, .25); border-top-color: var(--error); }
+.inline-progress { display: flex; justify-content: center; padding: 12px; }
+
+/* Skeleton placeholders for a screen's first load (client request, 25 Oct 2026). */
+.skeleton { display: block; background: linear-gradient(90deg, #e9eef5 0%, #f5f8fc 40%, #e9eef5 80%); background-size: 240% 100%; animation: shimmer 1.3s ease-in-out infinite; border-radius: 8px; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -140% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+.skeleton-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.skeleton-item { display: flex; gap: 14px; align-items: center; background: var(--surface); border-radius: 16px; padding: 14px; box-shadow: 0 1px 4px rgba(15, 30, 60, .06); }
+.skeleton-media { width: 88px; height: 88px; flex: none; border-radius: 12px; }
+.skeleton-row .skeleton-media { width: 48px; height: 48px; border-radius: 50%; }
+.skeleton-lines { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.skeleton-line { height: 14px; }
+.skeleton-detail { display: flex; flex-direction: column; gap: 12px; padding: 16px 0; }
+.skeleton-photo { width: 100%; max-width: 360px; aspect-ratio: 1 / 1; border-radius: 20px; }
+.skeleton-section { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.skeleton-chip-row { display: flex; gap: 8px; background: none; animation: none; }
+.skeleton-chip { width: 96px; height: 32px; border-radius: 16px; }
+.skeleton-chat { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.skeleton-bubble { height: 44px; border-radius: 16px; }
+.skeleton-bubble.out { align-self: flex-end; }
 .fab { position: fixed; bottom: 28px; inset-inline-end: max(20px, calc(50vw - var(--column) / 2 + 20px)); width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--primary); display: grid; place-items: center; box-shadow: 0 8px 20px rgba(0,122,254,.4); cursor: pointer; z-index: 8; }
 
 /* ---------- misc screens ---------- */

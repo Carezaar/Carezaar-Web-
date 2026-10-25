@@ -13,7 +13,8 @@ import { usePaged } from "../app/usePaged";
 import { matchesKey, readBanner, readSnapshot, rememberedSort, rememberSort, saveScroll, sharedRefresh, writeBanner, writeSnapshot } from "../app/matchesState";
 import { tokenStore } from "../api/session";
 import { AppHeader, BottomNav, Hero } from "../ui/layout";
-import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, PhotoBox, Spinner } from "../ui/kit";
+import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, InlineProgress, PhotoBox, SkeletonDetail, SkeletonList } from "../ui/kit";
+import { DuplicateActionError, guarded, isGuarded, useGuarded } from "../app/actionGuard";
 import { Icon } from "../ui/Icon";
 import { useIsDesktop } from "../ui/frames";
 import { useNotifications } from "../app/notifications";
@@ -42,6 +43,19 @@ export function MainScreen() {
 type Card = { id: string; user: PartnerUser; min: number | null; max: number | null; distance: number;
   clienttypeId?: number; isMatch: boolean };
 
+/** The heart on a match card. It already shows the new state while the change is saved,
+ *  and is disabled (busy) until the server has answered (shared guard `bookmark:<id>`). */
+function CardHeart({ userId, on, label, onToggle }: { userId: string; on: boolean; label: string; onToggle: () => void }) {
+  const busy = useGuarded(`bookmark:${userId}`);
+  return (
+    <button type="button" className="icon-btn card-heart" aria-pressed={on} aria-label={label} disabled={busy} aria-busy={busy}
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      onKeyDown={(e) => e.stopPropagation()}>
+      <Icon name={on ? "ic_favorite_on" : "ic_favorite_off"} size={26} tint={on ? "var(--error)" : "var(--primary-dark)"} />
+    </button>
+  );
+}
+
 /** How long each of a caregiver's care types stays in the banner. */
 const BANNER_ROTATE_MS = 5_000;
 
@@ -50,7 +64,7 @@ function MatchesTab() {
   const { role, user } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, toast, messageOf } = useFeedback();
+  const { toast, messageOf } = useFeedback();
   // The sort and the loaded list belong to this sign-in (client request, 23 Oct 2026): the
   // sort is remembered until sign-out, and coming back to the tab shows the list as it was
   // left (every loaded page, same place) while it is refreshed quietly. See matchesState.
@@ -72,13 +86,10 @@ function MatchesTab() {
   const fetchRef = useRef(fetchCards);
   fetchRef.current = fetchCards;
 
-  const list = usePaged<Card>(async (page, options) => {
-    const label = `${t("loading_matches", "Getting list of matches - Page")} ${page}`;
-    // My Matches loads only once the saved sign-in has been checked, as on Android
-    // (parity review v6.0, Q1): this list mounts after the session is accepted.
-    const work = fetchCards(sort, page);
-    return page === 1 && !options?.quiet ? run(label, () => work) : work;
-  }, [sort, isClient], undefined, returning);
+  // My Matches loads only once the saved sign-in has been checked, as on Android
+  // (parity review v6.0, Q1): this list mounts after the session is accepted. The first page
+  // shows skeleton cards; further pages a small indicator under the list.
+  const list = usePaged<Card>((page) => fetchCards(sort, page), [sort, isClient], undefined, returning);
 
   // Keep what is on screen for the next return.
   useEffect(() => {
@@ -138,18 +149,17 @@ function MatchesTab() {
 
   // Favourites straight from the card. One request per person at a time; the heart
   // shows the server's answer (put back if the request fails).
-  const favoriteBusy = useRef(new Set<string>());
+  // One favourite change per person at a time, shared with every screen (actionGuard).
   const toggleFavorite = async (card: Card) => {
-    if (favoriteBusy.current.has(card.id)) return;
-    favoriteBusy.current.add(card.id);
+    const resource = `bookmark:${card.user.id}`;
+    if (isGuarded(resource)) return;
     const on = card.user.is_favorite;
     const setFavorite = (value: boolean) => list.mutate((all) => all.map((c) => (c.id === card.id ? { ...c, user: { ...c.user, is_favorite: value } } : c)));
     setFavorite(!on);
     try {
-      await run(on ? t("loading_favorite_delete", "Removing from favorite list")
-        : t("loading_favorite_create", "Adding to favorite list"),
-      () => on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id));
+      await guarded(resource, () => on ? userService.removeBookmark(card.user.id) : userService.addBookmark(card.user.id));
     } catch (e) {
+      if (e instanceof DuplicateActionError) return;
       // No answer: the change may have gone through. It isn't sent again; the person's
       // profile is read to show what the server has.
       if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
@@ -160,8 +170,6 @@ function MatchesTab() {
         } catch { setFavorite(on); }
       } else setFavorite(on);
       toast(messageOf(e));
-    } finally {
-      favoriteBusy.current.delete(card.id);
     }
   };
 
@@ -199,7 +207,9 @@ function MatchesTab() {
       </div>
       {list.error && list.items.length === 0 ? (
         <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.reload()} retryLabel={t("general_try_again", "Try Again")} />
-      ) : !list.loading && list.items.length === 0 ? (
+      ) : list.items.length === 0 && (list.loading || list.page === 0) ? (
+        <SkeletonList count={4} label={t("loading_matches", "Getting list of matches")} />
+      ) : list.items.length === 0 ? (
         <EmptyState title={`${t(`${prefix}_matches_all_matches`, "All Matches")} (0)`} illustration="illus_chat" />
       ) : (
         <ul className="card-list">
@@ -225,13 +235,9 @@ function MatchesTab() {
                 <div className="match-side">
                   {/* Only for a current match (the server's is_match), not for requests. */}
                   {c.isMatch && <Icon name="ic_match_on" size={26} tint="var(--success)" label={t("general_match", "Match")} />}
-                  <button type="button" className="icon-btn card-heart" aria-pressed={c.user.is_favorite}
-                    aria-label={`${c.user.is_favorite ? "Remove from favorites" : "Add to favorites"}: ${personName(c.user, t)}`}
-                    onClick={(e) => { e.stopPropagation(); void toggleFavorite(c); }}
-                    onKeyDown={(e) => e.stopPropagation()}>
-                    <Icon name={c.user.is_favorite ? "ic_favorite_on" : "ic_favorite_off"} size={26}
-                      tint={c.user.is_favorite ? "var(--error)" : "var(--primary-dark)"} />
-                  </button>
+                  <CardHeart userId={c.user.id} on={c.user.is_favorite}
+                    label={`${c.user.is_favorite ? "Remove from favorites" : "Add to favorites"}: ${personName(c.user, t)}`}
+                    onToggle={() => void toggleFavorite(c)} />
                   <Icon name="ic_chevron_forward" size={20} tint="var(--text-secondary)" className="flip-rtl" />
                 </div>
               </div>
@@ -239,7 +245,7 @@ function MatchesTab() {
           ))}
         </ul>
       )}
-      {list.loading && list.items.length > 0 && <Spinner />}
+      {list.loading && list.items.length > 0 && <InlineProgress />}
       <InfiniteSentinel active={list.hasMore && !list.loading && !list.revalidating && !list.error} onVisible={list.loadMore} resetKey={list.page} />
       <Dialog open={sortOpen} onClose={() => setSortOpen(false)} title={t(`${prefix}_matches_sort`, "Sort")} labelledBy="sort-title">
         <div className="stack-sm">
@@ -310,11 +316,8 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
   const navigate = useNavigate();
   const { role } = useSession();
   const { t } = useI18n();
-  const { run, messageOf } = useFeedback();
-  const list = usePaged(async (page) => {
-    const work = userService.chats(page);
-    return page === 1 ? run(`${t("loading_chat_get_all", "Getting list of chats - Page")} ${page}`, () => work) : work;
-  }, []);
+  const { messageOf } = useFeedback();
+  const list = usePaged((page) => userService.chats(page), []);
   const { reload, refresh } = list;
   useEffect(() => {
     const onChange = () => void reload();
@@ -333,7 +336,9 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
     <>
       {list.error && list.items.length === 0 ? (
         <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.reload()} retryLabel={t("general_try_again", "Try Again")} />
-      ) : !list.loading && list.items.length === 0 ? (
+      ) : list.items.length === 0 && (list.loading || list.page === 0) ? (
+        <SkeletonList count={5} variant="row" label={t("loading_chat_get_all", "Getting list of chats")} />
+      ) : list.items.length === 0 ? (
         <EmptyState title={t("chat_screen_no_messages_yet", "No Messages Yet")}
           message={t("chat_screen_empty_description", "Your chats about jobs will appear here.")} />
       ) : (
@@ -361,7 +366,7 @@ function ChatList({ selectedId }: { selectedId: number | null }) {
           })}
         </ul>
       )}
-      {list.loading && list.items.length > 0 && <Spinner />}
+      {list.loading && list.items.length > 0 && <InlineProgress />}
       <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
     </>
   );
@@ -376,7 +381,8 @@ function ProfileTab() {
   const { find } = useBaseData();
   const { act } = useFeedback();
   const [confirmLogout, setConfirmLogout] = useState(false);
-  if (!user) return <Spinner />;
+  const signingOut = useGuarded("auth:logout");
+  if (!user) return <SkeletonDetail />;
   const gender = find("genders", user.gender_id);
 
   const items: { icon: string; title: string; description: string; to?: string; action?: () => void; tone?: string }[] = [
@@ -425,9 +431,9 @@ function ProfileTab() {
         <p>{t("navigation_drawer_log_out_dialog_message", "You have selected to sign out from your account.")}</p>
         <div className="dialog-actions">
           <Button variant="outline" onClick={() => setConfirmLogout(false)}>{t("navigation_drawer_log_out_dialog_deny", "Cancel")}</Button>
-          <Button variant="danger" onClick={async () => {
+          <Button variant="danger" loading={signingOut} onClick={async () => {
+            try { await act("auth:logout", signOut); } catch { return; }
             setConfirmLogout(false);
-            await act(t("loading_auth_logout", "Signing out"), signOut);
             navigate("/intro", { replace: true });
           }}>{t("navigation_drawer_log_out_dialog_confirm", "Confirm")}</Button>
         </div>

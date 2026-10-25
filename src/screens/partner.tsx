@@ -11,7 +11,8 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
-import { Button, Dialog, PhotoBox, Spinner, TextArea } from "../ui/kit";
+import { Button, Dialog, PhotoBox, SkeletonDetail, TextArea } from "../ui/kit";
+import { DuplicateActionError, isGuarded, useGuarded } from "../app/actionGuard";
 import { INTRODUCTION_MAX_LENGTH } from "../api/config";
 import { Icon } from "../ui/Icon";
 import { usePartnerMatch, type MatchMutation } from "./usePartnerMatch";
@@ -33,8 +34,10 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
   const { user } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
-  const { run, act, toast, messageOf } = useFeedback();
+  const { act, toast, messageOf } = useFeedback();
   const [detail, setDetail] = useState<CaregiverFull | ClientFull | null>(null);
+  const openingChat = useGuarded(`chat:create:${id}`);
+  const favoriteBusy = useGuarded(`bookmark:${id}`);
   const [failed, setFailed] = useState(false);
   const [confirm, setConfirm] = useState<MatchMutation | null>(null);
   const [introduction, setIntroduction] = useState("");
@@ -42,11 +45,10 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
   goBackRef.current = goBack;
 
   const load = useCallback(() => {
-    return run<CaregiverFull | ClientFull>(t("loading_profile_get", "Getting profile"),
-      () => (kind === "caregiver" ? clientService.caregiver(id) : caregiverService.client(id)))
+    return (kind === "caregiver" ? clientService.caregiver(id) : caregiverService.client(id))
       .then(setDetail)
       .catch((e) => { toast(messageOf(e)); setFailed(true); });
-  }, [kind, id, run, t, toast, messageOf]);
+  }, [kind, id, toast, messageOf]);
   useEffect(() => { void load(); }, [load]);
   // A profile that can't be loaded: a short message, then back to the previous screen
   // after two seconds, as on Android. Leaving earlier cancels the timer.
@@ -62,18 +64,19 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
 
   // Only the short error message (shown as it failed); the page itself stays empty until it closes.
   if (failed) return <Page header={<BackHeader />}><span /></Page>;
-  if (!detail) return <Page header={<BackHeader />}><Spinner /></Page>;
+  if (!detail) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
 
   const partner = detail.user;
   const labels = (table: BaseTable, ids: number[]) => ids.map((x) => find(table, x)).filter(Boolean);
 
   const toggleFavorite = async () => {
+    if (isGuarded(`bookmark:${partner.id}`)) return;
     const on = partner.is_favorite;
     setDetail({ ...detail, user: { ...partner, is_favorite: !on } } as typeof detail);
     try {
-      await act(on ? t("loading_favorite_delete", "Removing from favorite list") : t("loading_favorite_create", "Adding to favorite list"),
-        () => (on ? userService.removeBookmark(partner.id) : userService.addBookmark(partner.id)));
+      await act(`bookmark:${partner.id}`, () => (on ? userService.removeBookmark(partner.id) : userService.addBookmark(partner.id)));
     } catch (e) {
+      if (e instanceof DuplicateActionError) return;
       // No answer: not sent again; the profile is read to show what the server has.
       if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
         try {
@@ -90,7 +93,7 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
     // The button only exists for an active match; this also covers a stale screen.
     if (match.status !== "active") { toast(t("chat_screen_match_check", "You can only send messages to your current matches.")); return; }
     try {
-      const chat = await act(t("loading_chat_create", "Creating a new chat"), () => userService.createChat(detail.id));
+      const chat = await act(`chat:create:${detail.id}`, () => userService.createChat(detail.id));
       navigate(`/chat/${chat.id}`);
     } catch (e) { toast(messageOf(e)); }
   };
@@ -138,7 +141,7 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
         <button type="button" className="icon-btn" onClick={() => goBack()} aria-label="Back">
           <Icon name="ic_arrow_backward" size={26} tint="var(--text)" className="flip-rtl" />
         </button>
-        <button type="button" className="icon-btn" onClick={() => void toggleFavorite()} aria-pressed={partner.is_favorite}
+        <button type="button" className="icon-btn" onClick={() => void toggleFavorite()} aria-pressed={partner.is_favorite} disabled={favoriteBusy} aria-busy={favoriteBusy}
           aria-label={partner.is_favorite ? "Remove from favorites" : "Add to favorites"}>
           <Icon name={partner.is_favorite ? "ic_favorite_on" : "ic_favorite_off"} size={28}
             tint={partner.is_favorite ? "var(--error)" : "var(--primary-dark)"} />
@@ -147,16 +150,16 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
     } footer={
       <div className="detail-actions">
         {/* Messaging is for an active match only: before that there is no Message button. */}
-        {match.status === "active" && <Button variant="outline" icon="ic_message" onClick={() => void message()}>{t(`${prefix}_message`, "Message")}</Button>}
+        {match.status === "active" && <Button variant="outline" icon="ic_message" loading={openingChat} onClick={() => void message()}>{t(`${prefix}_message`, "Message")}</Button>}
         {unreadable ? <Button variant="outline" disabled={match.busy} onClick={() => void match.retryCheck()}>{t("general_try_again", "Try Again")}</Button>
           : match.action === "received" ? <>
-            <Button disabled={match.busy} variant="danger" onClick={() => mainAction("reject")}>{t("match_reject_title", "Reject")}</Button>
-            <Button disabled={match.busy} onClick={() => mainAction("accept")}>{t("match_accept_title", "Accept")}</Button>
+            <Button disabled={match.busy} loading={match.working === "reject"} variant="danger" onClick={() => mainAction("reject")}>{t("match_reject_title", "Reject")}</Button>
+            <Button disabled={match.busy} loading={match.working === "accept"} onClick={() => mainAction("accept")}>{t("match_accept_title", "Accept")}</Button>
           </> : match.action === "withdraw" ? <>
             <span className="pending-note">{t("match_pending_acceptance", "Pending Acceptance")}</span>
-            <Button disabled={match.busy} variant="outline" onClick={() => mainAction("withdraw")}>{t("match_withdraw_title", "Withdraw")}</Button>
-          </> : match.action === "unmatch" ? <Button disabled={match.busy} variant="danger" icon="ic_match_off" onClick={() => mainAction("unmatch")}>{t("match_unmatch_title", "Unmatch")}</Button>
-          : <Button disabled={match.busy} icon="ic_match_on" onClick={() => mainAction("request")}>{t("match_match_button", "Request a Match")}</Button>}
+            <Button disabled={match.busy} loading={match.working === "withdraw"} variant="outline" onClick={() => mainAction("withdraw")}>{t("match_withdraw_title", "Withdraw")}</Button>
+          </> : match.action === "unmatch" ? <Button disabled={match.busy} loading={match.working === "unmatch"} variant="danger" icon="ic_match_off" onClick={() => mainAction("unmatch")}>{t("match_unmatch_title", "Unmatch")}</Button>
+          : <Button disabled={match.busy} loading={match.working === "request"} icon="ic_match_on" onClick={() => mainAction("request")}>{t("match_match_button", "Request a Match")}</Button>}
       </div>
     }>
       <section className="detail-top">

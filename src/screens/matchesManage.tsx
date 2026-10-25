@@ -9,7 +9,7 @@ import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
 import { BackHeader, Page } from "../ui/layout";
-import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, Spinner } from "../ui/kit";
+import { Avatar, Button, cardLink, Dialog, EmptyState, ErrorState, InfiniteSentinel, InlineProgress, SkeletonList } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 import { requestPreview } from "../ui/requestPreview";
 
@@ -19,15 +19,12 @@ export function ManageMatchesScreen() {
   const navigate = useNavigate();
   const { role } = useSession();
   const { t } = useI18n();
-  const { run, messageOf } = useFeedback();
+  const { messageOf } = useFeedback();
   const [tab, setTab] = useState<MatchListType>("matches");
   const [introFor, setIntroFor] = useState<Match | null>(null);
 
   const loadingLabel = { matches: "loading_matches", requests: "loading_requests", histories: "loading_histories" }[tab];
-  const list = usePaged(async (page) => {
-    const work = userService.matches(tab, page);
-    return page === 1 ? run(`${t(loadingLabel, "Loading")} ${page}`, () => work) : work;
-  }, [tab]);
+  const list = usePaged((page) => userService.matches(tab, page), [tab]);
 
   return (
     <Page header={<BackHeader title={t("profile_matches_title", "Matches")} />}>
@@ -38,7 +35,8 @@ export function ManageMatchesScreen() {
         ))}
       </div>
       {list.error && list.items.length === 0 ? <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.reload()} />
-        : !list.loading && list.items.length === 0 ? <EmptyState title={`${t(tab === "histories" ? "match_tab_history" : `match_tab_${tab}`, tab)} (0)`} />
+        : list.items.length === 0 && (list.loading || list.page === 0) ? <SkeletonList count={4} variant="row" label={t(loadingLabel, "Loading")} />
+        : list.items.length === 0 ? <EmptyState title={`${t(tab === "histories" ? "match_tab_history" : `match_tab_${tab}`, tab)} (0)`} />
         : (
           <ul className="card-list">
             {list.items.map((m) => {
@@ -75,7 +73,7 @@ export function ManageMatchesScreen() {
             })}
           </ul>
         )}
-      {list.loading && list.items.length > 0 && <Spinner />}
+      {list.loading && list.items.length > 0 && <InlineProgress />}
       <InfiniteSentinel active={list.hasMore && !list.loading && !list.error} onVisible={list.loadMore} resetKey={list.page} />
 
       <IntroductionDialog match={introFor} onClose={() => setIntroFor(null)} />

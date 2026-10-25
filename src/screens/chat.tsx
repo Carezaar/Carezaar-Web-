@@ -8,7 +8,9 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { isDeletedAccount, personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
-import { Avatar, EmptyState, ErrorState, Spinner } from "../ui/kit";
+import { Avatar, EmptyState, ErrorState, SkeletonChat } from "../ui/kit";
+import { DuplicateActionError, guarded, isGuarded, useGuarded } from "../app/actionGuard";
+import { pendingSubmissions } from "../api/idempotency";
 import { Icon } from "../ui/Icon";
 import { useIsDesktop } from "../ui/frames";
 import { CHATS_CHANGED, MessagesDesktop } from "./main";
@@ -29,16 +31,21 @@ export function ChatScreen() {
   const { chatId = "" } = useParams();
   const { role, user } = useSession();
   const { t } = useI18n();
-  const { run, toast, messageOf } = useFeedback();
+  const { toast, messageOf } = useFeedback();
   const [chat, setChat] = useState<ChatFull | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
-  // One message at a time, as on Android: the next can be sent once the server has
-  // answered for this one.
-  const [sending, setSending] = useState(false);
-  const sendingRef = useRef(false);
+  // One message at a time per conversation, as on Android: the shared action guard holds
+  // it until the server has answered, whatever re-renders or remounts in the meantime.
+  const sendKey = `chat:${chatId}:send`;
+  const sending = useGuarded(sendKey);
+  // A message whose earlier send got no answer, offered again (with its Idempotency-Key).
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  // Whether this conversation is on screen (a refresh then never replaces it with an error).
+  const shown = useRef(false);
   const end = useRef<HTMLDivElement>(null);
   // Whether the reader is at the newest message. New messages scroll into view only
   // then; someone reading older messages keeps their place.
@@ -51,7 +58,7 @@ export function ChatScreen() {
     const invalidate = () => { scope.current++; };
     invalidate();
     setChat(null); setError(null); setDraft(""); setReplyTo(null); setMenuFor(null);
-    sendingRef.current = false; setSending(false); stick.current = true;
+    setUnconfirmed(false); stick.current = true; shown.current = false;
     return invalidate;
   }, [chatId, user?.id]);
 
@@ -59,12 +66,20 @@ export function ChatScreen() {
     if (!user?.id) return;
     const owner = scope.current;
     setError(null);
-    run(t("loading_chat_get_one", "Getting chat details"), () => userService.chat(Number(chatId)))
+    setReloading(true);
+    userService.chat(Number(chatId))
       .then((c) => { if (scope.current === owner) setChat(chronological(c)); })
-      .catch((e) => { if (scope.current === owner) setError(e); });
-  }, [chatId, user?.id, run, t]);
+      .catch((e) => {
+        if (scope.current !== owner) return;
+        // A failed refresh keeps the conversation (and what was just sent) on screen;
+        // only a first load that fails shows the error page.
+        if (shown.current) toast(messageOf(e)); else setError(e);
+      })
+      .finally(() => { if (scope.current === owner) setReloading(false); });
+  }, [chatId, user?.id, toast, messageOf]);
   useEffect(load, [load]);
   const hasChat = chat !== null;
+  shown.current = hasChat;
   useEffect(() => {
     // The transcript scrolls in its pane on desktop and with the page on phones.
     const pane = () => end.current?.closest(".chat-pane-scroll") as HTMLElement | null;
@@ -134,57 +149,52 @@ export function ChatScreen() {
   const mine = (m: ChatMessage) => (role === "caregiver" ? m.is_from_caregiver : !m.is_from_caregiver);
   const composerUnavailable = !chat || Boolean(error);
 
+  // After a reload or another visit: a message whose send got no answer comes back into the
+  // box (with what it replied to), so Send repeats that same submission, not a new one.
+  useEffect(() => {
+    if (!chat || draft !== "") return;
+    const [pending] = pendingSubmissions("chat_message", String(chatId));
+    if (!pending?.draft) return;
+    setDraft(pending.draft);
+    const parent = pending.context?.parent;
+    setReplyTo(parent ? chat.messages.find((m) => m.id === parent) ?? null : null);
+    setUnconfirmed(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once the conversation has loaded
+  }, [chat !== null, chatId]);
+
   // One send at a time: the text stays in the box (read-only) until the server confirms
-  // it, so a double click, Enter held down or a slow connection can't send it twice, and
-  // a failed send leaves the text there to try again. A send is never repeated
-  // automatically: it may have reached the server.
+  // it, so a double click, Enter held down or a slow connection can't send it twice.
+  // Each message is one submission with its own Idempotency-Key: when a send gets no
+  // answer the text stays, and Send repeats it with the same key, so the server keeps it
+  // at most once. The answer (the whole conversation) is shown as it comes, so a later
+  // failed refresh can't make a sent message look unsent.
   const send = async () => {
-    if (sendingRef.current || closedNote || composerUnavailable) return;
+    if (isGuarded(sendKey) || closedNote || composerUnavailable) return;
     const text = draft.trim();
     // Send stays active with an empty box and says why nothing was sent (K4).
     if (!text) { toast(t("chat_screen_message_required", "Please type a message first.")); return; }
     const owner = scope.current;
-    sendingRef.current = true;
-    setSending(true);
     try {
-      const updated = await run(t("loading_chat_send", "Sending a new message"),
-        () => userService.sendMessage(Number(chatId), text, replyTo?.id ?? null));
+      const updated = await guarded(sendKey, () => userService.sendMessage(Number(chatId), text, replyTo?.id ?? null, {
+        fromCaregiver: role === "caregiver", after: Math.max(0, ...(chat?.messages ?? []).map((m) => m.id)),
+      }));
       if (scope.current !== owner) return;
       stick.current = true;
       setChat(chronological(updated));
-      setDraft(""); setReplyTo(null);
+      setDraft(""); setReplyTo(null); setUnconfirmed(false);
       window.dispatchEvent(new Event(CHATS_CHANGED));
     } catch (e) {
-      if (scope.current !== owner) return;
-      // No answer: the message may have been delivered. It is not sent again; the
-      // conversation is read, and if the message is there it counts as sent.
-      if (e instanceof ApiError && (e.kind === "network" || e.kind === "timeout")) {
-        const known = new Set((chat?.messages ?? []).map((m) => m.id));
-        try {
-          const fresh = chronological(await userService.chat(Number(chatId)));
-          if (scope.current !== owner) return;
-          setChat(fresh);
-          if (fresh.messages.some((m) => !known.has(m.id) && mine(m) && m.message.trim() === text)) {
-            stick.current = true;
-            setDraft(""); setReplyTo(null);
-            window.dispatchEvent(new Event(CHATS_CHANGED));
-            return;
-          }
-        } catch { /* still unknown: say so below, keep the text */ }
-      }
-      if (scope.current !== owner) return;
+      if (scope.current !== owner || e instanceof DuplicateActionError) return;
       toast(chatMessage(e));
-    } finally {
-      if (scope.current === owner) {
-        sendingRef.current = false;
-        setSending(false);
-      }
     }
   };
 
   const composer = (
     <div className="composer">
       {closedNote && <p className="composer-note" role="status">{closedNote}</p>}
+      {unconfirmed && !closedNote && !sending && (
+        <p className="composer-note" role="status">{t("chat_screen_message_unconfirmed", "This message may not have been sent. Tap Send to try again.")}</p>
+      )}
       {replyTo && !closedNote && (
         <div className="reply-bar">
           <Icon name="ic_reply" size={18} tint="var(--primary)" />
@@ -213,14 +223,14 @@ export function ChatScreen() {
       <div className="chat-partner">
         <Avatar src={partner?.photo} size={44} />
         <b>{personName(partner, t)}</b>
-        <button type="button" className="icon-btn" onClick={load} aria-label={t("chat_screen_refresh", "Refresh")}>
-          <Icon name="ic_refresh" size={24} tint="var(--primary)" />
+        <button type="button" className="icon-btn" onClick={load} disabled={reloading} aria-busy={reloading} aria-label={t("chat_screen_refresh", "Refresh")}>
+          {reloading && chat ? <span className="spinner spinner-sm" aria-hidden="true" /> : <Icon name="ic_refresh" size={24} tint="var(--primary)" />}
         </button>
       </div>
       {error ? <ErrorState message={chatMessage(error)} error={error}
           // Not the user's chat (or the match has ended): retrying cannot help.
           onRetry={chatMessage(error) === messageOf(error) ? load : undefined} />
-        : !chat ? <Spinner />
+        : !chat ? <SkeletonChat label={t("loading_chat_get_one", "Getting chat details")} />
         : chat.messages.length === 0 ? <EmptyState title={t("chat_screen_no_messages_yet", "No Messages Yet")} />
         : (
           <ol className="transcript">

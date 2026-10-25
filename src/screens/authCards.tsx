@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useGuarded } from "../app/actionGuard";
 import type { IntroModel, SignInForm, SignUpForm } from "./auth";
 import { Button, Checkbox, Dialog, TextField } from "../ui/kit";
 import { assetUrl, Icon } from "../ui/Icon";
@@ -145,7 +146,7 @@ export function SignInCard({ form }: { form: SignInForm }) {
             {t("signin_forgot_password", "Forgot Password")}
           </button>
         </div>
-        <Button type="submit" trailingIcon="ic_arrow_forward" disabled={!form.canSubmit}>{title}</Button>
+        <Button type="submit" trailingIcon="ic_arrow_forward" disabled={!form.canSubmit} loading={form.busy}>{title}</Button>
       </form>
       <p className="auth-alt">
         <span className="muted">{t("signin_donot_have_account", "Don't have an account yet?")}</span>
@@ -201,6 +202,7 @@ export function SignUpCard({ form }: { form: SignUpForm }) {
 /** One responsive, focus-managed confirmation for both phone and desktop. */
 export function SignUpConfirmation({ form }: { form: SignUpForm }) {
   const { t } = form.i18n;
+  const registering = useGuarded("auth:register");
   return (
       <Dialog open={form.confirming} onClose={() => form.setConfirming(false)} labelledBy="signup-confirm"
         title={t("signup_credentials_confirm_dialog_title", "Are You Sure?")}>
@@ -209,10 +211,10 @@ export function SignUpConfirmation({ form }: { form: SignUpForm }) {
           <span>{t("signup_credentials_email", "Email")}: <b dir="ltr">{form.email}</b></span>
         </div>
         <div className="dialog-actions">
-          <Button variant="outline" onClick={() => form.setConfirming(false)}>
+          <Button variant="outline" disabled={registering} onClick={() => form.setConfirming(false)}>
             {t("signup_credentials_confirm_dialog_deny_label", "Edit")}
           </Button>
-          <Button onClick={() => void form.confirm()}>{t("signup_credentials_confirm_dialog_confirm_label", "Confirm")}</Button>
+          <Button loading={registering} onClick={() => void form.confirm()}>{t("signup_credentials_confirm_dialog_confirm_label", "Confirm")}</Button>
         </div>
       </Dialog>
   );

@@ -46,7 +46,7 @@ export function reconcilePages<T>(pages: T[][], keyOf: (item: T) => unknown): { 
 export interface PagedStart<T> { items: T[]; page: number; ended: boolean; total: number | null }
 
 export function usePaged<T>(
-  fetchPage: (page: number, options?: { quiet?: boolean }) => Promise<{ result: T[]; meta: ApiMeta | null }>,
+  fetchPage: (page: number) => Promise<{ result: T[]; meta: ApiMeta | null }>,
   deps: unknown[],
   keyOf: (item: T) => unknown = defaultKey,
   start: PagedStart<T> | null = null,
@@ -153,7 +153,7 @@ export function usePaged<T>(
     inFlight.current = true;
     setRevalidating(true);
     try {
-      const answers = await (fetchAll ?? ((n: number) => Promise.all(Array.from({ length: n }, (_, i) => fetchRef.current(i + 1, { quiet: true })))))(count);
+      const answers = await (fetchAll ?? ((n: number) => Promise.all(Array.from({ length: n }, (_, i) => fetchRef.current(i + 1)))))(count);
       if (gen !== generation.current) return false;
       apply(reconcilePages(answers.map((a) => a.result), keyRef.current), answers[0]?.meta ?? null);
       return true;

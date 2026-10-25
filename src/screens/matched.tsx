@@ -8,7 +8,8 @@ import { useFeedback } from '../app/feedback';
 import { useI18n } from '../app/i18n';
 import { useGoBack } from '../navigation/back';
 import { BackHeader, Page } from '../ui/layout';
-import { Button, PhotoBox, Spinner } from '../ui/kit';
+import { Button, PhotoBox, SkeletonDetail } from '../ui/kit';
+import { useGuarded } from '../app/actionGuard';
 import { Icon } from '../ui/Icon';
 
 /** Where the screen was opened from, passed as navigation state. */
@@ -23,7 +24,8 @@ export function MatchedScreen() {
   const origin = (location.state as {from?: MatchedOrigin} | null)?.from;
   const {user,role} = useSession();
   const {t} = useI18n();
-  const {run,act,toast,messageOf} = useFeedback();
+  const {act,toast,messageOf} = useFeedback();
+  const openingChat = useGuarded(`chat:create:${partnerId}`);
   const navigate = useNavigate();
   const goBack = useGoBack('/main/matches');
   const [detail,setDetail] = useState<CaregiverFull | ClientFull | null>(null);
@@ -36,8 +38,8 @@ export function MatchedScreen() {
   const load = useCallback(() => {
     let current = true;
     if (!partnerId || kind !== ownKind) { navigate('/main/matches', {replace: true}); return () => { current = false; }; }
-    run<CaregiverFull | ClientFull>(t('loading_profile_get','Getting profile'), () => (role === 'client' ? clientService.caregiver(partnerId) : caregiverService.client(partnerId)))
-      .then((p) => {
+    (role === 'client' ? clientService.caregiver(partnerId) : caregiverService.client(partnerId))
+      .then((p: CaregiverFull | ClientFull) => {
         if (!current) return;
         if (profileMatchState(p)?.status !== 'active') {
           // Not (or no longer) a match: show the person's profile, replacing this screen
@@ -49,7 +51,7 @@ export function MatchedScreen() {
       })
       .catch((e) => { if (current) { toast(messageOf(e)); setFailed(true); } });
     return () => { current = false; };
-  }, [kind, ownKind, partnerId, role, run, t, navigate, profilePath, origin, toast, messageOf]);
+  }, [kind, ownKind, partnerId, role, navigate, profilePath, origin, toast, messageOf]);
   useEffect(() => load(), [load]);
   // Unavailable: a short message, then back after two seconds (no Try Again page, no loop).
   useEffect(() => {
@@ -61,13 +63,13 @@ export function MatchedScreen() {
   const header = <BackHeader title={t('match_matched_title',"It's a Match!")} />;
   // Only the short error message (shown as it failed); the page stays empty until it closes.
   if (failed) return <Page header={header}><span /></Page>;
-  if (!detail || !user) return <Page header={header}><Spinner /></Page>;
+  if (!detail || !user) return <Page header={header}><SkeletonDetail label={t('loading_profile_get','Getting profile')} /></Page>;
   const partner = detail.user;
   const fullName = (u: {first_name: string | null; last_name: string | null}) => `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
   const roleLabel = (r: UserRole) => (r === 'client' ? t('general_usertype_client','Client') : t('general_usertype_caregiver','Caregiver'));
   const chat = async () => {
     try {
-      const conversation = await act(t('loading_chat_create','Creating a new chat'), () => userService.createChat(partnerId));
+      const conversation = await act(`chat:create:${partnerId}`, () => userService.createChat(partnerId));
       navigate(`/chat/${conversation.id}`);
     } catch(e) { toast(messageOf(e)); }
   };
@@ -86,7 +88,7 @@ export function MatchedScreen() {
       <figcaption><b dir="auto">{name}</b><span className="muted">{sub}</span></figcaption>
     </figure>
   );
-  return <Page header={header} footer={<div className="pending-actions"><Button onClick={() => void chat()} icon="ic_message">{t('match_matched_chat_button','Send a Message')}</Button><Button variant="outline" onClick={viewProfile}>{t('match_matched_profile_button','View Profile')}</Button></div>}>
+  return <Page header={header} footer={<div className="pending-actions"><Button onClick={() => void chat()} icon="ic_message" loading={openingChat}>{t('match_matched_chat_button','Send a Message')}</Button><Button variant="outline" onClick={viewProfile}>{t('match_matched_profile_button','View Profile')}</Button></div>}>
     <div className="pending matched" data-testid="matched-screen">
       <div className="matched-pair">
         {card(user.photo, t('chat_screen_you','You'), roleLabel(user.role), 'left')}

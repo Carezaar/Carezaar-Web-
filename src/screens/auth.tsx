@@ -10,6 +10,7 @@ import {
 import { useSession } from "../auth/SessionContext";
 import { useBaseData, TABLE_LABELS } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
+import { DuplicateActionError, useGuarded } from "../app/actionGuard";
 import { useI18n } from "../app/i18n";
 import { useSignUp } from "../app/signup";
 import { FigmaScreen, type SceneOverlay } from "../figma/FigmaScreen";
@@ -191,7 +192,6 @@ function useSignInForm() {
   const goBack = useGoBack("/intro");
   const { signIn } = useSession();
   const i18n = useI18n();
-  const { t } = i18n;
   const { act, toast, messageOf } = useFeedback();
   const { update } = useSignUp();
   const [email, setEmail] = useState("");
@@ -207,7 +207,7 @@ function useSignInForm() {
     setBusy(true);
     try {
       // The signed-out route guard moves the user into the app once the session exists.
-      await act(t("loading_auth_login", "Signing in"), () => signIn(email.trim(), password));
+      await act("auth:login", () => signIn(email.trim(), password));
     } catch (e) {
       // A sign-up that was never finished (409, with the account's role in `meta`): as
       // on Android, show the server's message and continue at the profile step, which
@@ -225,7 +225,7 @@ function useSignInForm() {
     } finally {
       setBusy(false);
     }
-  }, [email, password, act, signIn, t, toast, messageOf, update, navigate]);
+  }, [email, password, act, signIn, toast, messageOf, update, navigate]);
 
   const forgotPassword = useCallback(() => {
     update({ isPasswordRecovery: true });
@@ -233,7 +233,7 @@ function useSignInForm() {
   }, [update, navigate]);
 
   return {
-    i18n, email, setEmail, password, setPassword, canSubmit, submit, forgotPassword, goBack,
+    i18n, email, setEmail, password, setPassword, canSubmit, submit, forgotPassword, goBack, busy,
     signUp: () => navigate("/intro"),
   };
 }
@@ -287,6 +287,8 @@ function SignInScene({ form }: { form: SignInForm }) {
       { x: 348, y: 347, width: 32, height: 32, content: (
         <PasswordToggle revealed={revealed} onToggle={() => setRevealed((r) => !r)} />
       ) },
+      // Progress on the frame's own Sign In button (node 51:5272) while signing in.
+      ...(form.busy ? [{ x: 344, y: 455, width: 24, height: 24, content: <span className="spinner spinner-sm" role="status" aria-label="Signing in" /> }] : []),
       { x: 20, y: 409, width: 372, height: 30, content: (
         <button type="button" className="link link-end" onClick={form.forgotPassword}>
           {t("signin_forgot_password", "Forgot Password")}
@@ -343,17 +345,19 @@ function useSignUpForm() {
   }, [email, password, confirmation, accepted, t, toast]);
 
   const confirm = useCallback(async () => {
-    setConfirming(false);
     let registered = false;
     try {
-      await act(t("loading_auth_register", "Registering"), async () => {
+      await act("auth:register", async () => {
         await authService.register(role, email.trim(), password);
         registered = true;
         update({ role, email: email.trim(), password, isPasswordRecovery: false });
         await userService.sendOTP(email.trim());
       });
+      setConfirming(false);
       navigate("/otp");
     } catch (e) {
+      if (e instanceof DuplicateActionError) return;
+      setConfirming(false);
       // The account exists but the code wasn't sent: open the code screen anyway, where
       // it can be asked for again (parity review v4.0, C5). Staying here would leave a
       // form whose Continue can only fail, because the account now exists.
@@ -368,7 +372,7 @@ function useSignUpForm() {
         setErrors({ email, password: password ?? (email ? undefined : e.message) });
       } else toast(messageOf(e));
     }
-  }, [act, t, role, email, password, update, navigate, toast, messageOf]);
+  }, [act, role, email, password, update, navigate, toast, messageOf]);
 
   return {
     i18n, toast, goBack,
@@ -555,18 +559,20 @@ export function OtpScreen() {
   const [code, setCode] = useState("");
   // Android starts the same two-minute wait even if the first send failed.
   const { left, mmss, restart } = useCountdown(120);
+  const verifying = useGuarded("auth:otp-verify");
+  const resending = useGuarded("auth:otp-send");
 
   useEffect(() => { if (!signUp.email) navigate("/intro", { replace: true }); }, [signUp.email, navigate]);
 
   const submit = async () => {
     try {
-      await act(t("loading_user_otp_verify", "Verifying OTP code"), () => userService.verifyOTP(signUp.email, code));
+      await act("auth:otp-verify", () => userService.verifyOTP(signUp.email, code));
       navigate("/sign-up/profile", { state: { otp: code } });
     } catch (e) { toast(messageOf(e)); }
   };
   const resend = async () => {
     try {
-      await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(signUp.email));
+      await act("auth:otp-send", () => userService.sendOTP(signUp.email));
       restart();
     } catch (e) { toast(messageOf(e)); }
   };
@@ -576,13 +582,13 @@ export function OtpScreen() {
       <div className="stack center">
         <p className="lead">{t("signup_otp_message", "Kindly enter the 5-digit OTP that we sent to your email.")}</p>
         <OtpBoxes value={code} onChange={setCode} />
-        <Button trailingIcon="ic_chevron_forward" disabled={code.length !== OTP_LENGTH} onClick={() => void submit()}>
+        <Button trailingIcon="ic_chevron_forward" disabled={code.length !== OTP_LENGTH} loading={verifying} onClick={() => void submit()}>
           {t("signup_otp_continue", "Continue")}
         </Button>
         <p>{t("signup_otp_didnot_receive_otp", "Didn't receive the OTP?")}</p>
         {left > 0
           ? <p className="link-muted">{t("signup_otp_wait_to_resend", "Wait for mm:ss to re-send").replace("mm:ss", mmss)}</p>
-          : <button type="button" className="link" onClick={() => void resend()}>{t("signup_otp_resend", "Re-send")}</button>}
+          : <button type="button" className="link" disabled={resending} aria-busy={resending} onClick={() => void resend()}>{t("signup_otp_resend", "Re-send")}</button>}
       </div>
     </Page>
   );
@@ -598,13 +604,18 @@ export function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [confirming, setConfirming] = useState(false);
 
+  const sending = useGuarded("auth:otp-send");
   const send = async () => {
-    setConfirming(false);
     try {
-      await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(email.trim()));
+      await act("auth:otp-send", () => userService.sendOTP(email.trim()));
+      setConfirming(false);
       update({ email: email.trim(), isPasswordRecovery: true });
       navigate("/setup-password");
-    } catch (e) { toast(messageOf(e)); }
+    } catch (e) {
+      if (e instanceof DuplicateActionError) return;
+      setConfirming(false);
+      toast(messageOf(e));
+    }
   };
 
   return (
@@ -625,7 +636,7 @@ export function ForgotPasswordScreen() {
         <p className="strong-blue">{email}</p>
         <div className="dialog-actions">
           <Button variant="outline" onClick={() => setConfirming(false)}>{t("signup_forgot_password_dialog_deny", "Edit")}</Button>
-          <Button onClick={() => void send()}>{t("signup_forgot_password_dialog_confirm", "Confirm")}</Button>
+          <Button loading={sending} onClick={() => void send()}>{t("signup_forgot_password_dialog_confirm", "Confirm")}</Button>
         </div>
       </Dialog>
     </Page>
@@ -657,11 +668,13 @@ export function SetupPasswordScreen() {
 
   const rules = passwordRules(password);
   const valid = code.length === OTP_LENGTH && isPasswordValid(password) && password === confirmation;
+  const resetting = useGuarded("auth:password-reset");
+  const resendingCode = useGuarded("auth:otp-send");
 
   const submit = async () => {
     setCodeError(null);
     try {
-      await act(t("loading_user_password_reset", "Resetting password"),
+      await act("auth:password-reset",
         () => userService.resetPassword(signUp.email, code, password));
       // Clearing the recovery state must not trigger the "no recovery in progress" redirect.
       finished.current = true;
@@ -679,7 +692,7 @@ export function SetupPasswordScreen() {
   };
   const resend = async () => {
     try {
-      await act(t("loading_user_otp_send", "Sending OTP code"), () => userService.sendOTP(signUp.email));
+      await act("auth:otp-send", () => userService.sendOTP(signUp.email));
       setCodeError(null);
       setCode("");
       restart();
@@ -697,7 +710,7 @@ export function SetupPasswordScreen() {
           {t("signup_setup_password_didnot_receive_otp", "Didn't receive the OTP?")}{" "}
           {left > 0
             ? <span className="link-muted" aria-live="polite">{t("signup_setup_password_wait_to_resend", "Wait for mm:ss to re-send").replace("mm:ss", mmss)}</span>
-            : <button type="button" className="link" onClick={() => void resend()}>{t("signup_setup_password_resend", "Re-send")}</button>}
+            : <button type="button" className="link" disabled={resendingCode} aria-busy={resendingCode} onClick={() => void resend()}>{t("signup_setup_password_resend", "Re-send")}</button>}
         </p>
         <TextField label={t("signup_setup_password_password", "Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -708,7 +721,7 @@ export function SetupPasswordScreen() {
           onChange={(e) => setConfirmation(e.target.value)}
           error={confirmation && confirmation !== password ? t("signup_credentials_password_match", "Passwords do not match.") : null}
           placeholder={t("signup_setup_password_confirm_password_placeholder", "Confirm your password...")} />
-        <Button trailingIcon="ic_arrow_forward" disabled={!valid} onClick={() => void submit()}>
+        <Button trailingIcon="ic_arrow_forward" disabled={!valid} loading={resetting} onClick={() => void submit()}>
           {t("signup_setup_password_continue", "Continue")}
         </Button>
       </div>
