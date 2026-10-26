@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { ApiError } from "./errors";
+import { ApiError, RefusedWhileRenewalUnreachableError } from "./errors";
 import { appLanguage } from "./language";
 import { tokenStore, type SessionOwner } from "./session";
 import { APP_VERSION } from "./config";
@@ -23,8 +23,7 @@ export interface RequestOptions {
   multipart?: FormData;
   /** Defaults to true. */
   auth?: boolean;
-  /** Defaults to true. False makes a refusal final, without renewing the sign-in: used
-   *  for the request that replaces the session itself (a password change). */
+  /** Defaults to true. False makes a refusal final, without renewing the sign-in. */
   renew?: boolean;
   /** Logout alone binds its dispatch/replay to the captured logical sign-in.
    *  Undefined keeps the existing policy for other actions; null binds signed-out. */
@@ -73,15 +72,23 @@ export const REQUEST_TIMEOUT_MS = 120_000;
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-/** One request. Distinguishes the failures callers treat differently:
- *  - no response at all (connection dropped, offline, DNS) → `network`;
- *  - no response within REQUEST_TIMEOUT_MS → `timeout`;
+/** A complete answer: the status and headers, and the whole body. */
+interface Received { response: Response; text: string }
+
+/** One request, body included. Distinguishes the failures callers treat differently:
+ *  - no complete answer (connection dropped or refused, offline, DNS, or the body cut off
+ *    part-way) → `network`; a browser reports all of these the same way, so they can't be
+ *    told apart here;
+ *  - no complete answer within REQUEST_TIMEOUT_MS → `timeout`. The deadline covers the
+ *    body too, like Android's 120 s call timeout, and aborting cancels the transfer;
  *  - any HTTP status, including errors → returned for `perform` to classify. */
-async function timedFetch(url: string, init: RequestInit): Promise<Response> {
+async function timedFetch(url: string, init: RequestInit): Promise<Received> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const text = await response.text();
+    return { response, text };
   } catch (cause) {
     if (controller.signal.aborted) throw new ApiError("timeout", "");
     throw new ApiError("network", (cause as Error)?.message ?? "");
@@ -90,17 +97,19 @@ async function timedFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-/** Repeats a read up to CONNECTION_RETRIES times, 1 s, 2 s then 4 s apart, when the
- *  connection dropped. A timeout is not repeated (the server may still be working on
- *  it), and neither is any HTTP answer: a refusal or a validation error would only come
- *  back again. */
-async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean): Promise<Response> {
+/** Android's `safeCall` for reads: after a transport failure or a timeout, up to
+ *  CONNECTION_RETRIES more attempts, RETRY_DELAYS_MS apart (500, 1,000, 1,500 ms). Any
+ *  HTTP answer is final (a refusal or a validation error would only come back again), and
+ *  writes are never repeated automatically. Android also skips connection-refused errors;
+ *  a browser doesn't report them separately, so they are repeated like any other. */
+async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean): Promise<Received> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await timedFetch(url, init);
     } catch (error) {
-      if (!retryable || attempt >= CONNECTION_RETRIES || !(error instanceof ApiError) || error.kind !== "network") throw error;
-      if (import.meta.env?.DEV) console.info(`Connection dropped; retrying (${attempt + 1}/${CONNECTION_RETRIES})`);
+      const transient = error instanceof ApiError && (error.kind === "network" || error.kind === "timeout");
+      if (!retryable || attempt >= CONNECTION_RETRIES || !transient) throw error;
+      if (import.meta.env?.DEV) console.info(`No answer; retrying (${attempt + 1}/${CONNECTION_RETRIES})`);
       await sleep(RETRY_DELAYS_MS[attempt]);
     }
   }
@@ -121,11 +130,11 @@ async function refreshSession(): Promise<RefreshOutcome> {
     const replaced = () => tokenStore.refreshToken !== null && tokenStore.refreshToken !== refresh;
     const superseded = (): RefreshOutcome | null => tokenStore.refreshToken === refresh && tokenStore.owns(owner)
       ? null : replaced() ? "renewed" : "refused";
-    let response: Response;
+    let received: Received;
     try {
       // Only the app version: the backend requires it (422 "The version app field is
       // required." without it) and needs no other device field to renew.
-      response = await fetchWithRetry(buildUrl("auth/refresh"), {
+      received = await fetchWithRetry(buildUrl("auth/refresh"), {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${refresh}`,
@@ -144,9 +153,11 @@ async function refreshSession(): Promise<RefreshOutcome> {
     // as on Android (parity review v4.0, Q1): Connection Problem is only for a server
     // that can't be reached at all. A new sign-in that replaced these tokens meanwhile
     // is used rather than given up.
-    if (!response.ok) return replaced() ? "renewed" : "refused";
+    if (!received.response.ok) return replaced() ? "renewed" : "refused";
     try {
-      const envelope = (await response.json()) as ApiEnvelope<Session>;
+      // A success that doesn't carry a usable session (malformed JSON, no result, missing
+      // tokens) ends the sign-in, as Android does.
+      const envelope = JSON.parse(received.text) as ApiEnvelope<Session>;
       const changed = superseded();
       if (changed) return changed;
       if (!envelope.result?.access_token || !envelope.result.refresh_token) return "refused";
@@ -187,7 +198,7 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
   }
 
   const retryable = isRetryableMethod(options.method);
-  const response = await fetchWithRetry(buildUrl(options.path, options.query), {
+  const { response, text } = await fetchWithRetry(buildUrl(options.path, options.query), {
     method: options.method,
     headers,
     body,
@@ -195,10 +206,8 @@ async function perform<T>(options: RequestOptions): Promise<ApiEnvelope<T>> {
   requireOwner(options);
 
   // Several write endpoints answer 204 (or 200) with an empty body instead of the
-  // envelope. Reading text first also survives an HTML error page from the server.
-  let text = "";
-  try { text = await response.text(); } catch { /* treated as empty */ }
-  requireOwner(options);
+  // envelope. Reading text first also survives an HTML error page from the server. A body
+  // that broke off part-way never gets here: it failed above as a connection error.
   if (response.ok && text.trim() === "") {
     return { result: null, meta: null, message: null, errors: null };
   }
@@ -308,7 +317,7 @@ async function sendEnvelope<T>(options: RequestOptions): Promise<ApiEnvelope<T>>
         // and this request fails now with the connection error. It is not held back and
         // not sent again after Retry (Q2).
         setConnectionProblem(true);
-        throw new ApiError("network", "");
+        throw new RefusedWhileRenewalUnreachableError();
       }
       if (outcome === "renewed") return perform<T>(options);
       // The server answered the renewal with an error: the sign-in has ended, so drop to

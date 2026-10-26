@@ -1,4 +1,4 @@
-import { ApiError } from "./errors";
+import { ApiError, RefusedWhileRenewalUnreachableError } from "./errors";
 import type { FormValue } from "./client";
 
 /** `Idempotency-Key` for the three writes the client named (25 Oct 2026):
@@ -21,7 +21,9 @@ import type { FormValue } from "./client";
  *  a reload or another visit to the screen sends the same key. A confirmed success, or an
  *  answer that proves the request was not carried out, retires it; the next submission,
  *  even with identical text, gets a new key. An uncertain outcome (no answer, timeout,
- *  server error) keeps it: the request is never repeated with a new key on a guess. */
+ *  server error) keeps it, however long it takes: the request is never repeated with a new
+ *  key on a guess. A new submission is only sent once its key is saved (see
+ *  SubmissionStorageError). */
 export type IdempotentOperation = "chat_message" | "issue" | "match_request";
 
 interface PendingRecord {
@@ -39,9 +41,24 @@ interface PendingRecord {
 }
 
 const STORE = "carezaar.pendingSubmissions.v1";
-/** Kept for a day. How long the server keeps a key is undocumented; a key it has forgotten
- *  is reported as expired and reconciled. */
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Unresolved records are kept until their outcome is known, with no age limit. The
+ *  server may forget a key sooner; it then answers `idempotency_expired` and the record is
+ *  reconciled with the server before anything new is sent. */
+
+/* Storage is the record of truth whenever it works, so another tab's records are never
+ * overwritten, dropped or revived. This page keeps three fallbacks for when it fails:
+ * - `unsaved`: records it couldn't save, so a retry here still sends the same key;
+ * - `known`: records it saved, used only while storage can't be read;
+ * - `unretired`: keys it retired but couldn't remove, so they stay retired here (only that
+ *   key: a record another tab saves later under the same scope has a new key and shows). */
+const unsaved = new Map<string, PendingRecord>();
+/** Longer than any write can take: a refused write is sent, its sign-in renewed and the write
+ *  replayed, each with a 120 s deadline (up to 6 minutes). A record older than this has had its
+ *  answer, or lost it, so the screens may retire it once they see it carried out. A younger one
+ *  may still be on its way, in another tab too. */
+export const SETTLED_AFTER_MS = 10 * 60 * 1000;
+const known = new Map<string, PendingRecord>();
+const unretired = new Map<string, string>();
 
 let account: string | null = null;
 /** The signed-in account submissions are scoped to (set by the session). */
@@ -49,18 +66,62 @@ export function setIdempotencyAccount(id: string | null) {
   account = id;
 }
 
-function readAll(): Record<string, PendingRecord> {
+/** The stored records, or null when storage can't be read. Stored text that isn't a record
+ *  list holds no usable key, so it reads (and is then rewritten) as empty. */
+function readStored(): Record<string, PendingRecord> | null {
+  let text: string | null;
   try {
-    const all = JSON.parse(window.localStorage.getItem(STORE) ?? "{}") as Record<string, PendingRecord>;
-    const now = Date.now();
-    return Object.fromEntries(Object.entries(all).filter(([, r]) => r && typeof r.key === "string" && now - r.created < MAX_AGE_MS));
+    text = window.localStorage.getItem(STORE);
+  } catch {
+    return null;
+  }
+  try {
+    const all = JSON.parse(text ?? "{}") as Record<string, PendingRecord> | null;
+    if (!all || typeof all !== "object" || Array.isArray(all)) return {};
+    return Object.fromEntries(Object.entries(all).filter(([, r]) => r && typeof r.key === "string"));
   } catch {
     return {};
   }
 }
 
-function writeAll(all: Record<string, PendingRecord>) {
-  try { window.localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* storage unavailable: kept for this page only */ }
+function readAll(): Record<string, PendingRecord> {
+  const all = readStored() ?? Object.fromEntries(known);
+  for (const [scope, record] of unsaved) all[scope] = record;
+  for (const [scope, key] of unretired) if (all[scope]?.key === key) delete all[scope];
+  return all;
+}
+
+/** Saves or removes one scope against a fresh read, leaving every other record as stored.
+ *  True only when storage holds the change afterwards. */
+function writeScope(scope: string, record: PendingRecord | null): boolean {
+  const stored = readStored();
+  if (!stored) return false;
+  if (record) stored[scope] = record;
+  else delete stored[scope];
+  try {
+    const text = JSON.stringify(stored);
+    window.localStorage.setItem(STORE, text);
+    return window.localStorage.getItem(STORE) === text;
+  } catch {
+    return false;
+  }
+}
+
+function saveScope(scope: string, record: PendingRecord): boolean {
+  if (writeScope(scope, record)) {
+    unretired.delete(scope);
+    unsaved.delete(scope);
+    known.set(scope, record);
+    return true;
+  }
+  unsaved.set(scope, record);
+  return false;
+}
+
+function retireScope(scope: string, key: string) {
+  unsaved.delete(scope);
+  known.delete(scope);
+  if (!writeScope(scope, null)) unretired.set(scope, key);
 }
 
 /** A stable short hash (cyrb53) of the request data. */
@@ -96,11 +157,21 @@ export function pendingSubmissions(operation: IdempotentOperation, target: strin
 /** Retires every unresolved submission of the signed-in account for one operation and
  *  target, once the resource shows how it ended (e.g. the profile shows the request sent). */
 export function retireSubmissions(operation: IdempotentOperation, target: string) {
-  const all = readAll();
-  for (const [scope, r] of Object.entries(all)) {
-    if (r.account === (account ?? "signed-out") && r.operation === operation && r.target === target) delete all[scope];
+  retireCarriedOut(operation, target, () => true);
+}
+
+/** Retires the signed-in account's unresolved submissions for one operation and target that
+ *  the server already shows as carried out (e.g. the message is in the loaded conversation),
+ *  so a later submission with the same words isn't taken for them. Returns how many. */
+export function retireCarriedOut(operation: IdempotentOperation, target: string, carriedOut: (record: PendingRecord) => boolean): number {
+  let retired = 0;
+  for (const [scope, r] of Object.entries(readAll())) {
+    if (r.account === (account ?? "signed-out") && r.operation === operation && r.target === target && carriedOut(r)) {
+      retireScope(scope, r.key);
+      retired++;
+    }
   }
-  writeAll(all);
+  return retired;
 }
 
 export class IdempotencyConflictError extends Error {
@@ -110,12 +181,18 @@ export class IdempotencyConflictError extends Error {
 export class SubmissionNotCarriedOutError extends Error {
   constructor() { super("idempotency_expired_not_found"); this.name = "SubmissionNotCarriedOutError"; }
 }
+/** A new submission's key couldn't be saved in browser storage, so nothing was sent: after
+ *  a lost answer and a reload, it could otherwise only be sent again with a new key. */
+export class SubmissionStorageError extends Error {
+  constructor() { super("pending_submission_not_saved"); this.name = "SubmissionStorageError"; }
+}
 
 const codeOf = (error: unknown) => error instanceof ApiError ? (error.meta?.code as string | undefined) : undefined;
 
 /** True when the answer proves the request was not carried out (or was refused for good),
  *  so its key can be retired. No answer, a timeout or a server error is uncertain. */
 export function isDefinitive(error: unknown): boolean {
+  if (error instanceof RefusedWhileRenewalUnreachableError) return true;
   if (!(error instanceof ApiError)) return false;
   if (error.status === 409) return codeOf(error) === "idempotency_conflict";
   return error.kind === "validation" || error.kind === "forbidden" || error.kind === "notFound"
@@ -141,14 +218,19 @@ export interface Submission<T> {
 export async function submitIdempotent<T>(submission: Submission<T>): Promise<T> {
   const scope = scopeOf(submission.operation, submission.target, submission.form);
   const all = readAll();
-  const record: PendingRecord = all[scope] ?? {
+  const existing = all[scope];
+  const record: PendingRecord = existing ?? {
     key: uuid(), created: Date.now(), account: account ?? "signed-out",
     operation: submission.operation, target: submission.target, draft: submission.draft, after: submission.after,
     context: submission.context,
   };
-  all[scope] = record;
-  writeAll(all);
-  const retire = () => { const now = readAll(); delete now[scope]; writeAll(now); };
+  if (!saveScope(scope, record) && !existing) {
+    // Not kept beyond this page: nothing is sent. (A retry of an existing record goes ahead:
+    // it is already saved, or this page holds its key.)
+    unsaved.delete(scope);
+    throw new SubmissionStorageError();
+  }
+  const retire = () => retireScope(scope, record.key);
   try {
     const result = await submission.send(record.key);
     retire();
@@ -176,5 +258,8 @@ export async function submitIdempotent<T>(submission: Submission<T>): Promise<T>
 
 /** Test hook. */
 export function clearPendingSubmissions() {
-  writeAll({});
+  unsaved.clear();
+  known.clear();
+  unretired.clear();
+  try { window.localStorage.setItem(STORE, "{}"); } catch { /* nothing stored */ }
 }

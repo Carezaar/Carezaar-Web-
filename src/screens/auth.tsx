@@ -5,7 +5,7 @@ import { ApiError } from "../api/errors";
 import { authService, userService } from "../api/services";
 import type { UserRole } from "../api/types";
 import {
-  OTP_LENGTH, isPasswordValid, passwordRules, signUpErrors, validateEmail, type SignUpErrors,
+  OTP_LENGTH, canSubmitPasswordReset, passwordRules, signUpErrors, validateEmail, type SignUpErrors,
 } from "../validation/validation";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData, TABLE_LABELS } from "../app/baseData";
@@ -667,7 +667,9 @@ export function SetupPasswordScreen() {
   }, [signUp.email, signUp.isPasswordRecovery, navigate]);
 
   const rules = passwordRules(password);
-  const valid = code.length === OTP_LENGTH && isPasswordValid(password) && password === confirmation;
+  // As on Android: a five-digit code and two nonblank, identical passwords. Strength is the
+  // API's to judge, and its answer is shown.
+  const valid = canSubmitPasswordReset(code, password, confirmation);
   const resetting = useGuarded("auth:password-reset");
   const resendingCode = useGuarded("auth:otp-send");
 

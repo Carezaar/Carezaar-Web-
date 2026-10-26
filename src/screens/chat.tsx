@@ -10,7 +10,7 @@ import { isDeletedAccount, personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, EmptyState, ErrorState, SkeletonChat } from "../ui/kit";
 import { DuplicateActionError, guarded, isGuarded, useGuarded } from "../app/actionGuard";
-import { pendingSubmissions } from "../api/idempotency";
+import { SETTLED_AFTER_MS, isDefinitive, pendingSubmissions, retireCarriedOut } from "../api/idempotency";
 import { Icon } from "../ui/Icon";
 import { useIsDesktop } from "../ui/frames";
 import { CHATS_CHANGED, MessagesDesktop } from "./main";
@@ -149,6 +149,20 @@ export function ChatScreen() {
   const mine = (m: ChatMessage) => (role === "caregiver" ? m.is_from_caregiver : !m.is_from_caregiver);
   const composerUnavailable = !chat || Boolean(error);
 
+  // A message whose answer was lost but which the conversation now shows went through: its
+  // pending key is retired, so a later message with the same words gets a key of its own.
+  // Not while a send is on its way or a "may not have been sent" draft is in the box (Send
+  // settles that one with its own key), and only for records older than any request can
+  // last, so a send still on its way in another tab keeps its key.
+  useEffect(() => {
+    if (!chat || unconfirmed || isGuarded(sendKey)) return;
+    const settled = Date.now() - SETTLED_AFTER_MS;
+    retireCarriedOut("chat_message", String(chatId), (r) => r.created < settled
+      && chat.messages.some((m) => m.id > (r.after ?? 0) && m.message === r.draft && mine(m)
+        && (m.parent?.id ?? null) === (r.context?.parent ?? null)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- each time the conversation changes
+  }, [chat]);
+
   // After a reload or another visit: a message whose send got no answer comes back into the
   // box (with what it replied to), so Send repeats that same submission, not a new one.
   useEffect(() => {
@@ -185,6 +199,9 @@ export function ChatScreen() {
       window.dispatchEvent(new Event(CHATS_CHANGED));
     } catch (e) {
       if (scope.current !== owner || e instanceof DuplicateActionError) return;
+      // No answer, or one that doesn't settle it, so the submission is still pending: the text
+      // stays as "may not have been sent", and Send repeats it with the same key.
+      if (!isDefinitive(e) && pendingSubmissions("chat_message", String(chatId)).some((r) => r.draft === text)) setUnconfirmed(true);
       toast(chatMessage(e));
     }
   };

@@ -58,3 +58,13 @@ export class ApiError extends Error {
 function defaultMessage(kind: ApiErrorKind): string {
   return `API error: ${kind}`;
 }
+
+/** The server refused the request (so it wasn't carried out), and the sign-in couldn't be
+ *  renewed because the server couldn't be reached. Shown as a connection error, but callers
+ *  know nothing was done: it isn't an uncertain outcome to check up on. */
+export class RefusedWhileRenewalUnreachableError extends ApiError {
+  constructor() {
+    super("network", "");
+    this.name = "RefusedWhileRenewalUnreachableError";
+  }
+}

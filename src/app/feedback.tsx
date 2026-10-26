@@ -2,6 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from "react";
 import { ApiError } from "../api/errors";
+import { SubmissionStorageError } from "../api/idempotency";
 import { Icon } from "../ui/Icon";
 import { DuplicateActionError, guarded } from "./actionGuard";
 import { useI18n } from "./i18n";
@@ -47,6 +48,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const messageOf = useCallback((error: unknown) => {
     const general = t("general_error_general", "Something went wrong. Please try again.");
     if (error instanceof DuplicateActionError) return "";
+    // The browser refused to save the request, so it wasn't sent. No managed text exists for
+    // this yet; the key lets one be added without a code change.
+    if (error instanceof SubmissionStorageError) {
+      return t("general_error_storage", "This wasn't sent because your browser couldn't save it. Allow this site to store data (or free up space), then try again.");
+    }
     if (error instanceof ApiError) {
       if (import.meta.env?.DEV) console.info(`API error (${error.kind}, ${error.status})`);
       switch (error.kind) {

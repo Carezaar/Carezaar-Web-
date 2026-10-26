@@ -39,5 +39,6 @@ test("the other rules are unchanged", () => {
   assert.deepEqual(failing("Ab1!@#$%"), [], "several allowed symbols");
   assert.deepEqual(failing("Abcdefg1~"), ["1_special_symbol"], "an unsupported symbol");
   assert.deepEqual(failing("abc~"), ["8_letters", "1_uppercase", "1_number", "1_special_symbol"], "fails several rules");
-  assert.deepEqual(failing(""), ["8_letters", "1_lowercase", "1_uppercase", "1_number", "1_special_symbol"]);
+  // Android's order (Technical Alignment, 26 Oct 2026): length, uppercase, lowercase, number, special.
+  assert.deepEqual(failing(""), ["8_letters", "1_uppercase", "1_lowercase", "1_number", "1_special_symbol"]);
 });

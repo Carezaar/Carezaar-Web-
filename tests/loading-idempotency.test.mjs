@@ -29,6 +29,8 @@ globalThis.fetch = async (url, init) => {
 const guard = await import("../src/app/actionGuard.ts");
 const idem = await import("../src/api/idempotency.ts");
 const { ApiError } = await import("../src/api/errors.ts");
+/** A clean slate between tests: storage and the page's own copy of pending records. */
+const resetPending = () => { store.clear(); idem.clearPendingSubmissions(); store.clear(); };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 
@@ -87,7 +89,7 @@ const submit = (form, send, extra = {}) => idem.submitIdempotent({ operation: "c
 const network = () => new ApiError("network", "");
 
 test("one UUID per submission, the same key again after an uncertain failure, a new one after success", async () => {
-  store.clear(); idem.setIdempotencyAccount("user-a");
+  resetPending(); idem.setIdempotencyAccount("user-a");
   const keys = [];
   await assert.rejects(submit({ message: "Hello", parent_id: null }, async (k) => { keys.push(k); throw network(); }));
   await assert.rejects(submit({ message: "Hello", parent_id: null }, async (k) => { keys.push(k); throw new ApiError("timeout", ""); }));
@@ -102,7 +104,7 @@ test("one UUID per submission, the same key again after an uncertain failure, a 
 });
 
 test("different data, another account or another target never reuse a key", async () => {
-  store.clear(); idem.setIdempotencyAccount("user-a");
+  resetPending(); idem.setIdempotencyAccount("user-a");
   const keyFor = async (form, target = "7") => { let key; await assert.rejects(idem.submitIdempotent({ operation: "chat_message", target, form, send: async (k) => { key = k; throw network(); } })); return key; };
   const a = await keyFor({ message: "Hello", parent_id: null });
   assert.notEqual(await keyFor({ message: "Hello!", parent_id: null }), a);
@@ -115,7 +117,7 @@ test("different data, another account or another target never reuse a key", asyn
 });
 
 test("an unfinished key survives a restart (persisted), and the draft is kept to offer again", async () => {
-  store.clear(); idem.setIdempotencyAccount("user-a");
+  resetPending(); idem.setIdempotencyAccount("user-a");
   let first;
   await assert.rejects(submit({ message: "Are you free?", parent_id: 3 }, async (k) => { first = k; throw network(); }, { draft: "Are you free?", context: { parent: 3 } }));
   const fresh = await import("../src/api/idempotency.ts?restart");
@@ -130,7 +132,7 @@ test("an unfinished key survives a restart (persisted), and the draft is kept to
 });
 
 test("a refusal that proves nothing was done retires the key; a server error keeps it", async () => {
-  store.clear(); idem.setIdempotencyAccount("user-a");
+  resetPending(); idem.setIdempotencyAccount("user-a");
   await assert.rejects(submit({ message: "x", parent_id: null }, async () => { throw new ApiError("validation", "too long", 422, { message: ["too long"] }); }));
   assert.equal(idem.pendingSubmissions("chat_message", "7").length, 0);
   await assert.rejects(submit({ message: "y", parent_id: null }, async () => { throw new ApiError("server", "", 500); }));
@@ -138,7 +140,7 @@ test("a refusal that proves nothing was done retires the key; a server error kee
 });
 
 test("409 idempotency_conflict: not resent, not silently resent with a new key", async () => {
-  store.clear(); idem.setIdempotencyAccount("user-a");
+  resetPending(); idem.setIdempotencyAccount("user-a");
   let sends = 0;
   await assert.rejects(submit({ message: "x", parent_id: null }, async () => {
     sends++; throw new ApiError("unknown", "This key was already used for a different request.", 409, {}, { code: "idempotency_conflict" });
@@ -148,7 +150,7 @@ test("409 idempotency_conflict: not resent, not silently resent with a new key",
 });
 
 test("409 idempotency_expired: reconciled with the server before anything is sent again", async () => {
-  store.clear(); idem.setIdempotencyAccount("user-a");
+  resetPending(); idem.setIdempotencyAccount("user-a");
   const expired = () => { throw new ApiError("unknown", "", 409, {}, { code: "idempotency_expired" }); };
   let sends = 0;
   // Found on the server: the earlier attempt went through; its result is used.
@@ -165,7 +167,7 @@ test("409 idempotency_expired: reconciled with the server before anything is sen
 /* ------------------------------------------------- through the API client */
 
 test("an issue filed before the list has loaded reads it first, so an expired key is never matched to an older identical issue", async () => {
-  store.clear(); calls.length = 0;
+  resetPending(); calls.length = 0;
   idem.setIdempotencyAccount("user-a");
   store.set("carezaar.accessToken", "access"); store.set("carezaar.refreshToken", "refresh"); store.set("carezaar.sessionOwner", "owner-1");
   const { userService } = await import("../src/api/services.ts");
@@ -193,7 +195,7 @@ test("an issue filed before the list has loaded reads it first, so an expired ke
 });
 
 test("the three writes send Idempotency-Key, and a renewed sign-in resends the same key", async () => {
-  store.clear(); calls.length = 0;
+  resetPending(); calls.length = 0;
   idem.setIdempotencyAccount("user-a");
   store.set("carezaar.accessToken", "old-access"); store.set("carezaar.refreshToken", "refresh-1"); store.set("carezaar.sessionOwner", "owner-1");
   const { userService } = await import("../src/api/services.ts");

@@ -126,10 +126,11 @@ export const userService = {
   },
   /** Served by the backend since 2026-10-01 (404 before). See `resetPassword`. */
   /** The server ends every session of the account once this succeeds, this one too.
-   *  A refusal here is final (no renewal): the session is being replaced. */
+   *  A refused request is renewed and sent once more, like every other signed-in request
+   *  (as on Android): a refused request wasn't carried out, so this can't change it twice. */
   changePassword(oldPassword: string, newPassword: string) {
     return api.sendIgnoringResult({
-      method: "PATCH", path: "users/password/change", renew: false,
+      method: "PATCH", path: "users/password/change",
       form: { old_password: oldPassword, new_password: newPassword },
     });
   },
@@ -313,6 +314,7 @@ export const userService = {
     const baseline = after ?? Math.max(0, ...(await userService.issues()).map((i) => i.id));
     return submitIdempotent({
       operation: "issue", target: "issues", form, draft: input.description, after: baseline,
+      context: { title: input.title, issuetype: input.issuetypeId },
       send: (key) => api.send<Issue>({ method: "POST", path: "users/issues", form, idempotencyKey: key }),
       reconcile: async (record) => {
         const all = await userService.issues();

@@ -43,8 +43,11 @@ async function scenario({ transition, responseKind, holdBody = false, originalRe
         refreshSeen.resolve();
         if (holdBody) {
           const response = new Response(new ReadableStream({ start(controller) { streamController = controller; } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-          const realJSON = response.json.bind(response);
+          // The client reads the body as text (within the request deadline); either reader marks
+          // the moment the body starts to be read.
+          const realJSON = response.json.bind(response), realText = response.text.bind(response);
           response.json = () => { bodySeen.resolve(); return realJSON(); };
+          response.text = () => { bodySeen.resolve(); return realText(); };
           return response;
         }
         return header.promise;

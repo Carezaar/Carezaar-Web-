@@ -2,7 +2,7 @@ import { asStored } from "../app/serverTime";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
-import { ApiError } from "../api/errors";
+import { ApiError, RefusedWhileRenewalUnreachableError } from "../api/errors";
 import { authService, caregiverService, clientService, userService } from "../api/services";
 import type { AppNotification, Faq, FaqCategory, Issue, User } from "../api/types";
 import { useSession } from "../auth/SessionContext";
@@ -11,10 +11,11 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
-import { isPasswordValid, passwordRules, required } from "../validation/validation";
+import { CHANGE_PASSWORD_SPECIAL_CHARACTERS, canSubmitPasswordChange, passwordRules, required } from "../validation/validation";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, Button, cardLink, Checkbox, Dialog, EmptyState, ErrorState, Field, InfiniteSentinel, InlineProgress, SkeletonList, TextArea, TextField } from "../ui/kit";
-import { DuplicateActionError, useGuarded } from "../app/actionGuard";
+import { DuplicateActionError, isGuarded, useGuarded } from "../app/actionGuard";
+import { SETTLED_AFTER_MS, retireCarriedOut } from "../api/idempotency";
 import { Icon } from "../ui/Icon";
 import { sanitizeHtml } from "../ui/sanitize";
 import { RuleChips } from "../ui/RuleChips";
@@ -257,7 +258,17 @@ export function ReportIssueScreen() {
 
   const load = () => {
     setError(null);
-    userService.issues().then(setIssues).catch(setError);
+    userService.issues().then((all) => {
+      // An issue whose answer was lost but which the list already shows went through: its
+      // pending key is retired, so a later issue with the same words gets a key of its own.
+      // (Not while one is being filed: that submission settles its own key.)
+      if (!isGuarded("issue:create")) {
+        const settled = Date.now() - SETTLED_AFTER_MS;
+        retireCarriedOut("issue", "issues", (r) => r.created < settled && all.some((i) => i.id > (r.after ?? 0) && i.description === r.draft
+          && (r.context?.issuetype != null ? i.issuetype_id === r.context.issuetype : r.context?.title != null && i.title === r.context.title)));
+      }
+      setIssues(all);
+    }).catch(setError);
   };
   // Loaded once on mount (load uses only stable setters and the service).
   useEffect(load, []);
@@ -376,7 +387,9 @@ export function ChangePasswordScreen() {
   const [confirmation, setConfirmation] = useState("");
   const [confirming, setConfirming] = useState(false);
   const changing = useGuarded("auth:password");
-  const valid = current !== "" && isPasswordValid(next) && next === confirmation;
+  // As on Android: all three fields nonblank and the new passwords identical. Strength is the
+  // API's to judge, and its answer is shown.
+  const valid = canSubmitPasswordChange(current, next, confirmation);
   const submit = async () => {
     setConfirming(false);
     const email = user?.email;
@@ -390,7 +403,9 @@ export function ChangePasswordScreen() {
           await userService.changePassword(current, next);
         } catch (e) {
           // No answer: the change may have gone through. It is not sent again; signing in
-          // with the new password (a check, not a repeat) shows whether it did.
+          // with the new password (a check, not a repeat) shows whether it did. A refusal
+          // (renewal unreachable) is certain: nothing changed, so there's nothing to check.
+          if (e instanceof RefusedWhileRenewalUnreachableError) throw e;
           if (!(e instanceof ApiError && (e.kind === "network" || e.kind === "timeout"))) throw e;
           try { await authService.login(email, next); } catch { throw e; }
         }
@@ -413,7 +428,7 @@ export function ChangePasswordScreen() {
         <TextField label={t("settings_change_password_new_password", "New Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)}
           placeholder={t("settings_change_password_new_password_placeholder", "Enter your new password...")} />
-        <RuleChips rules={passwordRules(next)} />
+        <RuleChips rules={passwordRules(next, CHANGE_PASSWORD_SPECIAL_CHARACTERS)} />
         <TextField label={t("settings_change_password_confirm_password", "Confirm Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)}
           error={confirmation && confirmation !== next ? t("signup_credentials_password_match", "Passwords do not match.") : null}

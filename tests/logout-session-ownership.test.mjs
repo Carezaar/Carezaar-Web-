@@ -63,7 +63,7 @@ async function scenario({ legacy = false, initialEmpty = false, hold = null, ans
         counts.refresh++;
         if (hold === 'refresh-body') {
           const response = new Response(new ReadableStream({ start(controller) { bodyController = controller; } }), { status: 200, headers: { 'content-type': 'application/json' } });
-          const realJSON = response.json.bind(response); response.json = () => { started.resolve(); return realJSON(); }; return response;
+          const realJSON = response.json.bind(response), realText = response.text.bind(response); response.json = () => { started.resolve(); return realJSON(); }; response.text = () => { started.resolve(); return realText(); }; return response;
         }
         if (hold === 'refresh') { started.resolve(); return release.promise; }
         return json(renewed);

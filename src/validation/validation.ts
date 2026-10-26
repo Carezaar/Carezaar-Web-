@@ -17,23 +17,41 @@ export const PASSWORD_MIN_LENGTH = 8;
  *  against this list rather than through a regex class, so no symbol can be read as
  *  regex syntax. */
 export const PASSWORD_SPECIAL_CHARACTERS = "!@#$%^&*()_+[]{}|-;:,.<>?";
+/** Android's Change Password checklist tests a smaller set (`.*[!@#%^&*()?].*`); that
+ *  screen's chips use it. Its button doesn't depend on the chips: the API decides. */
+export const CHANGE_PASSWORD_SPECIAL_CHARACTERS = "!@#%^&*()?";
 
-export function hasSpecialCharacter(password: string): boolean {
-  return [...password].some((c) => PASSWORD_SPECIAL_CHARACTERS.includes(c));
+/** Android tests each rule with Java's `Pattern.matches(".*[class].*")`. Java's `.` stops at
+ *  line terminators, so a password containing one fails every character rule there. */
+const JAVA_LINE_TERMINATORS = /[\n\r\u0085\u2028\u2029]/;
+
+/** Whether some UTF-16 unit of the password passes `test`, the way Android's pattern does. */
+function javaContains(password: string, test: (unit: string) => boolean): boolean {
+  if (JAVA_LINE_TERMINATORS.test(password)) return false;
+  for (let i = 0; i < password.length; i++) if (test(password[i])) return true;
+  return false;
 }
 
-export function passwordRules(password: string): PasswordRule[] {
+export function hasSpecialCharacter(password: string, set = PASSWORD_SPECIAL_CHARACTERS): boolean {
+  return javaContains(password, (c) => set.includes(c));
+}
+
+/** In Android's order (its checklist and its error toasts): length, uppercase, lowercase,
+ *  number, special. Length counts UTF-16 units (Kotlin `String.length`); letters and digits
+ *  are ASCII only, as in Android's `[A-Z]`, `[a-z]` and `[0-9]`. */
+export function passwordRules(password: string, special = PASSWORD_SPECIAL_CHARACTERS): PasswordRule[] {
   return [
     { id: "8_letters", label: "At least 8 characters", satisfied: password.length >= PASSWORD_MIN_LENGTH },
-    { id: "1_lowercase", label: "At least 1 lowercase letter", satisfied: /[a-z]/.test(password) },
-    { id: "1_uppercase", label: "At least 1 uppercase letter", satisfied: /[A-Z]/.test(password) },
-    { id: "1_number", label: "At least 1 number", satisfied: /[0-9]/.test(password) },
-    {
-      id: "1_special_symbol",
-      label: "At least 1 special symbol",
-      satisfied: hasSpecialCharacter(password),
-    },
+    { id: "1_uppercase", label: "At least 1 uppercase letter", satisfied: javaContains(password, (c) => c >= "A" && c <= "Z") },
+    { id: "1_lowercase", label: "At least 1 lowercase letter", satisfied: javaContains(password, (c) => c >= "a" && c <= "z") },
+    { id: "1_number", label: "At least 1 number", satisfied: javaContains(password, (c) => c >= "0" && c <= "9") },
+    { id: "1_special_symbol", label: "At least 1 special symbol", satisfied: hasSpecialCharacter(password, special) },
   ];
+}
+
+/** The first rule the password doesn't meet, in Android's order, or null. */
+export function firstUnmetPasswordRule(password: string): PasswordRule | null {
+  return passwordRules(password).find((rule) => !rule.satisfied) ?? null;
 }
 
 export function isPasswordValid(password: string): boolean {
@@ -63,6 +81,27 @@ export function validateConfirmation(password: string, confirmation: string): st
 /** The OTP is 5 digits ("Kindly enter the 5-digit OTP that we sent to your email."). */
 export const OTP_LENGTH = 5;
 
+/** Exactly five ASCII digits. */
+export const isFiveDigitCode = (code: string) => /^[0-9]{5}$/.test(code);
+
+/** Kotlin's `isBlank`: empty, or only characters Kotlin's `Char.isWhitespace` accepts — Java
+ *  `isWhitespace` or `isSpaceChar`: space, line and paragraph separators (Zs, Zl, Zp, no-break
+ *  spaces included), tab, line feed, vertical tab, form feed, carriage return and U+001C-U+001F. */
+export const isBlank = (value: string) => [...value].every((c) => {
+  const code = c.codePointAt(0)!;
+  return /\p{Zs}|\p{Zl}|\p{Zp}/u.test(c) || (code >= 0x09 && code <= 0x0d) || (code >= 0x1c && code <= 0x1f);
+});
+
+/** Set Up Password (reset) can be submitted, as on Android: a five-digit code and two
+ *  nonblank, identical passwords. Password strength is the API's to judge. */
+export const canSubmitPasswordReset = (code: string, password: string, confirmation: string) =>
+  isFiveDigitCode(code) && !isBlank(password) && !isBlank(confirmation) && password === confirmation;
+
+/** Change Password's confirmation, as on Android: all three fields nonblank and the new
+ *  passwords identical. Password strength is the API's to judge. */
+export const canSubmitPasswordChange = (current: string, next: string, confirmation: string) =>
+  !isBlank(current) && !isBlank(next) && !isBlank(confirmation) && next === confirmation;
+
 export interface SignUpFields { email: string; password: string; confirmation: string; accepted: boolean }
 export interface SignUpErrors { email?: string; password?: string; confirmation?: string; accepted?: string }
 
@@ -73,7 +112,7 @@ export interface SignUpErrors { email?: string; password?: string; confirmation?
 export function signUpErrors(f: SignUpFields, t: (slug: string, fallback: string) => string): SignUpErrors {
   const required = t("general_required", "This field is required.");
   const email = f.email.trim();
-  const unmet = passwordRules(f.password).find((r) => !r.satisfied);
+  const unmet = firstUnmetPasswordRule(f.password);
   return {
     email: email === "" ? required
       : validateEmail(email) ? t("signup_credentials_email_invalid", "Please enter a valid email address.") : undefined,
