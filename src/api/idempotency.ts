@@ -10,8 +10,10 @@ import type { FormValue } from "./client";
  *  - the same key and the same request again → the first answer, replayed
  *    (`Idempotency-Replayed: true`), nothing created twice, also for two at once;
  *  - the same key with different data → 409, `meta.code = "idempotency_conflict"`;
- *  - keys are per account (another account's identical key is its own request);
- *  - an expired key → 409, `meta.code = "idempotency_expired"`.
+ *  - keys are per account (another account's identical key is its own request).
+ *  Not verified on the server: how long a key is kept (undocumented; still replayed after
+ *  more than 5 hours on 26 Oct 2026) and the expired answer, taken from the client's
+ *  description as 409 with `meta.code = "idempotency_expired"`.
  *
  *  One key per logical submission: it is created when the submission begins and kept
  *  (in localStorage, scoped by account, operation, target and a hash of the data) until
@@ -37,7 +39,8 @@ interface PendingRecord {
 }
 
 const STORE = "carezaar.pendingSubmissions.v1";
-/** Kept for a day; the server forgets keys sooner, which it reports as expired. */
+/** Kept for a day. How long the server keeps a key is undocumented; a key it has forgotten
+ *  is reported as expired and reconciled. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 let account: string | null = null;

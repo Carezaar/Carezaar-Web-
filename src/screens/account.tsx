@@ -269,7 +269,7 @@ export function ReportIssueScreen() {
     try {
       const created = await act("issue:create", () => userService.createIssue({
         issuetypeId: type === "other" ? null : type, title: type === "other" ? subject.trim() : null, description: description.trim(),
-      }, Math.max(0, ...(issues ?? []).map((i) => i.id))));
+      }, issues ? Math.max(0, ...issues.map((i) => i.id)) : undefined));
       // The server's answer is the issue as filed: shown at once, not after another load,
       // so a later failed refresh can't make it look unsent.
       setIssues((all) => [created, ...(all ?? []).filter((i) => i.id !== created.id)]);

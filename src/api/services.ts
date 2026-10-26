@@ -303,13 +303,16 @@ export const userService = {
   /** A predefined issue type and a free-text title are mutually exclusive: the
    *  backend rejects both together ("issuetype id … prohibits title"). The form's
    *  "Other" choice sends a title; any other choice sends the type. */
-  /** `after`: the newest issue id the person had, for reconciling an expired key. */
-  createIssue(input: { issuetypeId: number | null; title: string | null; description: string }, after?: number) {
+  /** `after`: the newest issue id the person had, for reconciling an expired key; left out
+   *  when the screen's list hasn't loaded, and then read here before anything is sent, so an
+   *  older issue with the same words is never taken for this one. */
+  async createIssue(input: { issuetypeId: number | null; title: string | null; description: string }, after?: number) {
     const form = input.issuetypeId !== null
       ? { issuetype_id: input.issuetypeId, description: input.description }
       : { title: input.title, description: input.description };
+    const baseline = after ?? Math.max(0, ...(await userService.issues()).map((i) => i.id));
     return submitIdempotent({
-      operation: "issue", target: "issues", form, draft: input.description, after,
+      operation: "issue", target: "issues", form, draft: input.description, after: baseline,
       send: (key) => api.send<Issue>({ method: "POST", path: "users/issues", form, idempotencyKey: key }),
       reconcile: async (record) => {
         const all = await userService.issues();

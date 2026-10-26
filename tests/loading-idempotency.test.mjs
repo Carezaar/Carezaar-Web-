@@ -164,6 +164,34 @@ test("409 idempotency_expired: reconciled with the server before anything is sen
 
 /* ------------------------------------------------- through the API client */
 
+test("an issue filed before the list has loaded reads it first, so an expired key is never matched to an older identical issue", async () => {
+  store.clear(); calls.length = 0;
+  idem.setIdempotencyAccount("user-a");
+  store.set("carezaar.accessToken", "access"); store.set("carezaar.refreshToken", "refresh"); store.set("carezaar.sessionOwner", "owner-1");
+  const { userService } = await import("../src/api/services.ts");
+  const issue = (id) => ({ id, issuetype_id: null, title: "Login", description: "Same words", reply: null, created_at: null, replied_at: null, is_replied: false });
+  const older = issue(7); // filed earlier with the same words
+  let listed = [older];
+  respond = (url, init) => {
+    if (init.method === "GET") return new Response(JSON.stringify({ result: listed }), { status: 200 });
+    return new Response(JSON.stringify({ result: null, meta: { code: "idempotency_expired" }, message: "Expired" }), { status: 409 });
+  };
+  // No baseline from the screen (its list hasn't loaded): the service reads the list before sending.
+  await assert.rejects(userService.createIssue({ issuetypeId: null, title: "Login", description: "Same words" }), idem.SubmissionNotCarriedOutError,
+    "the older identical issue is not taken for this one");
+  assert.deepEqual(calls.map((c) => c.method), ["GET", "POST", "GET"], "list read before anything was sent; then the expired key was reconciled");
+  // Reconciliation still finds the earlier attempt when it did go through.
+  calls.length = 0; listed = [older];
+  const sent = userService.createIssue({ issuetypeId: null, title: "Login", description: "Same words" });
+  listed = [issue(8), older];
+  assert.equal((await sent).id, 8);
+  // The list can't be read: nothing is sent.
+  calls.length = 0; store.delete("carezaar.pendingSubmissions.v1");
+  respond = () => { throw new TypeError("Failed to fetch"); };
+  await assert.rejects(userService.createIssue({ issuetypeId: null, title: "Login", description: "Other words" }));
+  assert.equal(calls.filter((c) => c.method === "POST").length, 0, "no issue sent without a baseline");
+});
+
 test("the three writes send Idempotency-Key, and a renewed sign-in resends the same key", async () => {
   store.clear(); calls.length = 0;
   idem.setIdempotencyAccount("user-a");
@@ -175,6 +203,7 @@ test("the three writes send Idempotency-Key, and a renewed sign-in resends the s
     if (url.endsWith("auth/refresh")) return new Response(JSON.stringify({ result: { access_token: "new-access", refresh_token: "refresh-2" } }), { status: 200 });
     if (!refused) { refused = true; return new Response(JSON.stringify({ message: "Token is invalid!" }), { status: 403 }); }
     if (url.includes("users/chats")) return new Response(JSON.stringify({ result: chat }), { status: 200 });
+    if (url.includes("users/issues") && init.method === "GET") return new Response(JSON.stringify({ result: [] }), { status: 200 });
     if (url.includes("users/issues")) return new Response(JSON.stringify({ result: { id: 9, issuetype_id: null, title: "t", description: "d", reply: null, created_at: null, replied_at: null, is_replied: false } }), { status: 200 });
     return new Response(JSON.stringify({ result: { id: 3, client: null, caregiver: null, review_client: null, review_caregiver: null, created_at: null, finished_at: null, is_client_accepted: false, is_caregiver_accepted: true, is_active: false } }), { status: 200 });
   };
