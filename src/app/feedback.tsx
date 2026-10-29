@@ -23,7 +23,12 @@ interface FeedbackValue {
 const FeedbackContext = createContext<FeedbackValue | null>(null);
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
-  const { t } = useI18n();
+  const { t: currentT } = useI18n();
+  // Messages are worded when shown, in the current language. Read through a ref so that
+  // translations arriving after the app opened don't change `messageOf`, which screens list
+  // among their load dependencies (they would ask the server again).
+  const tRef = useRef(currentT);
+  tRef.current = currentT;
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const counter = useRef(0);
   const toastTimers = useRef(new Map<string, { id: number; timer: number }>());
@@ -46,6 +51,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   // (400/422, e.g. "Invalid Credentials!" or a field rule) keeps the server's message,
   // because it says what to fix; technical text there gets the general message too.
   const messageOf = useCallback((error: unknown) => {
+    const t = tRef.current;
     const general = t("general_error_general", "Something went wrong. Please try again.");
     if (error instanceof DuplicateActionError) return "";
     // The browser refused to save the request, so it wasn't sent. No managed text exists for
@@ -74,7 +80,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       }
     }
     return general;
-  }, [t]);
+  }, []);
 
   const toast = useCallback((message: string) => {
     if (!mounted.current || !message) return;

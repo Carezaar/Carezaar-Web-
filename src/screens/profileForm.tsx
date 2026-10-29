@@ -5,12 +5,13 @@ import { ApiError } from "../api/errors";
 import { userService } from "../api/services";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData } from "../app/baseData";
+import { BaseListsGate } from "../ui/BaseListsGate";
 import { useFeedback } from "../app/feedback";
 import { useGuarded } from "../app/actionGuard";
 import { useI18n } from "../app/i18n";
 import { useSignUp } from "../app/signup";
 import { BackHeader, Page } from "../ui/layout";
-import { Avatar, Button, Dialog, Field, TextArea, TextField } from "../ui/kit";
+import { Avatar, Button, Dialog, Field, SkeletonList, TextArea, TextField } from "../ui/kit";
 import { Icon } from "../ui/Icon";
 import { PhotoCropper } from "../ui/PhotoCropper";
 import { CameraCapture } from "../ui/CameraCapture";
@@ -208,6 +209,8 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
             placeholder={t("profile_edit_enter_last_name", "Enter your last name")} />
         </div>
         <div className="grid-2 profile-demographics">
+          {/* The choices, and the saved choice's name, come from the genders list. */}
+          <BaseListsGate names={["genders"]} placeholder={<SkeletonList count={1} variant="issue" label={t("loading_base_genders", "Loading genders")} />}>
           <Field label={genderQuestion} required error={errors.gender_id}
             icon={gender?.icon ?? undefined}>
             <button type="button" className="select-button" onClick={() => setGenderOpen(true)}
@@ -216,6 +219,7 @@ export function ProfileFormScreen({ mode }: { mode: "signup" | "edit" }) {
               <Icon name="ic_chevron_down" size={20} tint="var(--text-secondary)" />
             </button>
           </Field>
+          </BaseListsGate>
           <Field label={t("profile_edit_date_of_birth", "Date of birth")} required icon="ic_calendar"
             // Continue stays disabled for an underage date, so say why straight away.
             error={errors.date_of_birth ?? (dob && !isAdult(dob) ? t("profile_edit_age_requirement", "You must be 18 years or older.") : undefined)}

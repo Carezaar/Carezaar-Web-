@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useGoBack } from "../navigation/back";
 import { caregiverService, clientService, type BaseTable } from "../api/services";
 import { useSession } from "../auth/SessionContext";
-import { useBaseData } from "../app/baseData";
+import { useBaseData, useBaseLists } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { useSignUp, useSignUpWizardValue } from "../app/signup";
 import { lazyWithReload } from "../app/recovery";
-import { SkeletonDetail, Spinner } from "../ui/kit";
+import { ErrorState, SkeletonDetail, Spinner } from "../ui/kit";
 import { useGuarded } from "../app/actionGuard";
 import { BackHeader, Page } from "../ui/layout";
 import type { LatLng } from "./LocationPicker";
@@ -21,11 +21,34 @@ type Mode = "signup" | "edit";
 
 /* ------------------------------------------------------------ primitives */
 
+/** The reference lists each wizard offers its choices from. */
+const CLIENT_LISTS = [
+  "clienttypes", "careconditions", "carespecials", "languageskills", "experiences", "roles",
+  "certifications", "commutes", "shifts", "caredays", "worktypes", "genders",
+] as const;
+const CAREGIVER_LISTS = [
+  "careconditions", "caredays", "carespecials", "certifications", "clienttypes", "commutes",
+  "experiences", "languageskills", "roles", "shifts", "worktypes",
+] as const;
+
+/** In place of the steps while their lists load, or with Try Again when one couldn't. */
+function ListsPending({ lists }: { lists: ReturnType<typeof useBaseLists> }) {
+  const { t } = useI18n();
+  return (
+    <Page header={<BackHeader />}>
+      {lists.state === "failed"
+        ? <ErrorState message={t("general_network_title", "Cannot communicate with server.")} onRetry={lists.retry} retryLabel={t("general_try_again", "Try Again")} />
+        : <SkeletonDetail label={t("loading_profile_get", "Getting profile")} />}
+    </Page>
+  );
+}
+
 export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
   const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
+  const lists = useBaseLists(CLIENT_LISTS);
   const { act, toast, messageOf } = useFeedback();
   const saving = useGuarded("preferences:save");
   // The editor shows a skeleton until the saved choices arrive, not an empty form.
@@ -191,6 +214,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
 
   if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (!started) return <WizardIntro onStart={() => setStarted(true)} />;
+  if (lists.state !== "ready") return <ListsPending lists={lists} />;
   // The map opens over the wizard; unmounting the wizard would lose the current step.
   return (
     <>
@@ -210,6 +234,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
+  const lists = useBaseLists(CAREGIVER_LISTS);
   const { act, toast, messageOf } = useFeedback();
   const saving = useGuarded("preferences:save");
   // The editor shows a skeleton until the saved choices arrive, not an empty form.
@@ -373,6 +398,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   if (!started) return <WizardIntro caregiver onStart={() => setStarted(true)}
     title={t("signup_form_caregiver_match_title", "Find Your Ideal Matches")}
     description={t("signup_form_caregiver_match_description", "")} />;
+  if (lists.state !== "ready") return <ListsPending lists={lists} />;
   return (
     <>
       <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`caregiver:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review}

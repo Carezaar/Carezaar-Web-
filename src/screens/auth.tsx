@@ -8,7 +8,6 @@ import {
   OTP_LENGTH, canSubmitPasswordReset, passwordRules, signUpErrors, validateEmail, type SignUpErrors,
 } from "../validation/validation";
 import { useSession } from "../auth/SessionContext";
-import { useBaseData, TABLE_LABELS } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { DuplicateActionError, useGuarded } from "../app/actionGuard";
 import { useI18n } from "../app/i18n";
@@ -34,70 +33,28 @@ const TRUST_SHIFT = -58.5;
 
 /* ---------------------------------------------------------------- Splash */
 
-/** `Splash` — v2 design 195:11749, plus the Android "Please wait…" sheet that lists
- *  every base table while the local cache is first populated. */
+/** `Splash` while the saved sign-in is checked, the one wait left before the first screen:
+ *  the reference lists load behind the screens since the client's report of 29 Oct 2026
+ *  (the Android "Please wait…" sheet that listed them stayed up while one list was slow or
+ *  failed). The brand mark only, with the check's own progress, at every width. */
 export function SplashScreen({ unreachable = false, onRetry }: { unreachable?: boolean; onRetry?: () => void } = {}) {
-  const { pending, progress, failed: tablesFailed, reload } = useBaseData();
-  const failed = tablesFailed || unreachable;
   const { t } = useI18n();
-  const [expanded, setExpanded] = useState(true);
-  const binder = useMemo<SceneBinder>(() => ({ handle: () => true }), []);
-  const wide = useIsWide();
-  if (wide) {
-    // Tablet and desktop: a web loading state in the auth card, not the phone frame.
-    return (
-      <main className="splash auth-form auth-splash" aria-busy={!failed}>
-        <img src={assetUrl("logo")} alt="" width={88} height={88} />
-        <b className="auth-splash-name">Carezaar</b>
-        <span className="muted">{t("splash_slogan", "Care, Connect, Compassion")}</span>
-        {failed ? (
-          <div className="auth-splash-status" role="alert">
-            <p>{t("general_network_title", "Cannot communicate with server.")}</p>
-            <Button onClick={() => (onRetry ? onRetry() : void reload(true))}>{t("general_try_again", "Try Again")}</Button>
-          </div>
-        ) : (
-          <div className="auth-splash-status">
-            <div className="auth-splash-bar" role="progressbar" aria-label={t("loading_please_wait", "Please wait…")}
-              aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-              <span style={{ width: `${Math.max(8, Math.round(progress * 100))}%` }} />
-            </div>
-            <p className="muted small">{t("loading_please_wait", "Please wait…")}</p>
-          </div>
-        )}
-      </main>
-    );
-  }
   return (
-    <div className="splash">
-      <FigmaScreen sceneKey="v2-195-11749" binder={binder} />
-      <div className="splash-progress" role="progressbar" aria-valuenow={Math.round(progress * 100)}
-        aria-valuemin={0} aria-valuemax={100}>
-        <span style={{ width: `${Math.round(progress * 100)}%` }} />
-      </div>
-      {pending.length > 0 && (
-        <div className="busy-card splash-sheet">
-          <div className="busy-head">
-            <span className="spinner" aria-hidden="true" />
-            <strong>{t("loading_please_wait", "Please wait…")}</strong>
-          </div>
-          {expanded && (
-            <ul>{pending.map((p) => (
-              <li key={p}>- {t(`loading_base_${p}`, TABLE_LABELS[p] ?? p)}</li>
-            ))}</ul>
-          )}
-          <button type="button" className="icon-btn" onClick={() => setExpanded((e) => !e)}
-            aria-label={expanded ? "Collapse" : "Expand"}>
-            <Icon name={expanded ? "ic_chevron_up" : "ic_chevron_down"} size={22} tint="var(--primary)" />
-          </button>
+    <main className="splash auth-form auth-splash" aria-busy={!unreachable}>
+      <img src={assetUrl("logo")} alt="" width={88} height={88} />
+      <b className="auth-splash-name">Carezaar</b>
+      <span className="muted">{t("splash_slogan", "Care, Connect, Compassion")}</span>
+      {unreachable ? (
+        <div className="auth-splash-status" role="alert">
+          <p>{t("general_network_title", "Cannot communicate with server.")}</p>
+          {onRetry && <Button onClick={onRetry}>{t("general_try_again", "Try Again")}</Button>}
+        </div>
+      ) : (
+        <div className="auth-splash-status" role="status" aria-label={t("loading_profile_get", "Getting profile")}>
+          <span className="spinner" aria-hidden="true" />
         </div>
       )}
-      {failed && (
-        <div className="busy-card splash-sheet" role="alert">
-          <strong>{t("general_network_title", "Cannot communicate with server.")}</strong>
-          <Button onClick={() => (onRetry ? onRetry() : void reload(true))}>{t("general_try_again", "Try Again")}</Button>
-        </div>
-      )}
-    </div>
+    </main>
   );
 }
 

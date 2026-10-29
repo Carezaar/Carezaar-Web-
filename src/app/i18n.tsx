@@ -25,6 +25,9 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null);
 
+/** base/languages marks these right-to-left (checked 29 Oct 2026). */
+const RTL_CODES = new Set(["ar", "fa"]);
+
 function normalise(text: string): string {
   return text.replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[\u2028\u00a0\n]/g, " ").replace(/\s+/g, " ").trim()
     // Design copy and server copy differ only in closing punctuation in places.
@@ -68,7 +71,9 @@ export function I18nProvider({
     return { bySlug, slugByEnglish };
   }, [contents]);
 
-  const isRtl = languages.find((l) => l.id === languageId)?.is_rtl ?? false;
+  // The server's flag decides; until base/languages has arrived (the app no longer waits for
+  // it), the stored choice's code does: Arabic and Farsi are the server's right-to-left ones.
+  const isRtl = languages.length ? languages.find((l) => l.id === languageId)?.is_rtl ?? false : RTL_CODES.has(languageCode);
 
   useEffect(() => {
     document.documentElement.dir = isRtl ? "rtl" : "ltr";

@@ -6,12 +6,12 @@ import { caregiverService, clientService, userService, type BaseTable } from "..
 import type { CaregiverFull, ClientFull } from "../api/types";
 import { formatDistance } from "../api/match";
 import { useSession } from "../auth/SessionContext";
-import { useBaseData } from "../app/baseData";
+import { useBaseData, useBaseLists } from "../app/baseData";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
-import { Button, Dialog, PhotoBox, SkeletonDetail, TextArea } from "../ui/kit";
+import { Button, Dialog, ErrorState, PhotoBox, SkeletonDetail, TextArea } from "../ui/kit";
 import { DuplicateActionError, isGuarded, useGuarded } from "../app/actionGuard";
 import { INTRODUCTION_MAX_LENGTH } from "../api/config";
 import { Icon } from "../ui/Icon";
@@ -28,12 +28,19 @@ export function PartnerDetailScreen({ kind }: { kind: "caregiver" | "client" }) 
   return <PartnerDetailContent key={`${kind}/${id}`} kind={kind} id={id} />;
 }
 
+/** Every reference list the details name their facts with. */
+const DETAIL_LISTS = [
+  "genders", "roles", "clienttypes", "experiences", "commutes", "worktypes", "careconditions",
+  "carespecials", "languageskills", "shifts", "caredays", "certifications",
+] as const;
+
 function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: string }) {
   const navigate = useNavigate();
   const goBack = useGoBack("/main/matches");
   const { user } = useSession();
   const { t, label } = useI18n();
   const { find } = useBaseData();
+  const lists = useBaseLists(DETAIL_LISTS);
   const { act, toast, messageOf } = useFeedback();
   const [detail, setDetail] = useState<CaregiverFull | ClientFull | null>(null);
   const openingChat = useGuarded(`chat:create:${id}`);
@@ -64,7 +71,11 @@ function PartnerDetailContent({ kind, id }: { kind: "caregiver" | "client"; id: 
 
   // Only the short error message (shown as it failed); the page itself stays empty until it closes.
   if (failed) return <Page header={<BackHeader />}><span /></Page>;
-  if (!detail) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
+  if (lists.state === "failed") {
+    return <Page header={<BackHeader />}><ErrorState message={t("general_network_title", "Cannot communicate with server.")}
+      onRetry={lists.retry} retryLabel={t("general_try_again", "Try Again")} /></Page>;
+  }
+  if (!detail || lists.state === "loading") return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
 
   const partner = detail.user;
   const labels = (table: BaseTable, ids: number[]) => ids.map((x) => find(table, x)).filter(Boolean);

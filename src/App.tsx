@@ -27,15 +27,16 @@ import {
   HelpCenterScreen, NotificationsScreen, ReportIssueScreen,
 } from "./screens/account";
 import { AppFrame, AuthFrame } from "./ui/frames";
+import { TranslationsNotice } from "./ui/BaseListsGate";
 import { peekReturnTo, rememberReturnTo, takeReturnTo } from "./navigation/returnTo";
 
-/** Splash decides, as on Android: cache warm-up and session restore first, then the
- *  authenticated or unauthenticated graph. */
+/** The session check decides between the authenticated and unauthenticated graph. The
+ *  reference lists no longer hold the app back (client report, 29 Oct 2026): each screen
+ *  waits only for the lists it shows. */
 function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out" | "any"; role?: UserRole }) {
   const { state, retry, hasSignedInThisPage } = useSession();
-  const { ready } = useBaseData();
   const location = useLocation();
-  if (state.status === "loading" || !ready) return <SplashScreen />;
+  if (state.status === "loading") return <SplashScreen />;
   if (state.status === "unreachable") return <SplashScreen unreachable onRetry={() => void retry()} />;
   const signedIn = state.status === "signedIn";
   if (auth === "in" && !signedIn) {
@@ -55,7 +56,7 @@ function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out
  *  navigation instead of remounting per page. */
 function Frame() {
   const { state } = useSession();
-  // The splash (session check, base-data warm-up) is full-bleed, not framed.
+  // The splash (session check) is full-bleed, not framed.
   if (state.status === "loading" || state.status === "unreachable") return <Outlet />;
   const signedIn = state.status === "signedIn";
   return signedIn ? <AppFrame key={`${tokenStore.owner}:${state.user.id}`}><Outlet /></AppFrame> : <AuthFrame><Outlet /></AuthFrame>;
@@ -72,7 +73,7 @@ function EnterApp() {
 
 function Localised({ children }: { children: ReactNode }) {
   const { items, languages } = useBaseData();
-  return <I18nProvider contents={items("contents")} languages={languages}>{children}</I18nProvider>;
+  return <I18nProvider contents={items("contents")} languages={languages}><TranslationsNotice />{children}</I18nProvider>;
 }
 
 export function App() {

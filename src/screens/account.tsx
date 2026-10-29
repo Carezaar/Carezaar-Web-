@@ -6,7 +6,8 @@ import { ApiError, RefusedWhileRenewalUnreachableError } from "../api/errors";
 import { authService, caregiverService, clientService, userService } from "../api/services";
 import type { AppNotification, Faq, FaqCategory, Issue, User } from "../api/types";
 import { useSession } from "../auth/SessionContext";
-import { useBaseData } from "../app/baseData";
+import { useBaseData, useBaseLists } from "../app/baseData";
+import { BaseListsGate } from "../ui/BaseListsGate";
 import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
@@ -62,6 +63,8 @@ export function NotificationsScreen() {
 
   return (
     <Page header={<BackHeader title={t("general_notifications", "Notifications")} />}>
+      {/* Each row's text and where Show leads come from the notification subjects. */}
+      <BaseListsGate names={["subjects"]} placeholder={<SkeletonList count={6} variant="row" label={t("loading_user_notifications_get", "Getting notifications")} />}>
       {list.error && list.items.length === 0 ? <ErrorState message={messageOf(list.error)} error={list.error} onRetry={() => void list.reload()} />
         : list.items.length === 0 && (list.loading || list.page === 0) ? <SkeletonList count={6} variant="row" label={t("loading_user_notifications_get", "Getting notifications")} />
         : list.items.length === 0 ? <EmptyState title={t("general_notifications", "Notifications")} illustration="ic_notification_off" tint="var(--primary)" />
@@ -112,6 +115,7 @@ export function NotificationsScreen() {
           </div>
         )}
       </Dialog>
+      </BaseListsGate>
     </Page>
   );
 }
@@ -220,6 +224,7 @@ export function FaqScreen() {
   const shown = useMemo(() => faqs.filter((f) => active === null || f.faq_category_id === active), [faqs, active]);
   return (
     <Page header={<BackHeader title={t("profile_faq_title", "FAQ")} />}>
+      <BaseListsGate names={["faqs", "faq_categories"]} placeholder={<SkeletonList count={5} variant="row" label={t("loading_base_faqs", "Loading FAQs")} />}>
         <div className="stack">
           <div className="chip-scroll">
             <button type="button" className={`check-chip ${active === null ? "on" : ""}`} onClick={() => setActive(null)}>{t("general_all", "All")}</button>
@@ -238,6 +243,7 @@ export function FaqScreen() {
             );
           })}
         </div>
+      </BaseListsGate>
     </Page>
   );
 }
@@ -247,6 +253,8 @@ export function FaqScreen() {
 export function ReportIssueScreen() {
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
+  const issueTypes = useBaseLists(["issuetypes"]);
+  const typeName = (i: Issue) => (i.issuetype_id ? label(find("issuetypes", i.issuetype_id)) : "");
   const { act, toast, messageOf } = useFeedback();
   const submitting = useGuarded("issue:create");
   const [issues, setIssues] = useState<Issue[] | null>(null);
@@ -302,12 +310,14 @@ export function ReportIssueScreen() {
           <ul className="card-list">
             {issues.map((i) => (
               <li key={i.id}><article className="issue-card">
-                <header><h2>{i.issuetype_id ? label(find("issuetypes", i.issuetype_id)) : i.title}</h2>
+                {/* Until the issue types arrive, a typed issue shows its own title (the support
+                    history never waits for them). */}
+                <header><h2>{typeName(i) || i.title || t("report_an_issue_title", "Report An Issue")}</h2>
                   <span className={`status-pill ${i.is_replied ? "replied" : "pending"}`}>
                     <Icon name={i.is_replied ? "ic_check_circle" : "ic_timer"} size={16} tint={i.is_replied ? "var(--success)" : "var(--primary)"} />
                     {i.is_replied ? t("report_an_issue_status_resolved", "Resolved") : t("report_an_issue_status_pending", "Pending")}
                   </span></header>
-                {i.issuetype_id && i.title && <p><b>{i.title}</b></p>}
+                {typeName(i) && i.title && <p><b>{i.title}</b></p>}
                 <p dir="auto">{i.description}</p>
                 <p className="muted small end">{asStored(i.created_at)}</p>
                 {i.reply && (
@@ -330,6 +340,12 @@ export function ReportIssueScreen() {
               <option value="other">{t("report_an_issue_type_other", "Other")}</option>
             </select>
           </Field>
+          {/* "Other" needs no issue type, so filing never waits for them; the others follow. */}
+          {issueTypes.state === "loading" && <InlineProgress label={t("loading_base_issuetypes", "Loading issue types")} />}
+          {issueTypes.state === "failed" && (
+            <p className="field-message" role="alert">{t("general_network_title", "Cannot communicate with server.")}{" "}
+              <button type="button" className="link" onClick={issueTypes.retry}>{t("general_try_again", "Try Again")}</button></p>
+          )}
           {type === "other" && (
             <TextField label={t("report_an_issue_subject_label", "Subject")} required value={subject}
               onChange={(e) => setSubject(e.target.value)} placeholder={t("report_an_issue_subject_placeholder", "Enter your issue subject...")} />
@@ -361,6 +377,7 @@ export function ChangeLanguageScreen() {
         <div className="info-card"><Icon name="ic_language" size={34} tint="var(--primary-dark)" />
           <div><b>{t("settings_change_language_app_title", "App Language")}</b><p className="small">{t("settings_change_language_app_description", "")}</p></div></div>
         <h2 className="language-list-title">{t("settings_change_language_available", "Available Languages")}</h2>
+        <BaseListsGate names={["languages"]} placeholder={<SkeletonList count={4} variant="row" label={t("loading_base_languages", "Loading languages")} />}>
         <ul className="menu-card" role="radiogroup">
           {languages.map((l) => (
             <li key={l.id}><button type="button" role="radio" aria-checked={choice === l.id} className="menu-row" onClick={() => setChoice(l.id)}>
@@ -369,6 +386,7 @@ export function ChangeLanguageScreen() {
             </button></li>
           ))}
         </ul>
+        </BaseListsGate>
       </div>
     </Page>
   );
@@ -495,6 +513,7 @@ export function DeleteAccountScreen() {
         <section className="pref-card"><header><h3>{t("delete_account_data_title", "What you will lose")}</h3></header>
           <ul className="bullet-list">{lose.map((k) => <li key={k}><Icon name="ic_clear_circle" size={18} tint="var(--error)" />{t(k, "")}</li>)}</ul></section>
         {/* A reason is required, as on Android (its delete call takes a non-optional reason id). */}
+        <BaseListsGate names={["reasons"]} placeholder={<SkeletonList count={1} variant="issue" label={t("loading_base_reasons", "Loading reasons")} />}>
         <Field label={t("delete_account_reason_title", "Why are you deleting your account?")} required
           error={aware && reason === "" ? t("general_required", "This field is required.") : null}>
           <select aria-label={t("delete_account_reason_title", "Reason")} value={String(reason)}
@@ -503,6 +522,7 @@ export function DeleteAccountScreen() {
             {reasons.map((r) => <option key={r.id} value={r.id}>{label(r)}</option>)}
           </select>
         </Field>
+        </BaseListsGate>
         <Checkbox checked={aware} onChange={setAware}>{t("delete_account_confirm", "I am aware of the consequences of this decision.")}</Checkbox>
       </div>
     </Page>
