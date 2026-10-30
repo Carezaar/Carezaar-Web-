@@ -31,8 +31,12 @@ function loadScene(sceneKey: string): Promise<DesignNode> {
   return scene;
 }
 
-export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
-  sceneKey: string; binder: SceneBinder; overlays?: SceneOverlay[]; children?: ReactNode;
+export function FigmaScreen({ sceneKey, binder, overlays = [], fitHeight = false, children }: {
+  sceneKey: string; binder: SceneBinder; overlays?: SceneOverlay[];
+  /** Scale the whole frame into the visible height instead of scrolling, for frames
+   *  whose only action sits at the bottom. */
+  fitHeight?: boolean;
+  children?: ReactNode;
 }) {
   const { t, translateEnglish, isRtl } = useI18n();
   const [node, setNode] = useState<DesignNode | null>(null);
@@ -42,15 +46,20 @@ export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
   // column on mobile and inside the sign-in card on desktop.
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(() => Math.min(window.innerWidth, 480));
+  const [height, setHeight] = useState(() => window.innerHeight);
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const measure = () => setWidth(Math.min(el.clientWidth || window.innerWidth, 480));
+    const measure = () => {
+      setWidth(Math.min(el.clientWidth || window.innerWidth, 480));
+      setHeight(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, [node]);
 
   useEffect(() => {
@@ -71,13 +80,13 @@ export function FigmaScreen({ sceneKey, binder, overlays = [], children }: {
     retryLabel={t("general_try_again", "Try Again")}
     onRetry={() => { setError(false); setNode(null); setRetryRevision((value) => value + 1); }} />;
   if (!node) return <div ref={host}><Spinner /></div>;
-  const scale = width / node.width;
+  const scale = fitHeight ? Math.min(width / node.width, height / node.height) : width / node.width;
   return (
     <SceneBinderContext.Provider value={localised}>
-      <div ref={host} className="figma-screen" dir="ltr" style={{ height: node.height * scale }}>
+      <div ref={host} className="figma-screen" dir="ltr" style={{ height: fitHeight ? height : node.height * scale }}>
         <div style={{
           "--scene-touch-min": `${44 / scale}px`,
-          position: "relative", width: node.width, height: node.height,
+          position: "relative", width: node.width, height: node.height, marginLeft: (width - node.width * scale) / 2,
           transform: `scale(${scale})`, transformOrigin: "top left",
         } as CSSProperties}>
           <DesignElement node={node} parentWidth={node.width} />

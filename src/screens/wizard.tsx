@@ -1,6 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useGoBack } from "../navigation/back";
 import { caregiverService, clientService, type BaseTable } from "../api/services";
 import { useSession } from "../auth/SessionContext";
 import { useBaseData, useBaseLists } from "../app/baseData";
@@ -45,7 +44,6 @@ function ListsPending({ lists }: { lists: ReturnType<typeof useBaseLists> }) {
 
 export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
-  const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
   const lists = useBaseLists(CLIENT_LISTS);
@@ -56,7 +54,7 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
   const { state: signUp, reset, update } = useSignUp();
   const { signIn } = useSession();
 
-  const [started, setStarted] = useSignUpWizardValue(mode, "client", "started", mode === "edit");
+  const [started, setStarted] = useSignUpWizardValue<boolean>(mode, "client", "started", false);
   const [picking, setPicking] = useState(false);
   const [step, setStep] = useSignUpWizardValue<number>(mode, "client", "step", 0);
   const [clienttype, setClienttype] = useSignUpWizardValue<number[]>(mode, "client", "clienttype", []);
@@ -212,15 +210,15 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
     }
   };
 
-  if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (!started) return <WizardIntro onStart={() => setStarted(true)} />;
+  if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (lists.state !== "ready") return <ListsPending lists={lists} />;
   // The map opens over the wizard; unmounting the wizard would lose the current step.
   return (
     <>
       <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`client:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review} reviewTitle={t("signup_form_client_review", "Review Your Preferences")}
         saveLabel={mode === "signup" ? t("general_save", "Save") : t("profile_save", "Save")}
-        onSave={save} saving={saving} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
+        onSave={save} saving={saving} onExit={() => setStarted(false)} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
         onConfirm={(p) => { setLocation(p); setPicking(false); }} /></Suspense>}
     </>
@@ -231,7 +229,6 @@ export function ClientPreferencesWizard({ mode }: { mode: Mode }) {
 
 export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
-  const goBack = useGoBack("/main/matches");
   const { t, label } = useI18n();
   const { items, find } = useBaseData();
   const lists = useBaseLists(CAREGIVER_LISTS);
@@ -242,7 +239,7 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
   const { state: signUp, reset, update } = useSignUp();
   const { signIn } = useSession();
 
-  const [started, setStarted] = useSignUpWizardValue(mode, "caregiver", "started", mode === "edit");
+  const [started, setStarted] = useSignUpWizardValue<boolean>(mode, "caregiver", "started", false);
   const [picking, setPicking] = useState(false);
   const [step, setStep] = useSignUpWizardValue<number>(mode, "caregiver", "step", 0);
   const [clienttypes, setClienttypes] = useSignUpWizardValue<number[]>(mode, "caregiver", "clienttypes", []);
@@ -394,17 +391,17 @@ export function CaregiverSkillsWizard({ mode }: { mode: Mode }) {
     }
   };
 
-  if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (!started) return <WizardIntro caregiver onStart={() => setStarted(true)}
     title={t("signup_form_caregiver_match_title", "Find Your Ideal Matches")}
     description={t("signup_form_caregiver_match_description", "")} />;
+  if (!ready) return <Page header={<BackHeader />}><SkeletonDetail label={t("loading_profile_get", "Getting profile")} /></Page>;
   if (lists.state !== "ready") return <ListsPending lists={lists} />;
   return (
     <>
       <Wizard steps={steps} index={step} onStepChange={setStep} historyScope={`caregiver:${mode}:${mode === "signup" ? signUp.userId : "current"}`} review={review}
         reviewTitle={t("signup_form_caregiver_review_title", "Review your skills and availability")}
         saveLabel={t("general_save", "Save")}
-        onSave={save} saving={saving} onExit={() => (mode === "signup" ? setStarted(false) : goBack())} />
+        onSave={save} saving={saving} onExit={() => setStarted(false)} />
       {picking && <Suspense fallback={<Spinner />}><LocationPicker initial={location} onCancel={() => setPicking(false)}
         onConfirm={(p) => { setLocation(p); setPicking(false); }} /></Suspense>}
     </>
