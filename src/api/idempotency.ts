@@ -1,4 +1,3 @@
-import { ApiError, RefusedWhileRenewalUnreachableError } from "./errors";
 import type { FormValue } from "./client";
 
 /** `Idempotency-Key` for the three writes the client named (25 Oct 2026):
@@ -18,11 +17,9 @@ import type { FormValue } from "./client";
  *  One key per logical submission: it is created when the submission begins and kept
  *  (in localStorage, scoped by account, operation, target and a hash of the data) until
  *  the outcome is known, so a retry after a timeout, a lost connection, a renewed sign-in,
- *  a reload or another visit to the screen sends the same key. A confirmed success, or an
- *  answer that proves the request was not carried out, retires it; the next submission,
- *  even with identical text, gets a new key. An uncertain outcome (no answer, timeout,
- *  server error) keeps it, however long it takes: the request is never repeated with a new
- *  key on a guess. A new submission is only sent once its key is saved (see
+ *  a reload or another visit to the screen sends the same key. A confirmed success retires
+ *  it; the next submission, even with identical text, gets a new key. Any other outcome
+ *  keeps it. A new submission is only sent once its key is saved (see
  *  SubmissionStorageError). */
 export type IdempotentOperation = "chat_message" | "issue" | "match_request";
 
@@ -32,18 +29,9 @@ interface PendingRecord {
   account: string;
   operation: IdempotentOperation;
   target: string;
-  /** What the person submitted, so the screen can offer it again after a reload. */
-  draft?: string;
-  /** Newest record id known when the submission began, for reconciliation. */
-  after?: number;
-  /** Anything else needed to offer the same submission again (e.g. the message replied to). */
-  context?: Record<string, string | number | null>;
 }
 
 const STORE = "carezaar.pendingSubmissions.v1";
-/** Unresolved records are kept until their outcome is known, with no age limit. The
- *  server may forget a key sooner; it then answers `idempotency_expired` and the record is
- *  reconciled with the server before anything new is sent. */
 
 /* Storage is the record of truth whenever it works, so another tab's records are never
  * overwritten, dropped or revived. This page keeps three fallbacks for when it fails:
@@ -52,11 +40,6 @@ const STORE = "carezaar.pendingSubmissions.v1";
  * - `unretired`: keys it retired but couldn't remove, so they stay retired here (only that
  *   key: a record another tab saves later under the same scope has a new key and shows). */
 const unsaved = new Map<string, PendingRecord>();
-/** Longer than any write can take: a refused write is sent, its sign-in renewed and the write
- *  replayed, each with a 120 s deadline (up to 6 minutes). A record older than this has had its
- *  answer, or lost it, so the screens may retire it once they see it carried out. A younger one
- *  may still be on its way, in another tab too. */
-export const SETTLED_AFTER_MS = 10 * 60 * 1000;
 const known = new Map<string, PendingRecord>();
 const unretired = new Map<string, string>();
 
@@ -154,49 +137,10 @@ export function pendingSubmissions(operation: IdempotentOperation, target: strin
     .sort((a, b) => b.created - a.created);
 }
 
-/** Retires every unresolved submission of the signed-in account for one operation and
- *  target, once the resource shows how it ended (e.g. the profile shows the request sent). */
-export function retireSubmissions(operation: IdempotentOperation, target: string) {
-  retireCarriedOut(operation, target, () => true);
-}
-
-/** Retires the signed-in account's unresolved submissions for one operation and target that
- *  the server already shows as carried out (e.g. the message is in the loaded conversation),
- *  so a later submission with the same words isn't taken for them. Returns how many. */
-export function retireCarriedOut(operation: IdempotentOperation, target: string, carriedOut: (record: PendingRecord) => boolean): number {
-  let retired = 0;
-  for (const [scope, r] of Object.entries(readAll())) {
-    if (r.account === (account ?? "signed-out") && r.operation === operation && r.target === target && carriedOut(r)) {
-      retireScope(scope, r.key);
-      retired++;
-    }
-  }
-  return retired;
-}
-
-export class IdempotencyConflictError extends Error {
-  constructor() { super("idempotency_conflict"); this.name = "IdempotencyConflictError"; }
-}
-/** The server forgot the key and reconciliation showed the earlier attempt was not carried out. */
-export class SubmissionNotCarriedOutError extends Error {
-  constructor() { super("idempotency_expired_not_found"); this.name = "SubmissionNotCarriedOutError"; }
-}
 /** A new submission's key couldn't be saved in browser storage, so nothing was sent: after
  *  a lost answer and a reload, it could otherwise only be sent again with a new key. */
 export class SubmissionStorageError extends Error {
   constructor() { super("pending_submission_not_saved"); this.name = "SubmissionStorageError"; }
-}
-
-const codeOf = (error: unknown) => error instanceof ApiError ? (error.meta?.code as string | undefined) : undefined;
-
-/** True when the answer proves the request was not carried out (or was refused for good),
- *  so its key can be retired. No answer, a timeout or a server error is uncertain. */
-export function isDefinitive(error: unknown): boolean {
-  if (error instanceof RefusedWhileRenewalUnreachableError) return true;
-  if (!(error instanceof ApiError)) return false;
-  if (error.status === 409) return codeOf(error) === "idempotency_conflict";
-  return error.kind === "validation" || error.kind === "forbidden" || error.kind === "notFound"
-    || (error.kind === "unknown" && error.status >= 400 && error.status < 500);
 }
 
 export interface Submission<T> {
@@ -205,12 +149,6 @@ export interface Submission<T> {
   target: string;
   form: Record<string, FormValue>;
   send: (key: string) => Promise<T>;
-  /** After `idempotency_expired`: looks for the earlier attempt on the server; returns its
-   *  result when it was carried out, null when it certainly wasn't. Throws when unsure. */
-  reconcile?: (record: PendingRecord) => Promise<T | null>;
-  draft?: string;
-  after?: number;
-  context?: Record<string, string | number | null>;
 }
 
 /** Sends one logical submission with its key: a new one, or the same one again while its
@@ -221,39 +159,15 @@ export async function submitIdempotent<T>(submission: Submission<T>): Promise<T>
   const existing = all[scope];
   const record: PendingRecord = existing ?? {
     key: uuid(), created: Date.now(), account: account ?? "signed-out",
-    operation: submission.operation, target: submission.target, draft: submission.draft, after: submission.after,
-    context: submission.context,
+    operation: submission.operation, target: submission.target,
   };
   if (!saveScope(scope, record) && !existing) {
-    // Not kept beyond this page: nothing is sent. (A retry of an existing record goes ahead:
-    // it is already saved, or this page holds its key.)
     unsaved.delete(scope);
     throw new SubmissionStorageError();
   }
-  const retire = () => retireScope(scope, record.key);
-  try {
-    const result = await submission.send(record.key);
-    retire();
-    return result;
-  } catch (error) {
-    const code = codeOf(error);
-    if (code === "idempotency_expired") {
-      // The server no longer knows this key: find out whether the earlier attempt went
-      // through before anything is sent again. A failed check leaves the key in place.
-      const found = submission.reconcile ? await submission.reconcile(record) : null;
-      retire();
-      if (found !== null) return found;
-      throw new SubmissionNotCarriedOutError();
-    }
-    if (code === "idempotency_conflict") {
-      // Same key, different data: never resent with this key, never silently with a new one.
-      if (import.meta.env?.DEV) console.warn("Idempotency conflict", { operation: submission.operation, target: submission.target });
-      retire();
-      throw new IdempotencyConflictError();
-    }
-    if (isDefinitive(error)) retire();
-    throw error;
-  }
+  const result = await submission.send(record.key);
+  retireScope(scope, record.key);
+  return result;
 }
 
 /** Test hook. */

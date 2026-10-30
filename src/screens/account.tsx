@@ -12,11 +12,10 @@ import { useFeedback } from "../app/feedback";
 import { useI18n } from "../app/i18n";
 import { personName } from "../app/names";
 import { usePaged } from "../app/usePaged";
-import { CHANGE_PASSWORD_SPECIAL_CHARACTERS, canSubmitPasswordChange, passwordRules, required } from "../validation/validation";
+import { canSubmitPasswordChange, passwordRules, required } from "../validation/validation";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, Button, cardLink, Checkbox, Dialog, EmptyState, ErrorState, Field, InfiniteSentinel, InlineProgress, SkeletonList, TextArea, TextField } from "../ui/kit";
-import { DuplicateActionError, isGuarded, useGuarded } from "../app/actionGuard";
-import { SETTLED_AFTER_MS, retireCarriedOut } from "../api/idempotency";
+import { DuplicateActionError, useGuarded } from "../app/actionGuard";
 import { Icon } from "../ui/Icon";
 import { sanitizeHtml } from "../ui/sanitize";
 import { RuleChips } from "../ui/RuleChips";
@@ -266,17 +265,7 @@ export function ReportIssueScreen() {
 
   const load = () => {
     setError(null);
-    userService.issues().then((all) => {
-      // An issue whose answer was lost but which the list already shows went through: its
-      // pending key is retired, so a later issue with the same words gets a key of its own.
-      // (Not while one is being filed: that submission settles its own key.)
-      if (!isGuarded("issue:create")) {
-        const settled = Date.now() - SETTLED_AFTER_MS;
-        retireCarriedOut("issue", "issues", (r) => r.created < settled && all.some((i) => i.id > (r.after ?? 0) && i.description === r.draft
-          && (r.context?.issuetype != null ? i.issuetype_id === r.context.issuetype : r.context?.title != null && i.title === r.context.title)));
-      }
-      setIssues(all);
-    }).catch(setError);
+    userService.issues().then(setIssues).catch(setError);
   };
   // Loaded once on mount (load uses only stable setters and the service).
   useEffect(load, []);
@@ -288,7 +277,7 @@ export function ReportIssueScreen() {
     try {
       const created = await act("issue:create", () => userService.createIssue({
         issuetypeId: type === "other" ? null : type, title: type === "other" ? subject.trim() : null, description: description.trim(),
-      }, issues ? Math.max(0, ...issues.map((i) => i.id)) : undefined));
+      }));
       // The server's answer is the issue as filed: shown at once, not after another load,
       // so a later failed refresh can't make it look unsent.
       setIssues((all) => [created, ...(all ?? []).filter((i) => i.id !== created.id)]);
@@ -446,7 +435,7 @@ export function ChangePasswordScreen() {
         <TextField label={t("settings_change_password_new_password", "New Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)}
           placeholder={t("settings_change_password_new_password_placeholder", "Enter your new password...")} />
-        <RuleChips rules={passwordRules(next, CHANGE_PASSWORD_SPECIAL_CHARACTERS)} />
+        <RuleChips rules={passwordRules(next)} />
         <TextField label={t("settings_change_password_confirm_password", "Confirm Password")} required icon="ic_lock" type="password"
           autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)}
           error={confirmation && confirmation !== next ? t("signup_credentials_password_match", "Passwords do not match.") : null}

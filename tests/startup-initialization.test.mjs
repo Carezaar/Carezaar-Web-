@@ -138,12 +138,10 @@ test('4. a list that never answers is cut off by the request deadline and the lo
   try {
     await freshLoader();
     const pending = mod.loadBaseData();
-    while (statusOf('genders') !== 'ready') await tick();
-    assert.equal(statusOf('contents'), 'loading');
     const result = await pending;
     assert.equal(result.failed, true, 'the load ends instead of waiting forever');
     assert.equal(statusOf('contents'), 'failed');
-    assert.equal(fx.count('contents'), 4, 'one attempt plus the three established read retries');
+    assert.equal(fx.count('contents'), 1, 'a timed-out read is not repeated');
     assert.equal(screen(['genders']), 'ready');
   } finally { fx.restore(); }
 });

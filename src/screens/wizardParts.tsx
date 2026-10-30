@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useGoBack, exitPast } from "../navigation/back";
 import type { BaseItem } from "../api/types";
 import { useFeedback } from "../app/feedback";
+import { useBaseData } from "../app/baseData";
 import { useI18n } from "../app/i18n";
 import { FigmaScreen } from "../figma/FigmaScreen";
 import type { SceneBinder } from "../figma/binder";
@@ -151,6 +152,31 @@ export function ReviewRow({ title, values }: { title: string; values: string[] }
 /** The Android preference intro (v2 "Match Prefs - Step 0"), re-titled for caregivers. */
 export const CLIENT_ILLUSTRATIONS = new Set(["101:11970", "101:11969", "101:11971"]);
 
+const SKILL_ICONS = ["ic_condition_feeding", "ic_special_calm", "ic_shift_weekends", "ic_certified_full"];
+
+function Orbit({ names, radius, size, tint }: { names: string[]; radius: number; size: number; tint?: string }) {
+  const box = radius * 2 + size;
+  return (
+    <div className="orbit" style={{ width: box, height: box }} aria-hidden="true">
+      {names.map((name, i) => (
+        <span key={name + i} className="orbit-arm"
+          style={{ transform: `rotate(${(360 / names.length) * i - 90}deg) translateX(${radius}px) rotate(${90 - (360 / names.length) * i}deg)` }}>
+          <span className="orbit-item" style={{ width: size, height: size, margin: -size / 2 }}>
+            <Icon name={name} size={size} tint={tint} />
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function IntroOrbit({ caregiver }: { caregiver: boolean }) {
+  const { items } = useBaseData();
+  return caregiver
+    ? <Orbit names={SKILL_ICONS} radius={72} size={80} tint="var(--primary)" />
+    : <Orbit names={items("clienttypes").flatMap((c) => (c.icon ? [c.icon] : []))} radius={96} size={128} />;
+}
+
 export function WizardIntro({ title, description, caregiver = false, onStart }: {
   title?: string; description?: string; caregiver?: boolean; onStart: () => void;
 }) {
@@ -164,22 +190,23 @@ export function WizardIntro({ title, description, caregiver = false, onStart }: 
       return false;
     },
     text: (n) => (n.name === "Title" && title ? title : n.name === "Description" && description ? description : undefined),
-    // The caregiver frame (715:11684) shows its own skills illustration.
-    isHidden: (n) => caregiver && CLIENT_ILLUSTRATIONS.has(n.id),
-  }), [goBack, onStart, title, description, caregiver]);
+    isHidden: (n) => CLIENT_ILLUSTRATIONS.has(n.id),
+  }), [goBack, onStart, title, description]);
   if (isWide) {
     return (
       <main className="auth-form wizard-intro-web">
         <CardTop onBack={goBack} logo />
+        <IntroOrbit caregiver={caregiver} />
         <h1>{title ?? t("signup_form_client_find_ideal_caregiver", "Find Your Ideal Caregiver")}</h1>
         <p className="auth-sub">{description ?? t("signup_form_client_intro_description", "Tell us your preferences and we will recommend caregivers that best match your needs.")}</p>
         <Button onClick={onStart}>{t("signup_form_client_get_started", "Get Started")}</Button>
       </main>
     );
   }
-  return <FigmaScreen sceneKey="v2-65-19934" binder={binder} overlays={caregiver ? [
-    { x: 94, y: 110, width: 224, height: 238, content: <img src="/assets/skills-illustration.png" alt="" width="100%" height="100%" /> },
-  ] : []} />;
+  return <FigmaScreen sceneKey="v2-65-19934" binder={binder} overlays={[caregiver
+    ? { x: 94, y: 113, width: 224, height: 224, content: <IntroOrbit caregiver /> }
+    : { x: 46, y: 65, width: 320, height: 320, content: <IntroOrbit caregiver={false} /> },
+  ]} />;
 }
 
 /* --------------------------------------------------------------- engine */

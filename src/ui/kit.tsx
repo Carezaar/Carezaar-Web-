@@ -208,10 +208,7 @@ export function EmptyState({ title, message, illustration = "illus_chat", tint }
 }) {
   return (
     <div className="empty-card">
-      {illustration === "illus_chat"
-        // The Figma empty-conversation art; the APK's chat drawable is a tint mask.
-        ? <img src="/assets/desktop-empty-message-illustration.jpg" alt="" width={150} height={157} className="empty-art" />
-        : tint ? <span className="empty-icon"><Icon name={illustration} size={48} tint={tint} /></span>
+      {tint ? <span className="empty-icon"><Icon name={illustration} size={48} tint={tint} /></span>
         : <Icon name={illustration} size={140} />}
       <h2>{title}</h2>
       {message && <p>{message}</p>}

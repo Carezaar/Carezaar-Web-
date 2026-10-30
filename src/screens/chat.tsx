@@ -10,7 +10,6 @@ import { isDeletedAccount, personName } from "../app/names";
 import { BackHeader, Page } from "../ui/layout";
 import { Avatar, EmptyState, ErrorState, SkeletonChat } from "../ui/kit";
 import { DuplicateActionError, guarded, isGuarded, useGuarded } from "../app/actionGuard";
-import { SETTLED_AFTER_MS, isDefinitive, pendingSubmissions, retireCarriedOut } from "../api/idempotency";
 import { Icon } from "../ui/Icon";
 import { useIsDesktop } from "../ui/frames";
 import { CHATS_CHANGED, MessagesDesktop } from "./main";
@@ -41,8 +40,6 @@ export function ChatScreen() {
   // it until the server has answered, whatever re-renders or remounts in the meantime.
   const sendKey = `chat:${chatId}:send`;
   const sending = useGuarded(sendKey);
-  // A message whose earlier send got no answer, offered again (with its Idempotency-Key).
-  const [unconfirmed, setUnconfirmed] = useState(false);
   const [reloading, setReloading] = useState(false);
   // Whether this conversation is on screen (a refresh then never replaces it with an error).
   const shown = useRef(false);
@@ -58,7 +55,7 @@ export function ChatScreen() {
     const invalidate = () => { scope.current++; };
     invalidate();
     setChat(null); setError(null); setDraft(""); setReplyTo(null); setMenuFor(null);
-    setUnconfirmed(false); stick.current = true; shown.current = false;
+    stick.current = true; shown.current = false;
     return invalidate;
   }, [chatId, user?.id]);
 
@@ -128,8 +125,7 @@ export function ChatScreen() {
       }).catch(() => undefined);
     };
     const timer = window.setInterval(refresh, CHAT_POLL_MS);
-    window.addEventListener("focus", refresh);
-    return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+    return () => { active = false; window.clearInterval(timer); };
   }, [chatId, user?.id]);
 
   const partnerEntity = role === "client" ? chat?.caregiver : chat?.client;
@@ -149,59 +145,27 @@ export function ChatScreen() {
   const mine = (m: ChatMessage) => (role === "caregiver" ? m.is_from_caregiver : !m.is_from_caregiver);
   const composerUnavailable = !chat || Boolean(error);
 
-  // A message whose answer was lost but which the conversation now shows went through: its
-  // pending key is retired, so a later message with the same words gets a key of its own.
-  // Not while a send is on its way or a "may not have been sent" draft is in the box (Send
-  // settles that one with its own key), and only for records older than any request can
-  // last, so a send still on its way in another tab keeps its key.
-  useEffect(() => {
-    if (!chat || unconfirmed || isGuarded(sendKey)) return;
-    const settled = Date.now() - SETTLED_AFTER_MS;
-    retireCarriedOut("chat_message", String(chatId), (r) => r.created < settled
-      && chat.messages.some((m) => m.id > (r.after ?? 0) && m.message === r.draft && mine(m)
-        && (m.parent?.id ?? null) === (r.context?.parent ?? null)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- each time the conversation changes
-  }, [chat]);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const replyRef = useRef(replyTo);
+  replyRef.current = replyTo;
 
-  // After a reload or another visit: a message whose send got no answer comes back into the
-  // box (with what it replied to), so Send repeats that same submission, not a new one.
-  useEffect(() => {
-    if (!chat || draft !== "") return;
-    const [pending] = pendingSubmissions("chat_message", String(chatId));
-    if (!pending?.draft) return;
-    setDraft(pending.draft);
-    const parent = pending.context?.parent;
-    setReplyTo(parent ? chat.messages.find((m) => m.id === parent) ?? null : null);
-    setUnconfirmed(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- once the conversation has loaded
-  }, [chat !== null, chatId]);
-
-  // One send at a time: the text stays in the box (read-only) until the server confirms
-  // it, so a double click, Enter held down or a slow connection can't send it twice.
-  // Each message is one submission with its own Idempotency-Key: when a send gets no
-  // answer the text stays, and Send repeats it with the same key, so the server keeps it
-  // at most once. The answer (the whole conversation) is shown as it comes, so a later
-  // failed refresh can't make a sent message look unsent.
   const send = async () => {
     if (isGuarded(sendKey) || closedNote || composerUnavailable) return;
-    const text = draft.trim();
+    const text = draft;
+    const parent = replyTo;
     // Send stays active with an empty box and says why nothing was sent (K4).
-    if (!text) { toast(t("chat_screen_message_required", "Please type a message first.")); return; }
+    if (!text.trim()) { toast(t("chat_screen_message_required", "Please type a message first.")); return; }
     const owner = scope.current;
     try {
-      const updated = await guarded(sendKey, () => userService.sendMessage(Number(chatId), text, replyTo?.id ?? null, {
-        fromCaregiver: role === "caregiver", after: Math.max(0, ...(chat?.messages ?? []).map((m) => m.id)),
-      }));
+      const updated = await guarded(sendKey, () => userService.sendMessage(Number(chatId), text, parent?.id ?? null));
       if (scope.current !== owner) return;
       stick.current = true;
       setChat(chronological(updated));
-      setDraft(""); setReplyTo(null); setUnconfirmed(false);
+      if (draftRef.current === text && replyRef.current === parent) { setDraft(""); setReplyTo(null); }
       window.dispatchEvent(new Event(CHATS_CHANGED));
     } catch (e) {
       if (scope.current !== owner || e instanceof DuplicateActionError) return;
-      // No answer, or one that doesn't settle it, so the submission is still pending: the text
-      // stays as "may not have been sent", and Send repeats it with the same key.
-      if (!isDefinitive(e) && pendingSubmissions("chat_message", String(chatId)).some((r) => r.draft === text)) setUnconfirmed(true);
       toast(chatMessage(e));
     }
   };
@@ -209,9 +173,6 @@ export function ChatScreen() {
   const composer = (
     <div className="composer">
       {closedNote && <p className="composer-note" role="status">{closedNote}</p>}
-      {unconfirmed && !closedNote && !sending && (
-        <p className="composer-note" role="status">{t("chat_screen_message_unconfirmed", "This message may not have been sent. Tap Send to try again.")}</p>
-      )}
       {replyTo && !closedNote && (
         <div className="reply-bar">
           <Icon name="ic_reply" size={18} tint="var(--primary)" />
@@ -222,7 +183,7 @@ export function ChatScreen() {
         </div>
       )}
       <div className="composer-row">
-        <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={sending} aria-busy={sending}
+        <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} aria-busy={sending}
           disabled={closedNote !== null || composerUnavailable}
           placeholder={t("chat_screen_message_placeholder", "Type a message...")} aria-label={t("chat_screen_message_placeholder", "Type a message...")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} />
