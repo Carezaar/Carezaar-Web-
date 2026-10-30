@@ -7,8 +7,8 @@ import { useI18n } from "./i18n";
 
 /** Android polls `users/notifications/count?checked_at=` every 30 s while running.
  *  When the count rises it posts a system notification ("New Notification(s)" /
- *  "You have N new notification(s).") that opens Notifications, and the bell badge
- *  follows the count. This is the web equivalent: same poll, same stored count, and
+ *  "You have N new notification(s).") that opens Notifications, and the bell turns
+ *  red while the count is above zero. This is the web equivalent: same poll, same stored count, and
  *  a browser notification when the tab is not in front. */
 const CHECKED_AT = "carezaar.notificationsCheckedAt";
 const LAST_COUNT = "carezaar.notificationCount";
@@ -75,7 +75,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         } else if (count < previous) {
           write(LAST_COUNT, count);
         }
-      } catch { /* offline or signed out: keep the last badge */ }
+      } catch { /* offline or signed out: keep the last count */ }
     };
     // Signing out or changing users invalidates pending responses and the timer.
     void poll();

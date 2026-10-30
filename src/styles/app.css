@@ -85,8 +85,6 @@ a { color: var(--primary); }
 .back-btn { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 10px; background: #fff; display: grid; place-items: center; cursor: pointer; }
 .icon-btn { border: 0; background: transparent; padding: 4px; cursor: pointer; display: inline-grid; place-items: center; border-radius: 10px; }
 .icon-btn:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.badge-host { position: relative; }
-.badge { position: absolute; top: -6px; inset-inline-end: -12px; box-shadow: 0 0 0 2px #fff; line-height: 16px; background: var(--error); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 18px; padding: 1px 5px; text-align: center; }
 
 /* ---------- hero ---------- */
 .hero { position: relative; height: 196px; background-size: cover; background-position: center; border-end-end-radius: 36px; display: flex; align-items: center; padding: 0 20px; }
@@ -710,7 +708,11 @@ html[dir="rtl"] .scene-overlay:has(> .language-pill) { justify-content: flex-sta
 .orbit-arm { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
 .orbit-item { position: absolute; display: block; animation: orbit-upright 8s linear infinite; }
 @keyframes orbit-upright { to { transform: rotate(-360deg); } }
-@media (prefers-reduced-motion: reduce) { .orbit, .orbit-item { animation: none; } }
+.orbit-item > * { display: block; }
+@media (prefers-reduced-motion: reduce) {
+  .orbit { animation: spin 8s linear infinite !important; }
+  .orbit-item { animation: orbit-upright 8s linear infinite !important; }
+}
 .matched-pair { overflow: visible; padding: 8px 4px; }
 /* Reduced motion: the global rule in styles.css stops these animations; the cards
    simply appear at their final angles. */

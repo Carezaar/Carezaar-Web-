@@ -206,7 +206,7 @@ export function WizardIntro({ title, description, caregiver = false, onStart }: 
   return <FigmaScreen sceneKey="v2-65-19934" binder={binder} overlays={[caregiver
     ? { x: 94, y: 113, width: 224, height: 224, content: <IntroOrbit caregiver /> }
     : { x: 46, y: 65, width: 320, height: 320, content: <IntroOrbit caregiver={false} /> },
-  ]} />;
+  ]} fitHeight />;
 }
 
 /* --------------------------------------------------------------- engine */

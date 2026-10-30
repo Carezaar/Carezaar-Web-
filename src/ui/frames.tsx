@@ -87,10 +87,9 @@ function DesktopShell({ children }: { children: ReactNode }) {
       </aside>
       <div className="desk-main">
         <header className="desk-topbar">
-          <button type="button" className="icon-btn badge-host" onClick={() => navigate("/notifications")}
+          <button type="button" className="icon-btn" onClick={() => navigate("/notifications")}
             aria-label={t("general_notifications", "Notifications")}>
-            <Icon name={unread > 0 ? "ic_notification_on" : "ic_notification_off"} size={26} tint="var(--text)" />
-            {unread > 0 && <span className="badge">{unread > 99 ? "99+" : unread}</span>}
+            <Icon name={unread > 0 ? "ic_notification_on" : "ic_notification_off"} size={24} tint={unread > 0 ? "var(--error)" : "var(--text)"} />
           </button>
           <button type="button" className="desk-user" onClick={() => navigate("/main/profile")}>
             <Avatar src={user?.photo} size={44} name={user?.first_name ?? undefined} />
