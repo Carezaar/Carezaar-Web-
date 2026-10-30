@@ -116,82 +116,43 @@ test("different data, another account or another target never reuse a key", asyn
   assert.equal(await keyFor({ message: "Hello", parent_id: null }), a, "back to the first account: its own pending key");
 });
 
-test("an unfinished key survives a restart (persisted), and the draft is kept to offer again", async () => {
+test("an unfinished key survives a restart (persisted)", async () => {
   resetPending(); idem.setIdempotencyAccount("user-a");
   let first;
-  await assert.rejects(submit({ message: "Are you free?", parent_id: 3 }, async (k) => { first = k; throw network(); }, { draft: "Are you free?", context: { parent: 3 } }));
+  await assert.rejects(submit({ message: "Are you free?", parent_id: 3 }, async (k) => { first = k; throw network(); }));
   const fresh = await import("../src/api/idempotency.ts?restart");
   fresh.setIdempotencyAccount("user-a");
   const [pending] = fresh.pendingSubmissions("chat_message", "7");
   assert.equal(pending.key, first);
-  assert.equal(pending.draft, "Are you free?");
-  assert.equal(pending.context.parent, 3);
   let again;
   await fresh.submitIdempotent({ operation: "chat_message", target: "7", form: { message: "Are you free?", parent_id: 3 }, send: async (k) => { again = k; return "ok"; } });
   assert.equal(again, first, "the retry after a restart sends the same key");
 });
 
-test("a refusal that proves nothing was done retires the key; a server error keeps it", async () => {
+test("every failure keeps the key; only a success retires it", async () => {
   resetPending(); idem.setIdempotencyAccount("user-a");
-  await assert.rejects(submit({ message: "x", parent_id: null }, async () => { throw new ApiError("validation", "too long", 422, { message: ["too long"] }); }));
-  assert.equal(idem.pendingSubmissions("chat_message", "7").length, 0);
-  await assert.rejects(submit({ message: "y", parent_id: null }, async () => { throw new ApiError("server", "", 500); }));
+  const keys = [];
+  await assert.rejects(submit({ message: "x", parent_id: null }, async (k) => { keys.push(k); throw new ApiError("validation", "too long", 422, { message: ["too long"] }); }));
+  await assert.rejects(submit({ message: "x", parent_id: null }, async (k) => { keys.push(k); throw new ApiError("unknown", "", 409, {}, { code: "idempotency_conflict" }); }));
+  await assert.rejects(submit({ message: "x", parent_id: null }, async (k) => { keys.push(k); throw new ApiError("unknown", "", 409, {}, { code: "idempotency_expired" }); }));
+  await assert.rejects(submit({ message: "x", parent_id: null }, async (k) => { keys.push(k); throw new ApiError("server", "", 500); }));
+  assert.equal(new Set(keys).size, 1);
   assert.equal(idem.pendingSubmissions("chat_message", "7").length, 1);
-});
-
-test("409 idempotency_conflict: not resent, not silently resent with a new key", async () => {
-  resetPending(); idem.setIdempotencyAccount("user-a");
-  let sends = 0;
-  await assert.rejects(submit({ message: "x", parent_id: null }, async () => {
-    sends++; throw new ApiError("unknown", "This key was already used for a different request.", 409, {}, { code: "idempotency_conflict" });
-  }), idem.IdempotencyConflictError);
-  assert.equal(sends, 1);
-  assert.equal(idem.pendingSubmissions("chat_message", "7").length, 0, "the conflicting key is not used again");
-});
-
-test("409 idempotency_expired: reconciled with the server before anything is sent again", async () => {
-  resetPending(); idem.setIdempotencyAccount("user-a");
-  const expired = () => { throw new ApiError("unknown", "", 409, {}, { code: "idempotency_expired" }); };
-  let sends = 0;
-  // Found on the server: the earlier attempt went through; its result is used.
-  assert.equal(await submit({ message: "x", parent_id: null }, async () => { sends++; expired(); }, { reconcile: async () => "the chat with the message" }), "the chat with the message");
-  assert.equal(sends, 1, "no new request");
-  // Not found: reported as not carried out; the key is retired so the next send is a new one.
-  await assert.rejects(submit({ message: "x", parent_id: null }, async () => { expired(); }, { reconcile: async () => null }), idem.SubmissionNotCarriedOutError);
+  await submit({ message: "x", parent_id: null }, async (k) => { keys.push(k); return "ok"; });
+  assert.equal(keys.at(-1), keys[0]);
   assert.equal(idem.pendingSubmissions("chat_message", "7").length, 0);
-  // The check itself fails: still uncertain, the key stays for the next attempt.
-  await assert.rejects(submit({ message: "z", parent_id: null }, async () => { expired(); }, { reconcile: async () => { throw network(); } }));
-  assert.equal(idem.pendingSubmissions("chat_message", "7").length, 1);
 });
 
 /* ------------------------------------------------- through the API client */
 
-test("an issue filed before the list has loaded reads it first, so an expired key is never matched to an older identical issue", async () => {
+test("an issue is sent straight away, without reading the list first", async () => {
   resetPending(); calls.length = 0;
   idem.setIdempotencyAccount("user-a");
   store.set("carezaar.accessToken", "access"); store.set("carezaar.refreshToken", "refresh"); store.set("carezaar.sessionOwner", "owner-1");
   const { userService } = await import("../src/api/services.ts");
-  const issue = (id) => ({ id, issuetype_id: null, title: "Login", description: "Same words", reply: null, created_at: null, replied_at: null, is_replied: false });
-  const older = issue(7); // filed earlier with the same words
-  let listed = [older];
-  respond = (url, init) => {
-    if (init.method === "GET") return new Response(JSON.stringify({ result: listed }), { status: 200 });
-    return new Response(JSON.stringify({ result: null, meta: { code: "idempotency_expired" }, message: "Expired" }), { status: 409 });
-  };
-  // No baseline from the screen (its list hasn't loaded): the service reads the list before sending.
-  await assert.rejects(userService.createIssue({ issuetypeId: null, title: "Login", description: "Same words" }), idem.SubmissionNotCarriedOutError,
-    "the older identical issue is not taken for this one");
-  assert.deepEqual(calls.map((c) => c.method), ["GET", "POST", "GET"], "list read before anything was sent; then the expired key was reconciled");
-  // Reconciliation still finds the earlier attempt when it did go through.
-  calls.length = 0; listed = [older];
-  const sent = userService.createIssue({ issuetypeId: null, title: "Login", description: "Same words" });
-  listed = [issue(8), older];
-  assert.equal((await sent).id, 8);
-  // The list can't be read: nothing is sent.
-  calls.length = 0; store.delete("carezaar.pendingSubmissions.v1");
-  respond = () => { throw new TypeError("Failed to fetch"); };
-  await assert.rejects(userService.createIssue({ issuetypeId: null, title: "Login", description: "Other words" }));
-  assert.equal(calls.filter((c) => c.method === "POST").length, 0, "no issue sent without a baseline");
+  respond = () => new Response(JSON.stringify({ result: { id: 8, issuetype_id: null, title: "Login", description: "Same words", reply: null, created_at: null, replied_at: null, is_replied: false } }), { status: 200 });
+  assert.equal((await userService.createIssue({ issuetypeId: null, title: "Login", description: "Same words" })).id, 8);
+  assert.deepEqual(calls.map((c) => c.method), ["POST"]);
 });
 
 test("the three writes send Idempotency-Key, and a renewed sign-in resends the same key", async () => {
@@ -209,7 +170,7 @@ test("the three writes send Idempotency-Key, and a renewed sign-in resends the s
     if (url.includes("users/issues")) return new Response(JSON.stringify({ result: { id: 9, issuetype_id: null, title: "t", description: "d", reply: null, created_at: null, replied_at: null, is_replied: false } }), { status: 200 });
     return new Response(JSON.stringify({ result: { id: 3, client: null, caregiver: null, review_client: null, review_caregiver: null, created_at: null, finished_at: null, is_client_accepted: false, is_caregiver_accepted: true, is_active: false } }), { status: 200 });
   };
-  await userService.sendMessage(7, "Hello", null, { fromCaregiver: false, after: 0 });
+  await userService.sendMessage(7, "Hello", null);
   const posts = calls.filter((c) => c.method === "POST");
   assert.equal(posts.length, 2, "refused once, renewed, sent once more");
   assert.match(posts[0].headers["Idempotency-Key"], UUID);

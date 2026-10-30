@@ -4,6 +4,8 @@ import { SessionProvider, useSession } from "./auth/SessionContext";
 import type { UserRole } from "./api/types";
 import { tokenStore } from "./api/session";
 import { BaseDataProvider, useBaseData } from "./app/baseData";
+import { listsState, type ListName } from "./app/baseDataLoader";
+import { BASE_TABLES, EXTRA_TABLES } from "./api/services";
 import { I18nProvider } from "./app/i18n";
 import { FeedbackProvider } from "./app/feedback";
 import { NotificationsProvider } from "./app/notifications";
@@ -30,12 +32,23 @@ import { AppFrame, AuthFrame } from "./ui/frames";
 import { TranslationsNotice } from "./ui/BaseListsGate";
 import { peekReturnTo, rememberReturnTo, takeReturnTo } from "./navigation/returnTo";
 
-/** The session check decides between the authenticated and unauthenticated graph. The
- *  reference lists no longer hold the app back (client report, 29 Oct 2026): each screen
- *  waits only for the lists it shows. */
+const ALL_LISTS: ListName[] = [...BASE_TABLES, ...EXTRA_TABLES, "languages"];
+
+function useStartupLists() {
+  const { status, retry } = useBaseData();
+  const states = ALL_LISTS.map(status);
+  return { state: listsState(states), progress: states.filter((s) => s === "ready").length / ALL_LISTS.length, retry };
+}
+
+/** Splash decides, as on Android: cache warm-up and session restore first, then the
+ *  authenticated or unauthenticated graph. */
 function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out" | "any"; role?: UserRole }) {
   const { state, retry, hasSignedInThisPage } = useSession();
+  const lists = useStartupLists();
   const location = useLocation();
+  if (lists.state !== "ready") {
+    return <SplashScreen progress={lists.progress * 0.9} unreachable={lists.state === "failed"} onRetry={() => void lists.retry()} />;
+  }
   if (state.status === "loading") return <SplashScreen />;
   if (state.status === "unreachable") return <SplashScreen unreachable onRetry={() => void retry()} />;
   const signedIn = state.status === "signedIn";
@@ -56,8 +69,9 @@ function Gate({ children, auth, role }: { children: ReactNode; auth: "in" | "out
  *  navigation instead of remounting per page. */
 function Frame() {
   const { state } = useSession();
-  // The splash (session check) is full-bleed, not framed.
-  if (state.status === "loading" || state.status === "unreachable") return <Outlet />;
+  const lists = useStartupLists();
+  // The splash (session check, base-data warm-up) is full-bleed, not framed.
+  if (lists.state !== "ready" || state.status === "loading" || state.status === "unreachable") return <Outlet />;
   const signedIn = state.status === "signedIn";
   return signedIn ? <AppFrame key={`${tokenStore.owner}:${state.user.id}`}><Outlet /></AppFrame> : <AuthFrame><Outlet /></AuthFrame>;
 }

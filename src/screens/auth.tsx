@@ -37,24 +37,44 @@ const TRUST_SHIFT = -58.5;
  *  the reference lists load behind the screens since the client's report of 29 Oct 2026
  *  (the Android "Please wait…" sheet that listed them stayed up while one list was slow or
  *  failed). The brand mark only, with the check's own progress, at every width. */
-export function SplashScreen({ unreachable = false, onRetry }: { unreachable?: boolean; onRetry?: () => void } = {}) {
+const SPLASH_PROGRESS_BAR = "195:11763";
+
+export function SplashScreen({ unreachable = false, onRetry, progress = 1 }: { unreachable?: boolean; onRetry?: () => void; progress?: number } = {}) {
   const { t } = useI18n();
+  const wide = useIsWide();
+  const binder = useMemo<SceneBinder>(() => ({ handle: () => true, isHidden: (n) => n.id === SPLASH_PROGRESS_BAR }), []);
+  const percent = Math.round(progress * 100);
+  const bar = (
+    <div className="splash-progress" role="progressbar" aria-label={t("loading_please_wait", "Please wait…")}
+      aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+      <span style={{ width: `${percent}%` }} />
+    </div>
+  );
+  const failure = unreachable && (
+    <div className="permission-gate" role="alertdialog" aria-modal="true" aria-labelledby="splash-failure">
+      <div className="permission-card">
+        <span className="permission-icon"><Icon name="ic_no_network" size={48} tint="var(--error)" /></span>
+        <h1 id="splash-failure">{t("general_network_title", "Cannot communicate with server.")}</h1>
+        {onRetry && <Button autoFocus onClick={onRetry}>{t("general_try_again", "Try Again")}</Button>}
+      </div>
+    </div>
+  );
+  if (wide) {
+    return (
+      <main className="splash auth-form auth-splash" aria-busy={!unreachable}>
+        <img src={assetUrl("logo")} alt="" width={88} height={88} />
+        <b className="auth-splash-name">Carezaar</b>
+        <span className="muted">{t("splash_slogan", "Care, Connect, Compassion")}</span>
+        <div className="auth-splash-status">{bar}</div>
+        {failure}
+      </main>
+    );
+  }
   return (
-    <main className="splash auth-form auth-splash" aria-busy={!unreachable}>
-      <img src={assetUrl("logo")} alt="" width={88} height={88} />
-      <b className="auth-splash-name">Carezaar</b>
-      <span className="muted">{t("splash_slogan", "Care, Connect, Compassion")}</span>
-      {unreachable ? (
-        <div className="auth-splash-status" role="alert">
-          <p>{t("general_network_title", "Cannot communicate with server.")}</p>
-          {onRetry && <Button onClick={onRetry}>{t("general_try_again", "Try Again")}</Button>}
-        </div>
-      ) : (
-        <div className="auth-splash-status" role="status" aria-label={t("loading_profile_get", "Getting profile")}>
-          <span className="spinner" aria-hidden="true" />
-        </div>
-      )}
-    </main>
+    <div className="splash" aria-busy={!unreachable}>
+      <FigmaScreen sceneKey="v2-195-11749" binder={binder} overlays={[{ x: 32, y: 811, width: 348, height: 10, content: bar }]} />
+      {failure}
+    </div>
   );
 }
 

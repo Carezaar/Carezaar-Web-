@@ -97,17 +97,16 @@ async function timedFetch(url: string, init: RequestInit): Promise<Received> {
   }
 }
 
-/** Android's `safeCall` for reads: after a transport failure or a timeout, up to
+/** Android's `safeCall` for reads: after a transport failure, up to
  *  CONNECTION_RETRIES more attempts, RETRY_DELAYS_MS apart (500, 1,000, 1,500 ms). Any
  *  HTTP answer is final (a refusal or a validation error would only come back again), and
- *  writes are never repeated automatically. Android also skips connection-refused errors;
- *  a browser doesn't report them separately, so they are repeated like any other. */
+ *  writes are never repeated automatically. */
 async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean): Promise<Received> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await timedFetch(url, init);
     } catch (error) {
-      const transient = error instanceof ApiError && (error.kind === "network" || error.kind === "timeout");
+      const transient = error instanceof ApiError && error.kind === "network";
       if (!retryable || attempt >= CONNECTION_RETRIES || !transient) throw error;
       if (import.meta.env?.DEV) console.info(`No answer; retrying (${attempt + 1}/${CONNECTION_RETRIES})`);
       await sleep(RETRY_DELAYS_MS[attempt]);

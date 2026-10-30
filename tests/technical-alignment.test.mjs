@@ -115,13 +115,10 @@ test("W1: Java's pattern semantics: a line break in the password fails every cha
   assert.deepEqual(failing("Abcdef1!\t"), [], "a tab is not a line terminator");
 });
 
-test("W1: the exact special sets — full on sign-up and reset, narrow on Change Password", () => {
+test("W1: the exact special set on every password screen", () => {
   for (const c of "!@#$%^&*()_+[]{}|-;:,.<>?") assert.deepEqual(failing(`Abcdefg1${c}`), [], `full set: ${c}`);
   for (const c of "~=/\\'\"` §€") assert.deepEqual(failing(`Abcdefg1${c}`), ["1_special_symbol"], `not special: ${JSON.stringify(c)}`);
-  const narrow = validation.CHANGE_PASSWORD_SPECIAL_CHARACTERS;
-  assert.equal(narrow, "!@#%^&*()?");
-  for (const c of narrow) assert.deepEqual(failing(`Abcdefg1${c}`, narrow), [], `narrow set: ${c}`);
-  for (const c of "$_+[]{}|-;:,.<>") assert.deepEqual(failing(`Abcdefg1${c}`, narrow), ["1_special_symbol"], `outside the narrow set: ${c}`);
+  assert.equal(validation.CHANGE_PASSWORD_SPECIAL_CHARACTERS, undefined);
 });
 
 /* ------------------------------------------- 2-3. reset and change-password gates */
@@ -177,18 +174,18 @@ test("W4: writes are never repeated automatically", async () => {
   assert.deepEqual(waits, []);
 });
 
-test("W4: a read that times out is retried too (Android retries its timeouts)", async () => {
+test("W4: a read that times out is not retried", async () => {
   reset();
   let attempts = 0;
   routes["GET users/notifications/count"] = [(init) => {
     attempts++;
-    if (attempts === 3) return ok({ count: 1 });
     return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
   }];
   const pending = api.send({ method: "GET", path: "users/notifications/count" });
-  for (let i = 0; i < 2; i++) { await settle(); deadlines.shift().fn(); }
-  assert.deepEqual(await pending, { count: 1 });
-  assert.deepEqual(waits, [500, 1_000]);
+  await settle(); deadlines.shift().fn();
+  await assert.rejects(pending, (e) => e instanceof ApiError && e.kind === "timeout");
+  assert.equal(attempts, 1);
+  assert.deepEqual(waits, []);
 });
 
 /* -------------------------------------------- 5. password-change renewal and replay */
@@ -305,22 +302,15 @@ test("W7: an unresolved key saved 25 hours ago is reused, not replaced", async (
   assert.equal(idem.pendingSubmissions("issue", "issues").length, 0, "retired once confirmed");
 });
 
-test("W7: 25 hours on, a key the server has forgotten is reconciled before anything new is sent", async () => {
+test("W7: 25 hours on, a key the server has forgotten is reported and kept, with nothing read", async () => {
   reset();
-  const old = { key: "6d7c2b1e-0d1f-4a5b-9c8d-7e6f5a4b3c2d", created: Date.now() - 25 * 60 * 60 * 1000, account: "account-a", operation: "issue", target: "issues", after: 4 };
+  const old = { key: "6d7c2b1e-0d1f-4a5b-9c8d-7e6f5a4b3c2d", created: Date.now() - 25 * 60 * 60 * 1000, account: "account-a", operation: "issue", target: "issues" };
   store.set("carezaar.pendingSubmissions.v1", JSON.stringify({ [scope("account-a")]: old }));
   routes["POST users/issues"] = [json(409, { result: null, meta: { code: "idempotency_expired" }, message: "Expired" })];
-  routes["GET users/issues"] = [ok([issue(5), issue(3)])];
-  const filed = await userService.createIssue({ issuetypeId: null, title: "Login", description: "Can't sign in" }, 4);
-  assert.equal(filed.id, 5, "the earlier attempt went through");
-  assert.equal(count("POST users/issues"), 1, "no second mutation");
-  // Not found: reported as not carried out; only then is a new key justified.
-  reset();
-  store.set("carezaar.pendingSubmissions.v1", JSON.stringify({ [scope("account-a")]: old }));
-  routes["POST users/issues"] = [json(409, { result: null, meta: { code: "idempotency_expired" }, message: "Expired" })];
-  routes["GET users/issues"] = [ok([issue(3)])];
-  await assert.rejects(userService.createIssue({ issuetypeId: null, title: "Login", description: "Can't sign in" }, 4), idem.SubmissionNotCarriedOutError);
+  await assert.rejects(userService.createIssue({ issuetypeId: null, title: "Login", description: "Can't sign in" }));
   assert.equal(count("POST users/issues"), 1);
+  assert.equal(count("GET users/issues"), 0);
+  assert.equal(idem.pendingSubmissions("issue", "issues")[0].key, old.key);
 });
 
 test("W7: another account's pending record is never used", async () => {
@@ -422,15 +412,6 @@ test("Review: a key retired while storage can't be written stays retired in this
   assert.notEqual(keys[2], keys[0], "the next identical message is a new submission");
 });
 
-test("Review 3: pending records the server shows as carried out are retired; others are kept", async () => {
-  reset();
-  await assert.rejects(submit(async () => { throw new ApiError("network", ""); }));
-  assert.equal(idem.retireCarriedOut("chat_message", "7", () => false), 0);
-  assert.equal(idem.pendingSubmissions("chat_message", "7").length, 1);
-  assert.equal(idem.retireCarriedOut("chat_message", "7", (r) => r.draft === undefined || r.target === "7"), 1);
-  assert.equal(idem.pendingSubmissions("chat_message", "7").length, 0);
-});
-
 test("Review 4: a refused password change whose renewal can't reach the server is known not to have happened", async () => {
   reset();
   const { RefusedWhileRenewalUnreachableError } = await import("../src/api/errors.ts");
@@ -438,7 +419,6 @@ test("Review 4: a refused password change whose renewal can't reach the server i
   routes["PUT auth/refresh"] = ["drop"];
   await assert.rejects(userService.changePassword("Old1!pass", "New1!pass"), (e) => e instanceof RefusedWhileRenewalUnreachableError && e.kind === "network");
   assert.equal(count("PATCH users/password/change"), 1, "not sent again");
-  assert.equal(idem.isDefinitive(new RefusedWhileRenewalUnreachableError()), true, "a refused write wasn't carried out");
   // Not an uncertain outcome: nothing else (such as a sign-in check) is sent.
   assert.equal(count("POST auth/login"), 0);
 });

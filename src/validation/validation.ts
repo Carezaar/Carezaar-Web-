@@ -17,9 +17,6 @@ export const PASSWORD_MIN_LENGTH = 8;
  *  against this list rather than through a regex class, so no symbol can be read as
  *  regex syntax. */
 export const PASSWORD_SPECIAL_CHARACTERS = "!@#$%^&*()_+[]{}|-;:,.<>?";
-/** Android's Change Password checklist tests a smaller set (`.*[!@#%^&*()?].*`); that
- *  screen's chips use it. Its button doesn't depend on the chips: the API decides. */
-export const CHANGE_PASSWORD_SPECIAL_CHARACTERS = "!@#%^&*()?";
 
 /** Android tests each rule with Java's `Pattern.matches(".*[class].*")`. Java's `.` stops at
  *  line terminators, so a password containing one fails every character rule there. */

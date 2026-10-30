@@ -205,18 +205,9 @@ export const userService = {
     const text = introduction?.trim();
     const form = { partner_id: partnerId, ...(text ? { introduction: text } : {}) };
     return submitIdempotent({
-      operation: "match_request", target: partnerId, form, draft: text,
+      operation: "match_request", target: partnerId, form,
       send: (key) => api.send<unknown>({ method: "POST", path: "users/matches", form, idempotencyKey: key })
         .then((m) => asMatch(m, "users/matches (request)")),
-      // After an expired key: a request (or match) with this partner means it went through.
-      reconcile: async () => {
-        for (const type of ["requests", "matches"] as const) {
-          const { result } = await userService.matches(type, 1, 50);
-          const found = result.find((m) => [m.client?.id, m.caregiver?.id].includes(partnerId));
-          if (found) return found;
-        }
-        return null;
-      },
     });
   },
   acceptMatch(id: number) {
@@ -246,20 +237,11 @@ export const userService = {
       method: "POST", path: "users/chats", form: { partner_id: partnerId },
     });
   },
-  /** `fromCaregiver` (the sender's side) and `after` (the newest message id on screen) let an
-   *  expired key be reconciled: the same text from this side, newer than `after`, was sent. */
-  sendMessage(chatId: number, message: string, parentId?: number | null, context: { fromCaregiver?: boolean; after?: number } = {}) {
+  sendMessage(chatId: number, message: string, parentId?: number | null) {
     const form = { message, parent_id: parentId ?? null };
     return submitIdempotent({
-      operation: "chat_message", target: String(chatId), form, draft: message, after: context.after, context: { parent: parentId ?? null },
+      operation: "chat_message", target: String(chatId), form,
       send: (key) => api.send<ChatFull>({ method: "POST", path: `users/chats/${chatId}`, form, idempotencyKey: key }),
-      reconcile: async (record) => {
-        const chat = await userService.chat(chatId);
-        const sent = chat.messages.some((m) => m.id > (record.after ?? 0) && m.message === message
-          && (context.fromCaregiver === undefined || m.is_from_caregiver === context.fromCaregiver)
-          && (m.parent?.id ?? null) === (parentId ?? null));
-        return sent ? chat : null;
-      },
     });
   },
 
@@ -304,23 +286,13 @@ export const userService = {
   /** A predefined issue type and a free-text title are mutually exclusive: the
    *  backend rejects both together ("issuetype id … prohibits title"). The form's
    *  "Other" choice sends a title; any other choice sends the type. */
-  /** `after`: the newest issue id the person had, for reconciling an expired key; left out
-   *  when the screen's list hasn't loaded, and then read here before anything is sent, so an
-   *  older issue with the same words is never taken for this one. */
-  async createIssue(input: { issuetypeId: number | null; title: string | null; description: string }, after?: number) {
+  createIssue(input: { issuetypeId: number | null; title: string | null; description: string }) {
     const form = input.issuetypeId !== null
       ? { issuetype_id: input.issuetypeId, description: input.description }
       : { title: input.title, description: input.description };
-    const baseline = after ?? Math.max(0, ...(await userService.issues()).map((i) => i.id));
     return submitIdempotent({
-      operation: "issue", target: "issues", form, draft: input.description, after: baseline,
-      context: { title: input.title, issuetype: input.issuetypeId },
+      operation: "issue", target: "issues", form,
       send: (key) => api.send<Issue>({ method: "POST", path: "users/issues", form, idempotencyKey: key }),
-      reconcile: async (record) => {
-        const all = await userService.issues();
-        return all.find((i) => i.id > (record.after ?? 0) && i.description === input.description
-          && (input.issuetypeId !== null ? i.issuetype_id === input.issuetypeId : i.title === input.title)) ?? null;
-      },
     });
   },
 };

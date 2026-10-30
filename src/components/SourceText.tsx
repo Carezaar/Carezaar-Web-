@@ -1,6 +1,5 @@
 import type { CSSProperties } from "react";
-import type { DesignNode } from "../design/types";
-import { textColor } from "../design/accessibleColors";
+import { rgba, type DesignNode } from "../design/types";
 let canvas: HTMLCanvasElement | null = null;
 export function measureText(text: string, weight: number, size: number, family: string): number {
   canvas ??= document.createElement("canvas");
@@ -37,7 +36,7 @@ export function SourceText({ node }: { node: DesignNode }) {
       <span className="source-text substituted" dir="auto" style={{
         ...(centred ? { display: "block", width: "100%", textAlign: "center" as const } : { textAlign: "start" as const }),
         fontFamily: `'${node.fontFamily}', system-ui, sans-serif`, fontWeight: node.fontWeight,
-        fontSize: fitted, color: textColor(node.fills.find((p) => p.color)?.color),
+        fontSize: fitted, color: rgba(node.fills.find((p) => p.color)?.color),
         whiteSpace: singleLine || fitted > size * floor ? "nowrap" : "normal", lineHeight: 1.25,
         overflowWrap: "anywhere",
       }}>{node.text}</span>
@@ -57,7 +56,7 @@ export function SourceText({ node }: { node: DesignNode }) {
             <path
               key={i}
               d={p.d}
-              fill={textColor(p.color ?? node.fills.find((p) => p.color)?.color)}
+              fill={rgba(p.color ?? node.fills.find((p) => p.color)?.color)}
               fillRule="nonzero"
             />
           ))}
@@ -74,7 +73,7 @@ export function SourceText({ node }: { node: DesignNode }) {
     fontFamily: `'${node.fontFamily}', system-ui, sans-serif`,
     fontWeight: node.fontWeight,
     fontSize: size,
-    color: textColor(node.fills.find((p) => p.color)?.color),
+    color: rgba(node.fills.find((p) => p.color)?.color),
     letterSpacing:
       node.letterSpacing?.units === "PERCENT"
         ? (size * node.letterSpacing.value) / 100

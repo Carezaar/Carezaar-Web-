@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
 import { DuplicateActionError, guarded, useGuarded } from '../app/actionGuard';
-import { retireSubmissions } from '../api/idempotency';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/errors';
 import { caregiverService, clientService, userService } from '../api/services';
@@ -62,16 +61,12 @@ export function usePartnerMatch(partnerId: string, viewer: {role: UserRole} | nu
       const fresh = await fetchProfile();
       setDetail(fresh);
       setCheckFailed(false);
-      const state = profileMatchState(fresh);
-      // The profile shows a request (or a match): an earlier request whose answer was lost
-      // went through, so its key is done with.
-      if (state && state.status !== 'none') retireSubmissions('match_request', partnerId);
-      return state;
+      return profileMatchState(fresh);
     } catch {
       setCheckFailed(true);
       return null;
     }
-  }, [fetchProfile, setDetail, partnerId]);
+  }, [fetchProfile, setDetail]);
 
   /** Check, then act. `id` is the match the user confirmed on screen. */
   const run = useCallback(async (which: MatchMutation, introduction: string | undefined, id: number | null) => {

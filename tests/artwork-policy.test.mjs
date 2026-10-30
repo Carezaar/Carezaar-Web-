@@ -22,6 +22,26 @@ const APPROVED_ANDROID_IMAGES = {
   "app-assets/header_pregnancy.webp": "120a8df43ce88b9ef660ae2a1c2c5ab9c07bf73621a016fc8f43a3ea067e434f",
   "app-assets/header_senior.webp": "62f6436f20558099bff5e1b1b5a116b6d980db81f7e4ef34f9d56afcb7199c14",
   "app-assets/header_messages.webp": "e7cebc002ede449f8ad42c90540a483dc5ea4f064523eba3d0b05ae16b032096",
+  "app-assets/ic_caregiver.svg": "851e99a199d6ee7b2c1b27eb2741495d3180c503b61c20698edb191f755b4b6f",
+  "app-assets/ic_client.svg": "6d128f42546823c3c8f82734b0a9b487e6008795bf55e9f2fd8c5d29fe7adbce",
+  "app-assets/ic_condition_assessment.svg": "c45e51686d57ec178d73e62d03107d2b513af20c065ff95216c33397cb154175",
+  "app-assets/ic_condition_babysitting_nanny.svg": "8f9a6076b7c80a95c94678cf8f463645de06edcee1ec3a1be257adcc36317711",
+  "app-assets/ic_condition_companionship.svg": "c6c9be619a49e785711658578072812f3d165820b9f6031e2d2c6141ea77bde2",
+  "app-assets/ic_condition_feeding.svg": "0eba941301503a16fb3c5267b10e00b3218cf93b4b84443a8222299b127c5594",
+  "app-assets/ic_condition_overnight_care.svg": "f94768e0910d4a704b8cdd891ed194933196bfc467f185213617c911314e877e",
+  "app-assets/ic_condition_personal_care.svg": "1b8060f9391852af981dea385325ecf7e2ec545008bda4d3bd608cb657a2e634",
+  "app-assets/ic_condition_wound.svg": "dad23d46b09dd2896a7e74e2d5c74b940fcf6c58ac92c06d58fa6b73cc4b2614",
+  "app-assets/ic_shift_afternoon.svg": "ca5952fec34f2d86779a6d043ec6e523380a3950a89f0a448670ac84e1f0e868",
+  "app-assets/ic_shift_evening.svg": "174b7ea238b9aebc653a533488eeaa9f6fdb6a93ed925f1f21e364be8d66960a",
+  "app-assets/ic_shift_morning.svg": "c606ef37fe48ef5b8247cf741e47c8d805a5fe6d2470fd15adb501eec57a3957",
+  "app-assets/ic_special_calm.svg": "b23116945412f95950825d5566e61afc56d0c14abe12c1b049e85cefbf2622b3",
+  "app-assets/ic_special_compassionate.svg": "2efe180fc6308c7fab3127a8b99623d416ccfc28d3f83f9b732f32dc7f1de9b3",
+  "app-assets/ic_special_culturally_aware.svg": "b3c66ed269e34da2f728282a5c2613dc73c36c61818b913dee13bef5007cb7e7",
+  "app-assets/ic_special_driver.svg": "bf6687f78627bf726492b7e36d1b18cb68aa5bcd0f8b4452dd09226fdaaff7b9",
+  "app-assets/ic_special_good_communicator.svg": "1d8a3061b37cc6877ad55f741c6ce428f98522252efd1a5fb36d929c59850794",
+  "app-assets/ic_special_pet_friendly.svg": "26a6460a510d7213a40e04e4de0195415a3b5cbb5fc5b0eb24f115aee1d8c036",
+  "app-assets/ic_special_respectful.svg": "e25ff7459539263093058394be669863168426a3eb59a55571acf18fca482bc5",
+  "app-assets/ic_support.svg": "97010a9ba2a9ad347c87c49299c5140767bf8585a9eababe0322eb4ff01df3b7",
   "assets/welcome-hands.jpg": "714e647f538d3fd418d1d4e828bd4d6e8f8a83d31c82f08fe6184ac2e81bca93",
   "assets/care-type-senior.png": "ec906f73c509aa2b1133424e6366acebb9ff9bf4d38dcf54c1fc6d01cc65a278",
   "assets/care-type-child.png": "fe923375cb3ea656b75d47eaec08914018396eccdfd681bf19a78b2d112b974a",
@@ -89,7 +109,7 @@ test('product image replacements exist under the names the server and scenes use
       'ic_shift_evening', 'ic_shift_morning', 'ic_special_calm', 'ic_special_compassionate', 'ic_special_culturally_aware',
       'ic_special_driver', 'ic_special_good_communicator', 'ic_special_pet_friendly', 'ic_special_respectful', 'ic_support', 'ic_user']
       .map((n) => 'app-assets/' + n + '.svg'))
-    .concat(['welcome-hands.jpg', 'signin-hands-tea.jpg', 'skills-illustration.png', 'care-type-senior.png', 'care-type-child.png', 'care-type-pregnancy.png']
+    .concat(['welcome-hands.jpg', 'signin-hands-tea.jpg', 'care-type-senior.png', 'care-type-child.png', 'care-type-pregnancy.png']
       .map((n) => 'assets/' + n));
   for (const name of names) assert.ok(fs.existsSync(new URL(name, root)), name);
 });
@@ -110,7 +130,6 @@ test('screens use the replacements, not a blank or the old pictures', () => {
   assert.doesNotMatch(icon, /OMITTED/);
   for (const [, file] of icon.matchAll(/: "([\w.-]+\.(?:jpg|png))"/g)) assert.ok(fs.existsSync(new URL('assets/' + file, root)), file);
   assert.match(src('ui/frames.tsx'), /\/assets\/signin-hands-tea\.jpg/);
-  assert.match(src('screens/wizardParts.tsx'), /\/assets\/skills-illustration\.png/);
   const main = src('screens/main.tsx');
   assert.match(main, /replace\("client_", "header_"\)/);
   assert.match(main, /icon: "ic_support"/);
