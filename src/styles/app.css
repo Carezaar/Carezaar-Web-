@@ -497,7 +497,7 @@ html[dir="rtl"] .scene-overlay:has(> .language-pill) { justify-content: flex-sta
   .auth-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(420px, 520px); align-items: start; gap: 56px;
     padding: 40px max(40px, 6vw, calc((100vw - 1280px) / 2)); }
   .auth-art { display: flex; flex-direction: column; gap: 20px; padding-top: 8px; }
-  .auth-photo { display: block; width: 100%; max-width: 680px; height: auto; aspect-ratio: 695 / 638; border-radius: 24px; mix-blend-mode: multiply; }
+  .auth-photo { display: block; width: 100%; max-width: 680px; height: auto; aspect-ratio: 695 / 638; object-fit: cover; border-radius: 24px; mix-blend-mode: multiply; }
   .desk-content .tile-scroll, .desk-content .pill-scroll, .desk-content .chip-scroll { flex-wrap: wrap; overflow: visible; }
   .messages-split { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 16px; margin-top: 16px;
     height: max(520px, calc(100dvh - 76px - 230px - 56px)); }
